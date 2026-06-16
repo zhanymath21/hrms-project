@@ -21,7 +21,9 @@ function DepartmentPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editData, setEditData] = useState(null);
   const [dialogType, setDialogType] = useState('department');
-  const [form, setForm] = useState({ name: '', code: '', title: '', department_id: '', description: '' });
+  const [form, setForm] = useState({ 
+    name: '', code: '', title: '', positionCode: '', department_id: '', description: '' 
+  });
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '', type: '' });
 
   const loadData = async () => {
@@ -56,6 +58,7 @@ function DepartmentPage() {
         name: data?.name || '',
         code: data?.code || '',
         title: '',
+        positionCode: '',
         department_id: '',
         description: data?.description || ''
       });
@@ -64,6 +67,7 @@ function DepartmentPage() {
         name: '',
         code: '',
         title: data?.title || '',
+        positionCode: data?.code || '',  // ✅ Position code
         department_id: data?.department_id || '',
         description: data?.description || ''
       });
@@ -74,19 +78,32 @@ function DepartmentPage() {
   const handleSubmit = async () => {
     try {
       if (dialogType === 'department') {
+        const payload = {
+          name: form.name,
+          code: form.code,
+          description: form.description
+        };
+        
         if (editData) {
-          await departmentService.updateDepartment(editData.id, form);
+          await departmentService.updateDepartment(editData.id, payload);
           showSuccess('Department updated!');
         } else {
-          await departmentService.createDepartment(form);
+          await departmentService.createDepartment(payload);
           showSuccess('Department created!');
         }
       } else {
+        const payload = {
+          title: form.title,
+          code: form.positionCode || form.title?.substring(0, 10).toUpperCase().replace(/\s/g, ''), // ✅ Auto-generate code
+          department_id: form.department_id,
+          description: form.description
+        };
+        
         if (editData) {
-          await departmentService.updatePosition(editData.id, form);
+          await departmentService.updatePosition(editData.id, payload);
           showSuccess('Position updated!');
         } else {
-          await departmentService.createPosition(form);
+          await departmentService.createPosition(payload);
           showSuccess('Position created!');
         }
       }
@@ -199,6 +216,7 @@ function DepartmentPage() {
             <TableHead>
               <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                 <TableCell>Title</TableCell>
+                <TableCell>Code</TableCell>          {/* ✅ KOLOM CODE */}
                 <TableCell>Department</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell>Actions</TableCell>
@@ -207,12 +225,17 @@ function DepartmentPage() {
             <TableBody>
               {positions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">No positions</TableCell>
+                  <TableCell colSpan={5} align="center">No positions</TableCell>
                 </TableRow>
               ) : positions.map(pos => (
                 <TableRow key={pos.id}>
                   <TableCell><strong>{pos.title}</strong></TableCell>
-                  <TableCell><Chip label={getDeptName(pos.department_id)} size="small" variant="outlined" /></TableCell>
+                  <TableCell>
+                    <Chip label={pos.code || '-'} size="small" color="secondary" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={getDeptName(pos.department_id)} size="small" variant="outlined" />
+                  </TableCell>
                   <TableCell>{pos.description || '-'}</TableCell>
                   <TableCell>
                     <IconButton size="small" onClick={() => openForm('position', pos)}>
@@ -238,25 +261,38 @@ function DepartmentPage() {
         <DialogContent>
           {dialogType === 'department' ? (
             <>
-              <TextField fullWidth margin="normal" label="Name"
+              <TextField fullWidth margin="normal" label="Name *"
                 value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-              <TextField fullWidth margin="normal" label="Code"
-                value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
+              <TextField fullWidth margin="normal" label="Code *"
+                value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                helperText="e.g. HR, IT, FIN" inputProps={{ maxLength: 10 }} />
               <TextField fullWidth margin="normal" label="Description" multiline rows={3}
                 value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
             </>
           ) : (
             <>
-              <TextField select fullWidth margin="normal" label="Department"
+              <TextField select fullWidth margin="normal" label="Department *"
                 value={form.department_id}
                 onChange={e => setForm({ ...form, department_id: e.target.value })}>
-                <MenuItem value="">Select</MenuItem>
+                <MenuItem value="">Select Department</MenuItem>
                 {departments.map(dept => (
-                  <MenuItem key={dept.id} value={dept.id}>{dept.name}</MenuItem>
+                  <MenuItem key={dept.id} value={dept.id}>{dept.name} ({dept.code})</MenuItem>
                 ))}
               </TextField>
-              <TextField fullWidth margin="normal" label="Title"
-                value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+              <TextField fullWidth margin="normal" label="Title *"
+                value={form.title} 
+                onChange={e => {
+                  const title = e.target.value;
+                  setForm({ 
+                    ...form, 
+                    title: title,
+                    positionCode: title.substring(0, 10).toUpperCase().replace(/\s/g, '') // ✅ Auto-generate code
+                  });
+                }} />
+              <TextField fullWidth margin="normal" label="Code"
+                value={form.positionCode} 
+                onChange={e => setForm({ ...form, positionCode: e.target.value.toUpperCase() })}
+                helperText="Auto-generated from title (max 10 chars)" inputProps={{ maxLength: 10 }} />
               <TextField fullWidth margin="normal" label="Description" multiline rows={3}
                 value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
             </>

@@ -67,6 +67,7 @@ const departmentService = {
   createPosition: async (formData) => {
     const res = await api.post('/positions', {
       title: formData.title,
+      code: formData.code || formData.title.substring(0, 10).toUpperCase().replace(/\s/g, ''),
       department_id: formData.department_id,
       description: formData.description || ''
     });
@@ -76,6 +77,7 @@ const departmentService = {
   updatePosition: async (id, formData) => {
     const res = await api.put(`/positions/${id}`, {
       title: formData.title,
+      code: formData.code || formData.title.substring(0, 10).toUpperCase().replace(/\s/g, ''),
       department_id: formData.department_id,
       description: formData.description || ''
     });
