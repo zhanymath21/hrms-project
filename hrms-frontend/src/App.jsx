@@ -10,7 +10,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { AuthProvider, useAuth } from './pages/contexts/AuthContext';
 import { EmployeeProvider } from './pages/contexts/EmployeeContext';
 import { AttendanceProvider } from './pages/contexts/AttendanceContext';
-import { LeaveProvider } from './pages/contexts/LeaveContext'; // ✅ Import LeaveProvider
+import { LeaveProvider } from './pages/contexts/LeaveContext';
 import { NotificationProvider } from './pages/contexts/NotificationContext';
 import ProtectedRoute from './pages/components/ProtectedRoute';
 
@@ -25,7 +25,9 @@ import Attendance from './pages/attendance/Attendance';
 import WorkSchedules from './pages/schedules/WorkSchedules';
 import OfficeLocations from './pages/locations/OfficeLocations';
 import AttendanceReport from './pages/reports/AttendanceReport';
-import Leave from './pages/leave/Leave'; // ✅ Import Leave
+import Leave from './pages/leave/Leave';
+import DepartmentPage from './pages/Departments/DepartmentPage'; // ✅ IMPORT DEPARTMENT PAGE
+
 import MainLayout from './layouts/MainLayout';
 
 const theme = createTheme({
@@ -81,10 +83,10 @@ function App() {
             <AuthProvider>
               <EmployeeProvider>
                 <AttendanceProvider>
-                  <LeaveProvider> {/* ✅ Pastikan LeaveProvider di sini */}
+                  <LeaveProvider>
                     <NotificationProvider>
-                     <AppRoutes />
-                  </NotificationProvider>
+                      <AppRoutes />
+                    </NotificationProvider>
                   </LeaveProvider>
                 </AttendanceProvider>
               </EmployeeProvider>
@@ -155,6 +157,15 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* ✅ DEPARTMENTS ROUTE */}
+      <Route path="/departments" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <DepartmentPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
       <Route path="/attendance" element={
         <ProtectedRoute>
           <MainLayout>
@@ -187,7 +198,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
-      {/* ✅ Leave Route */}
+      {/* Leave Route */}
       <Route path="/leave" element={
         <ProtectedRoute>
           <MainLayout>

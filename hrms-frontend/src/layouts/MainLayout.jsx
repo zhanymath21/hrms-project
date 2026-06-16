@@ -38,18 +38,34 @@ import {
   EventNote as AttendanceIcon,
   Schedule as ScheduleIcon,
   LocationOn as LocationOnIcon,
-  Assessment as ReportIcon, 
+  Assessment as ReportIcon,
   EventNote as LeaveIcon,
+  Business as DepartmentIcon,        // ✅ Ganti Apartment -> Business
+  BadgeOutlined as PositionIcon,           // ✅ TAMBAHKAN INI
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
-import NotificationBell from '../pages/components/NotificationBell'; // Import NotificationBell
+import BusinessIcon from '@mui/icons-material/Business';
+import NotificationBell from '../pages/components/NotificationBell';
 
 const drawerWidth = 280;
 
 const menuItems = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/', color: '#6366f1' },
   { text: 'Employees', icon: <People />, path: '/employees', color: '#10b981' },
+  
+  // ✅ TAMBAHKAN MENU DEPARTMENTS
+  { 
+    text: 'Departments', 
+     icon: <BusinessIcon />, 
+    path: '/departments', 
+    color: '#f59e0b',
+    children: [
+      { text: 'All Departments', path: '/departments' },
+      { text: 'Positions', path: '/departments?tab=positions' },
+    ]
+  },
+  
   { text: 'Attendance', icon: <AttendanceIcon />, path: '/attendance', color: '#3b82f6' },
   { text: 'Attendance Report', icon: <ReportIcon />, path: '/attendance-report', color: '#8b5cf6' },
   { text: 'Work Schedules', icon: <ScheduleIcon />, path: '/schedules', color: '#8b5cf6' },
@@ -80,6 +96,7 @@ const MainLayout = ({ children }) => {
   const [open, setOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState(null); // ✅ Untuk submenu expand
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -95,12 +112,22 @@ const MainLayout = ({ children }) => {
     navigate('/login');
   };
 
-  // Check if user is admin (you can implement this based on your auth)
-  const isAdmin = true; // Replace with actual admin check from auth context
+  // Toggle submenu
+  const handleSubmenuToggle = (text) => {
+    setExpandedMenu(expandedMenu === text ? null : text);
+  };
 
-  // Filter menu items based on role
+  // Check if menu is active
+  const isMenuActive = (item) => {
+    if (item.path === '/') {
+      return location.pathname === '/';
+    }
+    return location.pathname.startsWith(item.path);
+  };
+
+  const isAdmin = true;
+
   const filteredMenuItems = menuItems.filter(item => {
-    // Hide admin-only menus for non-admin users
     if (!isAdmin && (item.path === '/schedules' || item.path === '/locations' || item.path === '/attendance-report')) {
       return false;
     }
@@ -129,24 +156,20 @@ const MainLayout = ({ children }) => {
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Search Button */}
             <Tooltip title="Search">
               <IconButton color="inherit">
                 <Search />
               </IconButton>
             </Tooltip>
 
-            {/* Dark Mode Toggle */}
             <Tooltip title={darkMode ? 'Light Mode' : 'Dark Mode'}>
               <IconButton color="inherit" onClick={() => setDarkMode(!darkMode)}>
                 {darkMode ? <Brightness7 /> : <Brightness4 />}
               </IconButton>
             </Tooltip>
 
-            {/* Notifications - Menggunakan NotificationBell */}
             <NotificationBell />
 
-            {/* User Menu */}
             <Tooltip title="Account">
               <IconButton onClick={handleMenuOpen} sx={{ p: 0.5 }}>
                 <Avatar 
@@ -238,48 +261,114 @@ const MainLayout = ({ children }) => {
         
         <Divider sx={{ mx: 2, mb: 2 }} />
         
+        {/* ✅ UPDATED MENU LIST */}
         <List sx={{ px: 2 }}>
           {filteredMenuItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = isMenuActive(item);
+            const hasChildren = item.children && item.children.length > 0;
+            const isExpanded = expandedMenu === item.text;
+
             return (
-              <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
-                <ListItemButton
-                  onClick={() => navigate(item.path)}
-                  sx={{
-                    borderRadius: 2,
-                    py: 1.5,
-                    px: 2,
-                    minHeight: 48,
-                    justifyContent: open ? 'initial' : 'center',
-                    backgroundColor: isActive ? alpha(item.color, 0.1) : 'transparent',
-                    color: isActive ? item.color : 'text.primary',
-                    '&:hover': {
-                      backgroundColor: alpha(item.color, 0.08),
-                      transform: 'translateX(4px)',
-                      transition: 'all 0.2s ease',
-                    },
-                  }}
-                >
-                  <ListItemIcon
+              <React.Fragment key={item.text}>
+                {/* Main Menu Item */}
+                <ListItem disablePadding sx={{ mb: 0.5 }}>
+                  <ListItemButton
+                    onClick={() => {
+                      if (hasChildren) {
+                        handleSubmenuToggle(item.text);
+                      } else {
+                        navigate(item.path);
+                      }
+                    }}
                     sx={{
-                      minWidth: 0,
-                      mr: open ? 2 : 'auto',
-                      justifyContent: 'center',
-                      color: isActive ? item.color : 'inherit',
+                      borderRadius: 2,
+                      py: 1.5,
+                      px: 2,
+                      minHeight: 48,
+                      justifyContent: open ? 'initial' : 'center',
+                      backgroundColor: isActive ? alpha(item.color, 0.1) : 'transparent',
+                      color: isActive ? item.color : 'text.primary',
+                      '&:hover': {
+                        backgroundColor: alpha(item.color, 0.08),
+                        transform: 'translateX(4px)',
+                        transition: 'all 0.2s ease',
+                      },
                     }}
                   >
-                    {item.icon}
-                  </ListItemIcon>
-                  {open && (
-                    <ListItemText 
-                      primary={item.text} 
-                      primaryTypographyProps={{
-                        sx: { fontWeight: isActive ? 700 : 500, fontSize: '0.9rem' }
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 0,
+                        mr: open ? 2 : 'auto',
+                        justifyContent: 'center',
+                        color: isActive ? item.color : 'inherit',
                       }}
-                    />
-                  )}
-                </ListItemButton>
-              </ListItem>
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    {open && (
+                      <>
+                        <ListItemText 
+                          primary={item.text} 
+                          primaryTypographyProps={{
+                            sx: { fontWeight: isActive ? 700 : 500, fontSize: '0.9rem' }
+                          }}
+                        />
+                        {/* Submenu arrow */}
+                        {hasChildren && (
+                          <ChevronRight 
+                            sx={{ 
+                              fontSize: 18,
+                              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s',
+                            }} 
+                          />
+                        )}
+                      </>
+                    )}
+                  </ListItemButton>
+                </ListItem>
+
+                {/* ✅ SUBMENU ITEMS */}
+                {hasChildren && isExpanded && open && (
+                  <Box sx={{ pl: 4, mb: 1 }}>
+                    {item.children.map((child) => {
+                      const isChildActive = location.pathname === child.path || 
+                        (child.path.includes('?') && location.pathname + location.search === child.path);
+                      
+                      return (
+                        <ListItem key={child.text} disablePadding sx={{ mb: 0.5 }}>
+                          <ListItemButton
+                            onClick={() => navigate(child.path)}
+                            sx={{
+                              borderRadius: 2,
+                              py: 1,
+                              px: 2,
+                              backgroundColor: isChildActive ? alpha(item.color, 0.08) : 'transparent',
+                              '&:hover': {
+                                backgroundColor: alpha(item.color, 0.05),
+                              },
+                            }}
+                          >
+                            <ListItemIcon sx={{ minWidth: 24, color: isChildActive ? item.color : 'text.secondary' }}>
+                              {child.text.includes('Position') ? <PositionIcon fontSize="small" /> : <DepartmentIcon fontSize="small" />}
+                            </ListItemIcon>
+                            <ListItemText 
+                              primary={child.text}
+                              primaryTypographyProps={{
+                                sx: { 
+                                  fontSize: '0.82rem',
+                                  fontWeight: isChildActive ? 600 : 400,
+                                  color: isChildActive ? item.color : 'text.secondary'
+                                }
+                              }}
+                            />
+                          </ListItemButton>
+                        </ListItem>
+                      );
+                    })}
+                  </Box>
+                )}
+              </React.Fragment>
             );
           })}
         </List>

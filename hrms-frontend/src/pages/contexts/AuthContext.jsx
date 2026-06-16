@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
   const [deviceType, setDeviceType] = useState('web');
   const navigate = useNavigate();
 
-  const API_URL = 'http://192.168.0.180:8000/api';
+  const API_URL = 'http://192.168.0.13:8000/api';
 
   // Login function - sesuai dengan response AuthController
   const login = async (email, password) => {

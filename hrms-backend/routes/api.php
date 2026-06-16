@@ -29,10 +29,7 @@ Route::get('/test', fn() => response()->json([
 // PUBLIC
 // ==========================================
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/departments', [DepartmentController::class, 'index']);
-Route::get('/departments/{id}', [DepartmentController::class, 'show']);
-Route::get('/positions', [PositionController::class, 'index']);
-Route::get('/positions/{id}', [PositionController::class, 'show']);
+
 
 // Card attendance (no auth required)
 Route::post('/attendance/card/check-in', [AttendanceController::class, 'checkInWithCard']);
@@ -62,6 +59,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/employee-offices/assign', [EmployeeOfficeController::class, 'assignOffice']);
     Route::delete('/employee-offices/{id}', [EmployeeOfficeController::class, 'removeOffice']);
     Route::get('/office/{id}/employees', [EmployeeOfficeController::class, 'getOfficeEmployees']);
+
+    // Departments
+    Route::get('/departments', [DepartmentController::class, 'index']);
+    Route::get('/departments/{id}', [DepartmentController::class, 'show']);
+    Route::get('/departments/{id}/positions', [DepartmentController::class, 'positions']);
+    Route::post('/departments', [DepartmentController::class, 'store']);      // ✅ CREATE
+    Route::put('/departments/{id}', [DepartmentController::class, 'update']);  // ✅ UPDATE
+    Route::delete('/departments/{id}', [DepartmentController::class, 'destroy']); // ✅ DELETE
+
+    // Positions
+    Route::get('/positions', [PositionController::class, 'index']);
+    Route::get('/positions/{id}', [PositionController::class, 'show']);
+    Route::post('/positions', [PositionController::class, 'store']);          // ✅ CREATE - INI YANG HILANG
+    Route::put('/positions/{id}', [PositionController::class, 'update']);     // ✅ UPDATE
+    Route::delete('/positions/{id}', [PositionController::class, 'destroy']); // ✅ DELETE
 
     // Attendance
     Route::post('/attendance/check-in', [AttendanceController::class, 'checkIn']);
