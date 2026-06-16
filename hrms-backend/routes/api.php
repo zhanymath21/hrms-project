@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\TurnoverReportController;
 
 // ==========================================
 // TEST
@@ -48,6 +49,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/profile', [AuthController::class, 'profile']);
+
+    // Reports - Turnover
+    Route::get('/reports/turnover', [TurnoverReportController::class, 'stats']);
+    Route::get('/reports/turnover/resigned', [TurnoverReportController::class, 'resigned']);
+    Route::get('/reports/turnover/by-department', [TurnoverReportController::class, 'byDepartment']);
+    Route::get('/reports/turnover/by-month', [TurnoverReportController::class, 'byMonth']);
+    Route::get('/reports/turnover/summary', [TurnoverReportController::class, 'summary']);
 
     // Employees
     Route::apiResource('employees', EmployeeController::class);

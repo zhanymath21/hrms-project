@@ -26,7 +26,8 @@ import WorkSchedules from './pages/schedules/WorkSchedules';
 import OfficeLocations from './pages/locations/OfficeLocations';
 import AttendanceReport from './pages/reports/AttendanceReport';
 import Leave from './pages/leave/Leave';
-import DepartmentPage from './pages/Departments/DepartmentPage'; // ✅ IMPORT DEPARTMENT PAGE
+import DepartmentPage from './pages/Departments/DepartmentPage'; 
+import TurnoverPage from './pages/Turnover/TurnoverPage';
 
 import MainLayout from './layouts/MainLayout';
 
@@ -156,7 +157,15 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
+      <Route path="/turnover" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <TurnoverPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+            
       {/* ✅ DEPARTMENTS ROUTE */}
       <Route path="/departments" element={
         <ProtectedRoute>
