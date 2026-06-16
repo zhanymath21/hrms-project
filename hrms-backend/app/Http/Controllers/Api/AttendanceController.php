@@ -8,122 +8,40 @@ use App\Models\AttendanceSession;
 use App\Models\EmployeeOfficeLocation;
 use App\Models\EmployeeSchedule;
 use App\Models\OfficeLocation;
-use App\Services\CacheService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class AttendanceController extends Controller
 {
     /**
-     * Check-in with geofencing - ALL OFFICES (tidak perlu assign)
+     * Calculate distance between two coordinates (Haversine formula) - OPTIMIZED
      */
-    public function checkIn(Request $request): JsonResponse
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2): float
     {
-        $employee = $request->user();
-        $today = Carbon::today();
-        $now = Carbon::now();
-
-        // Check active schedule
-        $employeeSchedule = EmployeeSchedule::getActiveSchedule($employee->id);
-        if (!$employeeSchedule) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'No active schedule. Please contact HR to assign a shift.',
-            ], 422);
-        }
-
-        $latitude = $request->latitude;
-        $longitude = $request->longitude;
-        $checkInMethod = $request->method ?? 'mobile';
-
-        // Untuk check-in mobile/web, validasi lokasi
-        if (in_array($checkInMethod, ['mobile', 'web']) && $latitude && $longitude) {
-
-            // GET ALL ACTIVE OFFICE LOCATIONS (bukan assigned)
-            $activeOffices = OfficeLocation::where('is_active', true)->get();
-
-            // Jika tidak ada office yang aktif, izinkan check-in dimana saja
-            if ($activeOffices->isEmpty()) {
-                return $this->processCheckIn($request, $employee, $today, $now, $employeeSchedule, null);
-            }
-
-            // Cek apakah employee berada di salah satu office
-            $matchedOffice = null;
-            $nearestOffice = null;
-            $nearestDistance = PHP_FLOAT_MAX;
-
-            foreach ($activeOffices as $office) {
-                $distance = $this->calculateDistance(
-                    $office->latitude,
-                    $office->longitude,
-                    $latitude,
-                    $longitude
-                );
-
-                if ($distance < $nearestDistance) {
-                    $nearestDistance = $distance;
-                    $nearestOffice = $office;
-                }
-
-                if ($distance <= $office->radius_meters) {
-                    $matchedOffice = $office;
-                    break;
-                }
-            }
-
-            if (!$matchedOffice) {
-                // Tampilkan semua office locations
-                $allOfficesInfo = $activeOffices->map(function ($office) use ($latitude, $longitude) {
-                    $dist = $this->calculateDistance(
-                        $office->latitude,
-                        $office->longitude,
-                        $latitude,
-                        $longitude
-                    );
-                    return [
-                        'id' => $office->id,
-                        'name' => $office->name,
-                        'address' => $office->address,
-                        'radius_meters' => $office->radius_meters,
-                        'distance_meters' => round($dist),
-                        'is_within' => $dist <= $office->radius_meters,
-                    ];
-                });
-
-                return response()->json([
-                    'status' => 'error',
-                    'message' => "You are not within any office area.\n\n" .
-                        "Nearest office: {$nearestOffice->name} - " . round($nearestDistance) . "m away " .
-                        "(max radius: {$nearestOffice->radius_meters}m)\n\n" .
-                        "You can check-in from any of these locations:",
-                    'data' => [
-                        'your_location' => [
-                            'latitude' => (float) $latitude,
-                            'longitude' => (float) $longitude,
-                        ],
-                        'nearest_office' => [
-                            'name' => $nearestOffice->name,
-                            'address' => $nearestOffice->address,
-                            'distance_meters' => round($nearestDistance),
-                            'max_radius' => $nearestOffice->radius_meters,
-                        ],
-                        'all_offices' => $allOfficesInfo,
-                    ],
-                ], 422);
-            }
-
-            // Found matching office
-            return $this->processCheckIn($request, $employee, $today, $now, $employeeSchedule, $matchedOffice);
-        }
-
-        // Card check-in atau method lain
-        return $this->processCheckIn($request, $employee, $today, $now, $employeeSchedule, null);
+        $earthRadius = 6371000; // meters
+        
+        $latDelta = deg2rad($lat2 - $lat1);
+        $lonDelta = deg2rad($lon2 - $lon1);
+        
+        $lat1Rad = deg2rad($lat1);
+        $lat2Rad = deg2rad($lat2);
+        
+        $a = sin($latDelta / 2) * sin($latDelta / 2) +
+             cos($lat1Rad) * cos($lat2Rad) *
+             sin($lonDelta / 2) * sin($lonDelta / 2);
+        
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        
+        return $earthRadius * $c;
     }
 
     /**
-     * Save photo from base64 or file upload
+     * Save photo with compression - OPTIMIZED
      */
     private function savePhoto($request, $prefix = 'check_in'): ?string
     {
@@ -135,10 +53,9 @@ class AttendanceController extends Controller
             );
         }
 
-        // Check if base64 upload (from web)
+        // Check if base64 upload
         if ($request->filled('photo_base64')) {
             $base64Image = $request->photo_base64;
-            $extension = $request->photo_extension ?? 'jpg';
 
             // Remove data:image prefix if exists
             if (str_contains($base64Image, 'base64,')) {
@@ -146,8 +63,20 @@ class AttendanceController extends Controller
             }
 
             $imageData = base64_decode($base64Image);
-            $fileName = 'attendance-photos/' . now()->format('Y/m') . '/' . uniqid() . '.' . $extension;
+            $originalSize = strlen($imageData);
 
+            // ✅ COMPRESS if larger than 1MB
+            if ($originalSize > 1048576) {
+                $img = @imagecreatefromstring($imageData);
+                if ($img) {
+                    ob_start();
+                    imagejpeg($img, null, 70); // 70% quality
+                    $imageData = ob_get_clean();
+                    imagedestroy($img);
+                }
+            }
+
+            $fileName = 'attendance-photos/' . now()->format('Y/m') . '/' . uniqid() . '.jpg';
             Storage::disk('public')->put($fileName, $imageData);
 
             return $fileName;
@@ -155,8 +84,94 @@ class AttendanceController extends Controller
 
         return null;
     }
+
     /**
-     * Process check-in logic
+     * Check-in - OPTIMIZED VERSION
+     */
+    public function checkIn(Request $request): JsonResponse
+    {
+        $startTime = microtime(true);
+        
+        try {
+            $employee = $request->user();
+            $today = Carbon::today();
+            $now = Carbon::now();
+
+            // ✅ CACHE 1: Active schedule (cache 5 menit)
+            $cacheScheduleKey = "active_schedule_{$employee->id}";
+            $employeeSchedule = Cache::remember($cacheScheduleKey, 300, function() use ($employee) {
+                return EmployeeSchedule::getActiveSchedule($employee->id);
+            });
+            
+            if (!$employeeSchedule) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No active schedule. Please contact HR to assign a shift.',
+                ], 422);
+            }
+
+            $latitude = $request->latitude;
+            $longitude = $request->longitude;
+            $checkInMethod = $request->method ?? 'mobile';
+
+            // Location validation for mobile/web
+            if (in_array($checkInMethod, ['mobile', 'web']) && $latitude && $longitude) {
+                
+                // ✅ CACHE 2: Active offices (cache 10 menit)
+                $activeOffices = Cache::remember('active_offices', 600, function() {
+                    return OfficeLocation::where('is_active', true)->get();
+                });
+
+                if ($activeOffices->isNotEmpty()) {
+                    $matchedOffice = null;
+                    $nearestOffice = null;
+                    $nearestDistance = PHP_FLOAT_MAX;
+
+                    foreach ($activeOffices as $office) {
+                        $distance = $this->calculateDistance(
+                            $office->latitude,
+                            $office->longitude,
+                            $latitude,
+                            $longitude
+                        );
+
+                        if ($distance < $nearestDistance) {
+                            $nearestDistance = $distance;
+                            $nearestOffice = $office;
+                        }
+
+                        if ($distance <= $office->radius_meters) {
+                            $matchedOffice = $office;
+                            break;
+                        }
+                    }
+
+                    if (!$matchedOffice) {
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => "You are not within any office area.\n\n" .
+                                "Nearest office: {$nearestOffice->name} - " . round($nearestDistance) . "m away " .
+                                "(max radius: {$nearestOffice->radius_meters}m)",
+                        ], 422);
+                    }
+
+                    return $this->processCheckIn($request, $employee, $today, $now, $employeeSchedule, $matchedOffice);
+                }
+            }
+
+            return $this->processCheckIn($request, $employee, $today, $now, $employeeSchedule, null);
+            
+        } catch (\Exception $e) {
+            Log::error('Check-in error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to process check-in: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Process check-in logic - OPTIMIZED
      */
     private function processCheckIn(
         Request $request,
@@ -166,236 +181,266 @@ class AttendanceController extends Controller
         $employeeSchedule,
         $matchedOffice = null
     ): JsonResponse {
-        // Get or create today's attendance
-        $attendance = Attendance::firstOrCreate(
-            [
+        DB::beginTransaction();
+        
+        try {
+            // ✅ OPTIMIZED: Single query with lock for race condition
+            $attendance = Attendance::where('employee_id', $employee->id)
+                ->whereDate('date', $today)
+                ->lockForUpdate()
+                ->first();
+            
+            if (!$attendance) {
+                $attendance = Attendance::create([
+                    'employee_id' => $employee->id,
+                    'date' => $today,
+                    'status' => 'present',
+                    'first_check_in' => $now->format('H:i:s'),
+                ]);
+            }
+
+            // Check active session
+            $activeSession = $attendance->sessions()
+                ->where('status', 'ongoing')
+                ->first();
+
+            if ($activeSession) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "You have an ongoing session #{$activeSession->session_number}. Please check-out first.",
+                ], 422);
+            }
+
+            // Session number
+            $sessionNumber = $attendance->sessions()->count() + 1;
+            $schedule = $employeeSchedule->workSchedule;
+
+            // Max sessions based on schedule
+            $maxSessions = $schedule->break_start_time ? 2 : 1;
+
+            if ($sessionNumber > $maxSessions) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Maximum {$maxSessions} session(s) for your schedule.",
+                ], 422);
+            }
+
+            // Save photo
+            $photoPath = $this->savePhoto($request, 'check_in');
+
+            // Late detection
+            $isLate = false;
+            $lateMinutes = 0;
+
+            if ($sessionNumber === 1) {
+                $startTime = Carbon::parse($schedule->start_time);
+                $graceTime = $startTime->copy()->addMinutes(15);
+
+                if ($now->gt($graceTime)) {
+                    $isLate = true;
+                    $lateMinutes = $startTime->diffInMinutes($now);
+                    $attendance->update(['status' => 'late']);
+                }
+            } elseif ($sessionNumber === 2 && $schedule->break_end_time) {
+                $breakEnd = Carbon::parse($schedule->break_end_time);
+                $graceTime = $breakEnd->copy()->addMinutes(5);
+
+                if ($now->gt($graceTime)) {
+                    $isLate = true;
+                    $lateMinutes = $breakEnd->diffInMinutes($now);
+                }
+            }
+
+            // Location description
+            $locationDesc = $request->location ?? 'Office';
+            if ($matchedOffice) {
+                $locationDesc = "{$matchedOffice->name} - {$matchedOffice->address}";
+            }
+
+            // Create session
+            $session = AttendanceSession::create([
+                'attendance_id' => $attendance->id,
                 'employee_id' => $employee->id,
                 'date' => $today,
-            ],
-            [
-                'status' => 'present',
-                'first_check_in' => $now->format('H:i:s'),
-            ]
-        );
+                'session_number' => $sessionNumber,
+                'check_in_time' => $now->format('H:i:s'),
+                'check_in_photo' => $photoPath,
+                'check_in_method' => $request->method ?? 'mobile',
+                'check_in_location' => $locationDesc,
+                'check_in_ip' => $request->ip(),
+                'latitude' => $request->latitude,
+                'longitude' => $request->longitude,
+                'status' => 'ongoing',
+                'work_schedule_id' => $schedule->id,
+                'schedule_start_time' => $sessionNumber === 1
+                    ? $schedule->start_time
+                    : $schedule->break_end_time,
+                'schedule_end_time' => $sessionNumber === 1
+                    ? ($schedule->break_start_time ?? $schedule->end_time)
+                    : $schedule->end_time,
+                'is_late' => $isLate,
+                'late_minutes' => $lateMinutes,
+            ]);
 
-        // Check active session
-        $activeSession = $attendance->sessions()
-            ->where('status', 'ongoing')
-            ->first();
+            // ✅ Clear cache for this employee
+            Cache::forget("attendance_today_{$employee->id}");
+            
+            DB::commit();
 
-        if ($activeSession) {
-            return response()->json([
-                'status' => 'error',
-                'message' => "You have an ongoing session #{$activeSession->session_number}. Please check-out first.",
-            ], 422);
-        }
+            $duration = round((microtime(true) - $startTime) * 1000);
+            Log::info("Check-in completed in {$duration}ms for employee {$employee->id}");
 
-        // Session number
-        $sessionNumber = $attendance->sessions()->count() + 1;
-        $schedule = $employeeSchedule->workSchedule;
-
-        // Determine max sessions based on schedule
-        $maxSessions = $schedule->break_start_time ? 2 : 1;
-
-        if ($sessionNumber > $maxSessions) {
-            return response()->json([
-                'status' => 'error',
-                'message' => "Maximum {$maxSessions} session(s) for your schedule.",
-            ], 422);
-        }
-
-        // Handle photo upload
-        $photoPath = $this->savePhoto($request, 'check_in');
-        if ($request->hasFile('photo')) {
-            $photoPath = $request->file('photo')->store(
-                'attendance-photos/' . $today->format('Y/m'),
-                'public'
-            );
-        } elseif ($request->has('photo_base64') && !empty($request->photo_base64)) {
-            $base64Image = $request->photo_base64;
-
-            // Remove data:image prefix if exists
-            if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $matches)) {
-                $base64Image = substr($base64Image, strpos($base64Image, ',') + 1);
-            }
-
-            $imageData = base64_decode($base64Image);
-
-            if ($imageData !== false) {
-                $fileName = 'attendance-photos/' . $today->format('Y/m') . '/' . uniqid() . '.jpg';
-                Storage::disk('public')->put($fileName, $imageData);
-                $photoPath = $fileName;
-            }
-        }
-
-        // Late detection
-        $isLate = false;
-        $lateMinutes = 0;
-
-        if ($sessionNumber === 1) {
-            $startTime = Carbon::parse($schedule->start_time);
-            $graceTime = $startTime->copy()->addMinutes(15);
-
-            if ($now->gt($graceTime)) {
-                $isLate = true;
-                $lateMinutes = $startTime->diffInMinutes($now);
-                $attendance->update(['status' => 'late']);
-            }
-        } elseif ($sessionNumber === 2 && $schedule->break_end_time) {
-            $breakEnd = Carbon::parse($schedule->break_end_time);
-            $graceTime = $breakEnd->copy()->addMinutes(5);
-
-            if ($now->gt($graceTime)) {
-                $isLate = true;
-                $lateMinutes = $breakEnd->diffInMinutes($now);
-            }
-        }
-
-        // Location description
-        $locationDesc = $request->location ?? 'Office';
-        if ($matchedOffice) {
-            $locationDesc = "{$matchedOffice->name} - {$matchedOffice->address}";
-        }
-
-        // Create session
-        $session = AttendanceSession::create([
-            'attendance_id' => $attendance->id,
-            'employee_id' => $employee->id,
-            'date' => $today,
-            'session_number' => $sessionNumber,
-            'check_in_time' => $now->format('H:i:s'),
-            'check_in_photo' => $photoPath,
-            'check_in_method' => $request->method ?? 'mobile',
-            'check_in_location' => $locationDesc,
-            'check_in_ip' => $request->ip(),
-            'latitude' => $request->latitude,
-            'longitude' => $request->longitude,
-            'status' => 'ongoing',
-            'work_schedule_id' => $schedule->id,
-            'schedule_start_time' => $sessionNumber === 1
-                ? $schedule->start_time
-                : $schedule->break_end_time,
-            'schedule_end_time' => $sessionNumber === 1
-                ? ($schedule->break_start_time ?? $schedule->end_time)
-                : $schedule->end_time,
-            'is_late' => $isLate,
-            'late_minutes' => $lateMinutes,
-        ]);
-
-        // Update attendance
-        $attendance->update([
-            'first_check_in' => $attendance->first_check_in ?? $now->format('H:i:s'),
-        ]);
-
-        $responseData = [
-            'session' => $session,
-            'session_number' => $sessionNumber,
-            'is_late' => $isLate,
-            'late_minutes' => $lateMinutes,
-            'photo_url' => $photoPath ? asset('storage/' . $photoPath) : null,
-        ];
-
-        if ($matchedOffice) {
-            $responseData['office'] = [
-                'name' => $matchedOffice->name,
-                'address' => $matchedOffice->address,
-                'is_within_radius' => true,
+            $responseData = [
+                'session' => $session,
+                'session_number' => $sessionNumber,
+                'is_late' => $isLate,
+                'late_minutes' => $lateMinutes,
+                'photo_url' => $photoPath ? asset('storage/' . $photoPath) : null,
+                'duration_ms' => $duration,
             ];
-        }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => "Check-in #{$sessionNumber} successful at " . ($matchedOffice?->name ?? 'Office') .
-                ($isLate ? " (Late: {$lateMinutes}min)" : ''),
-            'data' => $responseData,
-        ]);
+            if ($matchedOffice) {
+                $responseData['office'] = [
+                    'name' => $matchedOffice->name,
+                    'address' => $matchedOffice->address,
+                    'is_within_radius' => true,
+                ];
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Check-in #{$sessionNumber} successful at " . ($matchedOffice?->name ?? 'Office') .
+                    ($isLate ? " (Late: {$lateMinutes}min)" : ''),
+                'data' => $responseData,
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Process check-in error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to process check-in: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
-     * Check-out with photo
+     * Check-out - OPTIMIZED VERSION
      */
     public function checkOut(Request $request): JsonResponse
     {
-        $employee = $request->user();
-        $today = Carbon::today();
-        $now = Carbon::now();
+        $startTime = microtime(true);
+        
+        try {
+            $employee = $request->user();
+            $today = Carbon::today();
+            $now = Carbon::now();
 
-        $attendance = Attendance::where('employee_id', $employee->id)
-            ->whereDate('date', $today)
-            ->first();
+            $attendance = Attendance::where('employee_id', $employee->id)
+                ->whereDate('date', $today)
+                ->first();
 
-        if (!$attendance) {
+            if (!$attendance) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Please check-in first.',
+                ], 422);
+            }
+
+            $activeSession = $attendance->sessions()
+                ->where('status', 'ongoing')
+                ->first();
+
+            if (!$activeSession) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No active session found.',
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            try {
+                // Save photo if any
+                $photoPath = null;
+                if ($request->hasFile('photo')) {
+                    $photoPath = $request->file('photo')->store(
+                        'attendance-photos/' . $today->format('Y/m'),
+                        'public'
+                    );
+                } elseif ($request->filled('photo_base64')) {
+                    $photoPath = $this->savePhoto($request, 'check_out');
+                }
+
+                // Calculate hours
+                $checkIn = Carbon::parse($activeSession->check_in_time);
+                $sessionHours = round($checkIn->diffInMinutes($now) / 60, 2);
+
+                // Update session
+                $activeSession->update([
+                    'check_out_time' => $now->format('H:i:s'),
+                    'check_out_photo' => $photoPath,
+                    'check_out_method' => $request->method ?? 'mobile',
+                    'check_out_location' => $request->location ?? 'Office',
+                    'session_hours' => $sessionHours,
+                    'status' => 'completed',
+                ]);
+
+                // Update summary - OPTIMIZED with single queries
+                $completedSessions = $attendance->sessions()
+                    ->where('status', 'completed')
+                    ->count();
+                $totalHours = $attendance->sessions()
+                    ->where('status', 'completed')
+                    ->sum('session_hours');
+                $overtime = max(0, $totalHours - 8);
+
+                $attendance->update([
+                    'total_sessions' => $completedSessions,
+                    'total_hours' => round($totalHours, 2),
+                    'overtime_hours' => round($overtime, 2),
+                    'last_check_out' => $now->format('H:i:s'),
+                ]);
+
+                // Clear cache
+                Cache::forget("attendance_today_{$employee->id}");
+                
+                DB::commit();
+
+                $duration = round((microtime(true) - $startTime) * 1000);
+                Log::info("Check-out completed in {$duration}ms for employee {$employee->id}");
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Check-out successful',
+                    'data' => [
+                        'session_number' => $activeSession->session_number,
+                        'session_hours' => $sessionHours,
+                        'total_hours_today' => round($totalHours, 2),
+                        'total_sessions_today' => $completedSessions,
+                        'photo_url' => $photoPath ? asset('storage/' . $photoPath) : null,
+                        'duration_ms' => $duration,
+                    ],
+                ]);
+                
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Check-out error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Please check-in first.',
-            ], 422);
+                'message' => 'Failed to process check-out: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $activeSession = $attendance->sessions()
-            ->where('status', 'ongoing')
-            ->first();
-
-        if (!$activeSession) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'No active session found.',
-            ], 422);
-        }
-
-        // Handle photo
-        $photoPath = null;
-        if ($request->hasFile('photo')) {
-            $photoPath = $request->file('photo')->store(
-                'attendance-photos/' . $today->format('Y/m'),
-                'public'
-            );
-        }
-
-        // Calculate hours
-        $checkIn = Carbon::parse($activeSession->check_in_time);
-        $sessionHours = round($checkIn->diffInMinutes($now) / 60, 2);
-
-        // Update session
-        $activeSession->update([
-            'check_out_time' => $now->format('H:i:s'),
-            'check_out_photo' => $photoPath,
-            'check_out_method' => $request->method ?? 'mobile',
-            'check_out_location' => $request->location ?? 'Office',
-            'session_hours' => $sessionHours,
-            'status' => 'completed',
-        ]);
-
-        // Update summary
-        $completedSessions = $attendance->sessions()
-            ->where('status', 'completed')
-            ->count();
-        $totalHours = $attendance->sessions()
-            ->where('status', 'completed')
-            ->sum('session_hours');
-        $overtime = max(0, $totalHours - 8);
-
-        $attendance->update([
-            'total_sessions' => $completedSessions,
-            'total_hours' => round($totalHours, 2),
-            'overtime_hours' => round($overtime, 2),
-            'last_check_out' => $now->format('H:i:s'),
-        ]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Check-out successful',
-            'data' => [
-                'session_number' => $activeSession->session_number,
-                'session_hours' => $sessionHours,
-                'total_hours_today' => round($totalHours, 2),
-                'total_sessions_today' => $completedSessions,
-                'photo_url' => $photoPath ? asset('storage/' . $photoPath) : null,
-            ],
-        ]);
     }
 
     /**
-     * Check-in dengan kartu
+     * Check-in with card
      */
     public function checkInWithCard(Request $request): JsonResponse
     {
@@ -422,7 +467,6 @@ class AttendanceController extends Controller
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
         ]);
-
         $checkInRequest->setUserResolver(function () use ($employee) {
             return $employee;
         });
@@ -431,7 +475,7 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Check-out dengan kartu
+     * Check-out with card
      */
     public function checkOutWithCard(Request $request): JsonResponse
     {
@@ -456,7 +500,6 @@ class AttendanceController extends Controller
             'card_id' => $request->card_number,
             'location' => $request->location ?? 'Card Reader',
         ]);
-
         $checkOutRequest->setUserResolver(function () use ($employee) {
             return $employee;
         });
@@ -465,132 +508,88 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Calculate distance between two coordinates (Haversine)
+     * Get today's attendance - WITH CACHE
      */
-    private function calculateDistance($lat1, $lon1, $lat2, $lon2): float
-    {
-        $earthRadius = 6371000; // meters
-
-        $lat1 = deg2rad($lat1);
-        $lon1 = deg2rad($lon1);
-        $lat2 = deg2rad($lat2);
-        $lon2 = deg2rad($lon2);
-
-        $latDelta = $lat2 - $lat1;
-        $lonDelta = $lon2 - $lon1;
-
-        $a = sin($latDelta / 2) * sin($latDelta / 2) +
-            cos($lat1) * cos($lat2) *
-            sin($lonDelta / 2) * sin($lonDelta / 2);
-
-        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-
-        return $earthRadius * $c;
-    }
-
     public function today(Request $request): JsonResponse
     {
         try {
             $employeeId = $request->user()->id;
             $cacheKey = "attendance_today_{$employeeId}";
 
-            $data = CacheService::remember($cacheKey, function () use ($request) {
-                $employee = $request->user();
+            $data = Cache::remember($cacheKey, 60, function () use ($request, $employeeId) {
                 $today = Carbon::today();
 
                 $attendance = Attendance::with(['sessions' => function ($q) {
-                    $q->select(
-                        'id',
-                        'attendance_id',
-                        'session_number',
-                        'check_in_time',
-                        'check_out_time',
-                        'session_hours',
-                        'status',
-                        'is_late',
-                        'late_minutes'
-                    )
-                        ->orderBy('session_number');
+                    $q->orderBy('session_number')
+                        ->select('id', 'attendance_id', 'session_number', 'check_in_time', 
+                                'check_out_time', 'session_hours', 'status', 'is_late', 'late_minutes');
                 }])
-                    ->where('employee_id', $employee->id)
-                    ->whereDate('date', $today)
-                    ->select(
-                        'id',
-                        'employee_id',
-                        'date',
-                        'status',
-                        'total_hours',
-                        'overtime_hours',
-                        'total_sessions',
-                        'first_check_in',
-                        'last_check_out'
-                    )
-                    ->first();
+                ->where('employee_id', $employeeId)
+                ->whereDate('date', $today)
+                ->first();
 
-                // Default data structure dari fungsi kedua
-                $data = [
-                    'date' => $today->format('Y-m-d'),
-                    'current_time' => Carbon::now()->format('H:i:s'),
-                    'can_checkin' => true,
-                    'can_checkout' => false,
-                    'next_session_number' => 1,
-                    'remaining_sessions' => 2,
-                    'has_active_session' => false,
-                    'active_session_number' => null,
-                ];
-
-                if ($attendance) {
-                    $activeSession = $attendance->sessions()
-                        ->where('status', 'ongoing')
-                        ->first();
-
-                    $completedCount = $attendance->sessions()
-                        ->where('status', 'completed')
-                        ->count();
-
-                    $data = [
+                if (!$attendance) {
+                    return [
                         'date' => $today->format('Y-m-d'),
                         'current_time' => Carbon::now()->format('H:i:s'),
-                        'attendance' => [
-                            'id' => $attendance->id,
-                            'status' => $attendance->status,
-                            'total_hours' => $attendance->total_hours ?? 0,
-                            'overtime_hours' => $attendance->overtime_hours ?? 0,
-                            'total_sessions' => $completedCount,
-                            'sessions' => $attendance->sessions->map(function ($s) {
-                                return [
-                                    'session_number' => $s->session_number,
-                                    'check_in_time' => $s->check_in_time,
-                                    'check_out_time' => $s->check_out_time,
-                                    'session_hours' => $s->session_hours ?? 0,
-                                    'status' => $s->status,
-                                    'is_late' => $s->is_late,
-                                    'late_minutes' => $s->late_minutes,
-                                ];
-                            }),
-                        ],
-                        'has_active_session' => !is_null($activeSession),
-                        'active_session_number' => $activeSession?->session_number,
-                        'can_checkin' => is_null($activeSession) && $completedCount < 2,
-                        'can_checkout' => !is_null($activeSession),
-                        'next_session_number' => $completedCount + 1,
-                        'remaining_sessions' => 2 - $completedCount,
+                        'can_checkin' => true,
+                        'can_checkout' => false,
+                        'next_session_number' => 1,
+                        'remaining_sessions' => 2,
+                        'has_active_session' => false,
+                        'active_session_number' => null,
                     ];
                 }
 
-                return $data;
-            }, 1); // Cache 1 menit untuk attendance
+                $activeSession = $attendance->sessions()
+                    ->where('status', 'ongoing')
+                    ->first();
+
+                $completedCount = $attendance->sessions()
+                    ->where('status', 'completed')
+                    ->count();
+
+                return [
+                    'date' => $today->format('Y-m-d'),
+                    'current_time' => Carbon::now()->format('H:i:s'),
+                    'attendance' => [
+                        'id' => $attendance->id,
+                        'status' => $attendance->status,
+                        'total_hours' => $attendance->total_hours ?? 0,
+                        'overtime_hours' => $attendance->overtime_hours ?? 0,
+                        'total_sessions' => $completedCount,
+                        'sessions' => $attendance->sessions->map(function ($s) {
+                            return [
+                                'session_number' => $s->session_number,
+                                'check_in_time' => $s->check_in_time,
+                                'check_out_time' => $s->check_out_time,
+                                'session_hours' => $s->session_hours ?? 0,
+                                'status' => $s->status,
+                                'is_late' => $s->is_late,
+                                'late_minutes' => $s->late_minutes,
+                            ];
+                        }),
+                    ],
+                    'has_active_session' => !is_null($activeSession),
+                    'active_session_number' => $activeSession?->session_number,
+                    'can_checkin' => is_null($activeSession) && $completedCount < 2,
+                    'can_checkout' => !is_null($activeSession),
+                    'next_session_number' => $completedCount + 1,
+                    'remaining_sessions' => 2 - $completedCount,
+                ];
+            });
 
             return response()->json(['status' => 'success', 'data' => $data]);
+            
         } catch (\Exception $e) {
-            \Log::error('Today attendance error: ' . $e->getMessage());
+            Log::error('Today attendance error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch attendance',
-                'error' => $e->getMessage(),
             ], 500);
         }
     }
+
     /**
      * Get monthly attendance report
      */
@@ -643,15 +642,13 @@ class AttendanceController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            \Log::error('Report error: ' . $e->getMessage());
+            Log::error('Report error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch report',
             ], 500);
         }
     }
-
-    // app/Http/Controllers/Api/AttendanceController.php
 
     /**
      * Get attendance history with filters (for admin/HR)
@@ -669,32 +666,24 @@ class AttendanceController extends Controller
                 }
             ])->orderBy('date', 'desc');
 
-            // Filter by employee
+            // Filters
             if ($request->filled('employee_id')) {
                 $query->where('employee_id', $request->employee_id);
             }
-
-            // Filter by date range
             if ($request->filled('start_date')) {
                 $query->where('date', '>=', $request->start_date);
             }
             if ($request->filled('end_date')) {
                 $query->where('date', '<=', $request->end_date);
             }
-
-            // Filter by status
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
             }
-
-            // Filter by department
             if ($request->filled('department_id')) {
                 $query->whereHas('employee', function ($q) use ($request) {
                     $q->where('department_id', $request->department_id);
                 });
             }
-
-            // Search by employee name or ID
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->whereHas('employee', function ($q) use ($search) {
@@ -712,17 +701,16 @@ class AttendanceController extends Controller
                 'data' => $attendances,
             ]);
         } catch (\Exception $e) {
-            \Log::error('Attendance history error: ' . $e->getMessage());
+            Log::error('Attendance history error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch attendance history',
-                'error' => $e->getMessage(),
             ], 500);
         }
     }
 
     /**
-     * Get attendance for a specific date range (for export)
+     * Get attendance for export
      */
     public function exportRange(Request $request): JsonResponse
     {
@@ -755,7 +743,7 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Get daily attendance summary for a date
+     * Get daily attendance summary
      */
     public function dailySummary(Request $request): JsonResponse
     {
@@ -797,5 +785,27 @@ class AttendanceController extends Controller
                 'message' => 'Failed to fetch daily summary',
             ], 500);
         }
+    }
+
+    /**
+     * Get replacement leaves (placeholder for compatibility)
+     */
+    public function getReplacementLeaves(Request $request): JsonResponse
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => [],
+        ]);
+    }
+
+    /**
+     * Create replacement leave (placeholder for compatibility)
+     */
+    public function createReplacementLeave(Request $request): JsonResponse
+    {
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Feature coming soon',
+        ]);
     }
 }

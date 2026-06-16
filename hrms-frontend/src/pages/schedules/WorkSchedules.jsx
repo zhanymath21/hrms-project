@@ -139,24 +139,30 @@ const WorkSchedules = () => {
 
   // ✅ Perbaiki endpoint assign
   const handleAssign = async () => {
-    try {
-      setLoading(true);
-      await api.post('/schedules/assign', {
-        employee_ids: selectedEmployees,
-        work_schedule_id: selectedSchedule.id,
-        start_date: new Date().toISOString().split('T')[0],
-      });
-      
+  try {
+    setLoading(true);
+    
+    // ✅ Gunakan endpoint bulk-assign yang sudah ada di backend
+    const response = await api.post('/schedules/bulk-assign', {
+      employee_ids: selectedEmployees,
+      work_schedule_id: selectedSchedule.id,
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: null,  // optional, bisa diisi jika ada batas waktu
+    });
+    
+    if (response.data.status === 'success') {
       setAssignDialogOpen(false);
       setSelectedEmployees([]);
-      alert('Schedule assigned successfully!');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to assign schedule');
-    } finally {
-      setLoading(false);
+      alert(`Schedule assigned to ${response.data.data.assigned?.length || selectedEmployees.length} employee(s)!`);
     }
-  };
-
+  } catch (err) {
+    console.error('Error:', err.response?.data);
+    setError(err.response?.data?.message || 'Failed to assign schedule');
+  } finally {
+    setLoading(false);
+  }
+};
+		
   const resetForm = () => {
     setFormData({
       name: '',
