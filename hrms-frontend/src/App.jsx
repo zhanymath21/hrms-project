@@ -29,6 +29,7 @@ import Leave from './pages/leave/Leave';
 import DepartmentPage from './pages/Departments/DepartmentPage'; 
 import TurnoverPage from './pages/Turnover/TurnoverPage';
 import EmployeeAssetPage from './pages/EmployeeAssets/EmployeeAssetPage';
+import PPEListPage from './pages/PPE/PPEListPage';
 
 import MainLayout from './layouts/MainLayout';
 
@@ -221,6 +222,14 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <Leave />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/ppe" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <PPEListPage />
           </MainLayout>
         </ProtectedRoute>
       } />

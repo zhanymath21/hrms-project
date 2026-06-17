@@ -45,6 +45,7 @@ import {
   Inventory as InventoryIcon,       // ✅ Untuk Assets
   Description as DocumentIcon,
   Add as AddIcon,
+  Shield as ShieldIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
@@ -82,6 +83,7 @@ const menuItems = [
   { text: 'Work Schedules', icon: <ScheduleIcon />, path: '/schedules', color: '#8b5cf6' },
   { text: 'Office Locations', icon: <LocationOnIcon />, path: '/locations', color: '#f59e0b' },
   { text: 'Leave', icon: <LeaveIcon />, path: '/leave', color: '#ef4444' },
+  { text: 'PPE List', icon: <ShieldIcon />, path: '/ppe', color: '#f59e0b' },
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },
 ];
 
