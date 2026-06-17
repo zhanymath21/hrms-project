@@ -30,29 +30,28 @@ class PPEController extends Controller
      */
     public function stats(Request $request): JsonResponse
     {
-        $query = PPEItem::query();
+        try {
+            $stats = [
+                'total' => PPEItem::count(),
+                'available' => PPEItem::where('status', 'available')->count(),
+                'assigned' => PPEItem::where('status', 'assigned')->count(),
+                'maintenance' => PPEItem::where('status', 'maintenance')->count(),
+                'write_off' => PPEItem::where('status', 'write_off')->count(),
+                'good' => 0,
+                'damaged' => 0,
+                'expired' => 0,
+            ];
 
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+            return response()->json([
+                'status' => 'success',
+                'data' => $stats,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
         }
-
-        $stats = [
-            'total' => (clone $query)->count(),
-            'available' => (clone $query)->where('status', 'available')->count(),
-            'assigned' => (clone $query)->where('status', 'assigned')->count(),
-            'maintenance' => (clone $query)->where('status', 'maintenance')->count(),
-            'write_off' => (clone $query)->where('status', 'write_off')->count(),
-            'good' => (clone $query)->where('condition', 'good')->count(),
-            'damaged' => (clone $query)->whereIn('condition', ['damaged', 'poor'])->count(),
-            'expired' => (clone $query)->where(function ($q) {
-                $q->where('condition', 'expired')->orWhere('expiry_date', '<', now());
-            })->count(),
-        ];
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $stats,
-        ]);
     }
 
     /**
