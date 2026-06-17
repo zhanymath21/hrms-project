@@ -1,5 +1,5 @@
 // src/pages/employees/EmployeeList.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -36,91 +36,149 @@ import {
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
   Refresh as RefreshIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
 import { useEmployee } from '../contexts/EmployeeContext';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../utils/dateFormat';
 
-// Fungsi format currency
+// Format currency ke USD
 const formatCurrency = (amount) => {
   if (!amount && amount !== 0) return '-';
-  return new Intl.NumberFormat('id-ID', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'IDR',
+    currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(amount);
 };
 
+const StatCard = ({ title, value, color = 'primary', loading }) => (
+  <Card>
+    <CardContent>
+      <Typography color="textSecondary" gutterBottom variant="body2">
+        {title}
+      </Typography>
+      {loading ? (
+        <CircularProgress size={24} />
+      ) : (
+        <Typography variant="h4" component="div" color={`${color}.main`}>
+          {value}
+        </Typography>
+      )}
+    </CardContent>
+  </Card>
+);
+
 const EmployeeList = () => {
   const { employees, loading, error, pagination, fetchEmployees, deleteEmployee } = useEmployee();
   const navigate = useNavigate();
   
+  // State
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterEmploymentType, setFilterEmploymentType] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(15);
+  
+  // Ref untuk debounce
+  const debounceTimerRef = useRef(null);
+  const initialLoadRef = useRef(true);
+  const isMountedRef = useRef(true);
 
-  // Calculate statistics
-  const totalSalary = employees.reduce((sum, emp) => sum + (parseFloat(emp.salary) || 0), 0);
-  const activeEmployees = employees.filter(e => e.status === 'active').length;
-  const onProbation = employees.filter(e => e.employment_type === 'intern' || e.employment_status === 'probation').length;
-
-  // Fetch employees when filters or page change
-  useEffect(() => {
-    fetchEmployees({
+  // Buat params dengan useMemo
+  const fetchParams = useMemo(() => {
+    const params = {
       page: page + 1,
       per_page: rowsPerPage,
-      search: searchTerm,
-      status: filterStatus,
-      employment_type: filterEmploymentType,
-    });
-  }, [page, rowsPerPage, searchTerm, filterStatus, filterEmploymentType, fetchEmployees]);
+    };
+    
+    if (searchTerm.trim()) params.search = searchTerm.trim();
+    if (filterStatus) params.status = filterStatus;
+    if (filterEmploymentType) params.employment_type = filterEmploymentType;
+    
+    return params;
+  }, [page, rowsPerPage, searchTerm, filterStatus, filterEmploymentType]);
 
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  const handleDelete = async (id, name) => {
-    if (window.confirm(`Are you sure you want to delete ${name}?`)) {
-      await deleteEmployee(id);
-      fetchEmployees({
-        page: page + 1,
-        per_page: rowsPerPage,
-        search: searchTerm,
-        status: filterStatus,
-        employment_type: filterEmploymentType,
-      });
+  // Function untuk fetch dengan debounce
+  const loadEmployees = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
-  };
 
-  const handleRefresh = () => {
-    fetchEmployees({
-      page: page + 1,
-      per_page: rowsPerPage,
-      search: searchTerm,
-      status: filterStatus,
-      employment_type: filterEmploymentType,
-    });
-  };
+    const delay = searchTerm ? 500 : 100;
 
-  const getStatusColor = (status) => {
+    debounceTimerRef.current = setTimeout(async () => {
+      if (!isMountedRef.current) return;
+      
+      console.log('🔄 Loading employees with params:', fetchParams);
+      
+      try {
+        await fetchEmployees(fetchParams);
+      } catch (err) {
+        console.error('Error loading employees:', err);
+      }
+    }, delay);
+  }, [fetchEmployees, fetchParams, searchTerm]);
+
+  // useEffect untuk initial load
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false;
+      loadEmployees();
+    }
+
+    return () => {
+      isMountedRef.current = false;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // useEffect untuk perubahan filter
+  useEffect(() => {
+    if (initialLoadRef.current) return;
+    
+    loadEmployees();
+    
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [fetchParams]);
+
+  // 🔥 UPDATE: Tambahkan 'resign' ke status colors
+  const getStatusColor = useCallback((status) => {
     const colors = {
       active: 'success',
       inactive: 'default',
       suspended: 'warning',
-      terminated: 'error'
+      terminated: 'error',
+      resigned: 'warning',  
+    
     };
     return colors[status] || 'default';
-  };
+  }, []);
 
-  const getEmploymentTypeLabel = (type) => {
+  // 🔥 UPDATE: Tambahkan label untuk status resign
+  const getStatusLabel = useCallback((status) => {
+    const labels = {
+      active: 'Active',
+      inactive: 'Inactive',
+      suspended: 'Suspended',
+      terminated: 'Terminated',
+      resigned: 'Resigned',   // 🔥 Alternatif
+     
+      
+    };
+    return labels[status] || status;
+  }, []);
+
+  const getEmploymentTypeLabel = useCallback((type) => {
     const labels = {
       full_time: 'Full Time',
       part_time: 'Part Time',
@@ -128,7 +186,76 @@ const EmployeeList = () => {
       intern: 'Intern'
     };
     return labels[type] || type;
-  };
+  }, []);
+
+  // 🔥 UPDATE: Tambahkan resign ke stats perhitungan
+  const stats = useMemo(() => {
+    const totalSalary = employees.reduce((sum, emp) => sum + (parseFloat(emp.salary) || 0), 0);
+    const activeEmployees = employees.filter(e => e.status === 'active').length;
+    const resignEmployees = employees.filter(e => 
+      e.status === 'resign' || e.status === 'resigned'
+    ).length;
+    const onProbation = employees.filter(e => 
+      e.employment_type === 'intern' || e.employment_status === 'probation'
+    ).length;
+    
+    return {
+      total: pagination.total || employees.length,
+      active: activeEmployees,
+      resign: resignEmployees,    // 🔥 Tambahkan stat resign
+      probation: onProbation,
+      salary: totalSalary,
+    };
+  }, [employees, pagination.total]);
+
+  // Handler
+  const handleSearchChange = useCallback((e) => {
+    setSearchTerm(e.target.value);
+    setPage(0);
+  }, []);
+
+  const handleStatusChange = useCallback((e) => {
+    setFilterStatus(e.target.value);
+    setPage(0);
+  }, []);
+
+  const handleEmploymentTypeChange = useCallback((e) => {
+    setFilterEmploymentType(e.target.value);
+    setPage(0);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setSearchTerm('');
+    setFilterStatus('');
+    setFilterEmploymentType('');
+    setPage(0);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    loadEmployees();
+  }, [loadEmployees]);
+
+  const handleDelete = useCallback(async (id, name) => {
+    if (window.confirm(`Are you sure you want to delete ${name}?`)) {
+      try {
+        await deleteEmployee(id);
+        loadEmployees();
+      } catch (err) {
+        console.error('Error deleting employee:', err);
+      }
+    }
+  }, [deleteEmployee, loadEmployees]);
+
+  const handleChangePage = useCallback((event, newPage) => {
+    setPage(newPage);
+  }, []);
+
+  const handleChangeRowsPerPage = useCallback((event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  }, []);
+
+  const hasActiveFilters = searchTerm || filterStatus || filterEmploymentType;
 
   if (loading && employees.length === 0) {
     return (
@@ -164,66 +291,33 @@ const EmployeeList = () => {
         </Box>
       </Box>
 
-      {/* Stats Cards */}
+      {/* Stats - 🔥 UPDATE: Tambahkan card untuk Resign */}
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Total Employees
-              </Typography>
-              <Typography variant="h4" component="div">
-                {pagination.total || employees.length}
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <StatCard title="Total Employees" value={stats.total} loading={loading} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Active Employees
-              </Typography>
-              <Typography variant="h4" component="div" color="success.main">
-                {activeEmployees}
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <StatCard title="Active" value={stats.active} color="success" loading={loading} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                On Probation
-              </Typography>
-              <Typography variant="h4" component="div" color="warning.main">
-                {onProbation}
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <StatCard title="Resign" value={stats.resign} color="warning" loading={loading} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Total Monthly Salary
-              </Typography>
-              <Typography variant="h4" component="div">
-                {formatCurrency(totalSalary)}
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <StatCard title="On Probation" value={stats.probation} color="warning" loading={loading} />
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <StatCard title="Total Salary" value={formatCurrency(stats.salary)} color="info" loading={loading} />
         </Grid>
       </Grid>
 
-      {/* Error Alert */}
+      {/* Error */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => window.location.reload()}>
           {error}
         </Alert>
       )}
 
-      {/* Filters */}
+      {/* Filters - 🔥 UPDATE: Tambahkan Resign ke filter */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2}>
           <Grid item xs={12} md={5}>
@@ -232,11 +326,18 @@ const EmployeeList = () => {
               size="small"
               placeholder="Search by name, email, ID..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
                     <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: searchTerm && (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearchTerm('')}>
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
                   </InputAdornment>
                 ),
               }}
@@ -248,13 +349,14 @@ const EmployeeList = () => {
               <Select
                 value={filterStatus}
                 label="Status"
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={handleStatusChange}
               >
                 <MenuItem value="">All</MenuItem>
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="inactive">Inactive</MenuItem>
                 <MenuItem value="suspended">Suspended</MenuItem>
                 <MenuItem value="terminated">Terminated</MenuItem>
+                <MenuItem value="resigned">Resigned</MenuItem>  {/* 🔥 Alternatif */}
               </Select>
             </FormControl>
           </Grid>
@@ -264,7 +366,7 @@ const EmployeeList = () => {
               <Select
                 value={filterEmploymentType}
                 label="Employment Type"
-                onChange={(e) => setFilterEmploymentType(e.target.value)}
+                onChange={handleEmploymentTypeChange}
               >
                 <MenuItem value="">All</MenuItem>
                 <MenuItem value="full_time">Full Time</MenuItem>
@@ -279,12 +381,8 @@ const EmployeeList = () => {
               fullWidth
               variant="outlined"
               size="large"
-              onClick={() => {
-                setSearchTerm('');
-                setFilterStatus('');
-                setFilterEmploymentType('');
-                setPage(0);
-              }}
+              onClick={handleClearFilters}
+              disabled={!hasActiveFilters}
             >
               Clear
             </Button>
@@ -292,7 +390,7 @@ const EmployeeList = () => {
         </Grid>
       </Paper>
 
-      {/* Employee Table */}
+      {/* Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
         <TableContainer sx={{ maxHeight: 'calc(100vh - 450px)', overflowX: 'auto' }}>
           <Table stickyHeader>
@@ -314,9 +412,13 @@ const EmployeeList = () => {
               {employees.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
-                    <Typography color="textSecondary">
-                      No employees found
-                    </Typography>
+                    {loading ? (
+                      <CircularProgress size={40} />
+                    ) : (
+                      <Typography color="textSecondary">
+                        {hasActiveFilters ? 'No employees match your filters' : 'No employees found'}
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -329,10 +431,7 @@ const EmployeeList = () => {
                     </TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={2} alignItems="center">
-                        <Avatar 
-                          src={employee.profile_photo} 
-                          sx={{ bgcolor: 'primary.main' }}
-                        >
+                        <Avatar sx={{ bgcolor: 'primary.main' }}>
                           {employee.first_name?.[0]}{employee.last_name?.[0]}
                         </Avatar>
                         <Box>
@@ -352,17 +451,17 @@ const EmployeeList = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {employee.department?.name || `Dept ${employee.department_id}`}
+                        {employee.department?.name || '-'}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {employee.position?.title || `Pos ${employee.position_id}`}
+                        {employee.position?.title || '-'}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={employee.status}
+                        label={getStatusLabel(employee.status)}
                         color={getStatusColor(employee.status)}
                         size="small"
                       />
@@ -425,7 +524,7 @@ const EmployeeList = () => {
         <TablePagination
           rowsPerPageOptions={[15, 25, 50]}
           component="div"
-          count={pagination.total}
+          count={pagination.total || 0}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}

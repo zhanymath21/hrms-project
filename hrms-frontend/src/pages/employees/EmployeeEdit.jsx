@@ -1,5 +1,5 @@
 // src/pages/employees/EmployeeEdit.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -19,6 +19,7 @@ import {
   IconButton,
   InputAdornment,
   Autocomplete,
+  Chip,
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -30,6 +31,74 @@ import { DatePicker } from '@mui/x-date-pickers';
 import { format } from 'date-fns';
 import api from '../../services/axios';
 
+// 🔥 FALLBACK DATA
+const FALLBACK_DATA = {
+  departments: [
+    { id: 1, name: 'Engineering', code: 'ENG' },
+    { id: 2, name: 'Human Resources', code: 'HR' },
+    { id: 3, name: 'Finance', code: 'FIN' },
+    { id: 4, name: 'Marketing', code: 'MKT' },
+    { id: 5, name: 'Operations', code: 'OPS' },
+    { id: 6, name: 'Sales', code: 'SALES' },
+    { id: 7, name: 'Information Technology', code: 'IT' },
+    { id: 8, name: 'Legal', code: 'LEGAL' },
+  ],
+  positions: [
+    { id: 1, title: 'Software Engineer' },
+    { id: 2, title: 'Senior Software Engineer' },
+    { id: 3, title: 'HR Manager' },
+    { id: 4, title: 'Finance Manager' },
+    { id: 5, title: 'Marketing Specialist' },
+    { id: 6, title: 'Operations Manager' },
+    { id: 7, title: 'Sales Executive' },
+    { id: 8, title: 'System Administrator' },
+    { id: 9, title: 'Legal Counsel' },
+    { id: 10, title: 'Product Manager' },
+  ],
+  offices: [
+    { id: 1, name: 'Head Office', code: 'HO', address: 'Jakarta' },
+    { id: 2, name: 'Branch Office - Bandung', code: 'BO-BDG', address: 'Bandung' },
+    { id: 3, name: 'Branch Office - Surabaya', code: 'BO-SBY', address: 'Surabaya' },
+    { id: 4, name: 'Branch Office - Medan', code: 'BO-MDN', address: 'Medan' },
+    { id: 5, name: 'Branch Office - Makassar', code: 'BO-MKS', address: 'Makassar' },
+  ],
+};
+
+// 🔥 STATUS OPTIONS - HANYA "resigned"
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Active', color: 'success' },
+  { value: 'inactive', label: 'Inactive', color: 'default' },
+  { value: 'suspended', label: 'Suspended', color: 'warning' },
+  { value: 'terminated', label: 'Terminated', color: 'error' },
+  { value: 'resigned', label: 'Resigned', color: 'warning' },
+];
+
+const EMPLOYMENT_TYPE_OPTIONS = [
+  { value: 'full_time', label: 'Full Time' },
+  { value: 'part_time', label: 'Part Time' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'intern', label: 'Intern' },
+];
+
+const EMPLOYMENT_STATUS_OPTIONS = [
+  { value: 'probation', label: 'Probation' },
+  { value: 'permanent', label: 'Permanent' },
+  { value: 'contract', label: 'Contract' },
+];
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+];
+
+const CARD_TYPE_OPTIONS = [
+  { value: 'RFID', label: 'RFID' },
+  { value: 'NFC', label: 'NFC' },
+  { value: 'Barcode', label: 'Barcode' },
+  { value: 'QR', label: 'QR' },
+];
+
 const EmployeeEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -39,79 +108,88 @@ const EmployeeEdit = () => {
   const [fetching, setFetching] = useState(true);
   const [errors, setErrors] = useState({});
   
-  // Data from API
-  const [departments, setDepartments] = useState([]);
-  const [positions, setPositions] = useState([]);
+  // Data from API - dengan fallback
+  const [departments, setDepartments] = useState(FALLBACK_DATA.departments);
+  const [positions, setPositions] = useState(FALLBACK_DATA.positions);
   const [managers, setManagers] = useState([]);
-  const [offices, setOffices] = useState([]);
+  const [offices, setOffices] = useState(FALLBACK_DATA.offices);
   const [loadingData, setLoadingData] = useState(true);
+  const [usingFallback, setUsingFallback] = useState(true);
 
-  // Fetch departments from API
-  const fetchDepartments = async () => {
+  // 🔥 PERBAIKAN: Fetch departments saja (tanpa offices)
+  const fetchDepartments = useCallback(async () => {
     try {
       const response = await api.get('/departments');
-      if (response.data.status === 'success') {
-        setDepartments(response.data.data || []);
+      let deptData = [];
+      if (response.data?.status === 'success' && Array.isArray(response.data.data)) {
+        deptData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        deptData = response.data;
       }
+      if (deptData.length > 0) {
+        setDepartments(deptData);
+        return true;
+      }
+      return false;
     } catch (error) {
-      console.error('Error fetching departments:', error);
+      console.warn('Error fetching departments, using fallback:', error.message);
+      return false;
     }
-  };
+  }, []);
 
-  // Fetch positions from API
-  const fetchPositions = async () => {
+  // 🔥 PERBAIKAN: Fetch positions saja
+  const fetchPositions = useCallback(async () => {
     try {
       const response = await api.get('/positions');
-      if (response.data.status === 'success') {
-        setPositions(response.data.data || []);
+      let posData = [];
+      if (response.data?.status === 'success' && Array.isArray(response.data.data)) {
+        posData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        posData = response.data;
       }
+      if (posData.length > 0) {
+        setPositions(posData);
+        return true;
+      }
+      return false;
     } catch (error) {
-      console.error('Error fetching positions:', error);
+      console.warn('Error fetching positions, using fallback:', error.message);
+      return false;
     }
-  };
+  }, []);
 
-  // Fetch managers (employees with manager positions)
-  const fetchManagers = async () => {
+  // 🔥 PERBAIKAN: Fetch managers (tanpa offices)
+  const fetchManagers = useCallback(async () => {
     try {
       const response = await api.get('/employees', {
-        params: {
-          status: 'active',
-          per_page: 100
-        }
+        params: { status: 'active', per_page: 100 }
       });
-      if (response.data.status === 'success') {
-        const allEmployees = response.data.data.data || [];
-        const potentialManagers = allEmployees.filter(emp => 
-          emp.position?.title?.toLowerCase().includes('manager') ||
-          emp.position?.title?.toLowerCase().includes('head') ||
-          emp.position?.title?.toLowerCase().includes('director')
-        );
-        setManagers(potentialManagers);
+      let empData = [];
+      if (response.data?.status === 'success' && response.data.data?.data) {
+        empData = response.data.data.data;
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        empData = response.data.data;
       }
+      const potentialManagers = empData.filter(emp => 
+        emp.position?.title?.toLowerCase().includes('manager') ||
+        emp.position?.title?.toLowerCase().includes('head') ||
+        emp.position?.title?.toLowerCase().includes('director')
+      );
+      setManagers(potentialManagers.length > 0 ? potentialManagers : empData.slice(0, 5));
+      return true;
     } catch (error) {
-      console.error('Error fetching managers:', error);
+      console.warn('Error fetching managers:', error.message);
+      return false;
     }
-  };
+  }, []);
 
-  // Fetch offices
-  const fetchOffices = async () => {
-    try {
-      const response = await api.get('/offices');
-      if (response.data.status === 'success') {
-        setOffices(response.data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching offices:', error);
-    }
-  };
-
-  // Fetch employee data
-  const fetchEmployee = async () => {
+  // 🔥 PERBAIKAN: Fetch employee data
+  const fetchEmployee = useCallback(async () => {
     try {
       setFetching(true);
       const response = await api.get(`/employees/${id}`);
       
-      if (response.data.status === 'success') {
+      if (response.data?.status === 'success') {
         const employeeData = response.data.data;
         setFormData({
           ...employeeData,
@@ -119,32 +197,72 @@ const EmployeeEdit = () => {
           hire_date: employeeData.hire_date ? new Date(employeeData.hire_date) : null,
           probation_end_date: employeeData.probation_end_date ? new Date(employeeData.probation_end_date) : null,
         });
+        return true;
       } else {
         setError('Employee not found');
+        return false;
       }
     } catch (err) {
       console.error('Error fetching employee:', err);
       setError(err.message || 'Failed to fetch employee');
+      return false;
     } finally {
       setFetching(false);
     }
-  };
+  }, [id]);
 
-  // Load all data
+  // 🔥 PERBAIKAN: Load data - TANPA fetchOffices
   useEffect(() => {
     const loadData = async () => {
       setLoadingData(true);
-      await Promise.all([
-        fetchDepartments(),
-        fetchPositions(),
-        fetchManagers(),
-        fetchOffices(),
-        fetchEmployee()
-      ]);
-      setLoadingData(false);
+      setError(null);
+      
+      try {
+        // Fetch employee first
+        const employeeLoaded = await fetchEmployee();
+        
+        if (!employeeLoaded) {
+          setLoadingData(false);
+          return;
+        }
+
+        // Fetch other data
+        const results = await Promise.allSettled([
+          fetchDepartments(),
+          fetchPositions(),
+          fetchManagers(),
+        ]);
+
+        // Check if all failed
+        const allFailed = results.every(r => r.status === 'rejected' || r.value === false);
+        
+        if (allFailed) {
+          setUsingFallback(true);
+          setDepartments(FALLBACK_DATA.departments);
+          setPositions(FALLBACK_DATA.positions);
+          setOffices(FALLBACK_DATA.offices);
+        } else {
+          setUsingFallback(false);
+        }
+        
+        // 🔥 Offices always use fallback (endpoint not available)
+        setOffices(FALLBACK_DATA.offices);
+        
+      } catch (err) {
+        console.error('Error loading data:', err);
+        setError('Failed to load data. Please try again.');
+        // Set fallback data
+        setDepartments(FALLBACK_DATA.departments);
+        setPositions(FALLBACK_DATA.positions);
+        setOffices(FALLBACK_DATA.offices);
+        setUsingFallback(true);
+      } finally {
+        setLoadingData(false);
+      }
     };
+    
     loadData();
-  }, [id]);
+  }, [fetchEmployee, fetchDepartments, fetchPositions, fetchManagers]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -226,10 +344,14 @@ const EmployeeEdit = () => {
       ...prev,
       [name]: date
     }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
     
     try {
       const submitData = {
@@ -273,47 +395,17 @@ const EmployeeEdit = () => {
     }
   };
 
-  const employmentTypes = [
-    { value: 'full_time', label: 'Full Time' },
-    { value: 'part_time', label: 'Part Time' },
-    { value: 'contract', label: 'Contract' },
-    { value: 'intern', label: 'Intern' },
-  ];
-
-  const statusOptions = [
-    { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
-    { value: 'suspended', label: 'Suspended' },
-    { value: 'terminated', label: 'Terminated' },
-  ];
-
-  const employmentStatusOptions = [
-    { value: 'probation', label: 'Probation' },
-    { value: 'permanent', label: 'Permanent' },
-    { value: 'contract', label: 'Contract' },
-  ];
-
-  const genderOptions = [
-    { value: 'male', label: 'Male' },
-    { value: 'female', label: 'Female' },
-    { value: 'other', label: 'Other' },
-  ];
-
-  const cardTypeOptions = [
-    { value: 'RFID', label: 'RFID' },
-    { value: 'NFC', label: 'NFC' },
-    { value: 'Barcode', label: 'Barcode' },
-    { value: 'QR', label: 'QR' },
-  ];
-
+  // Loading state
   if (fetching || loadingData) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
+      <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="400px" gap={2}>
+        <CircularProgress size={48} />
+        <Typography color="textSecondary">Loading employee data...</Typography>
       </Box>
     );
   }
 
+  // Error state
   if (error || !formData) {
     return (
       <Box>
@@ -341,6 +433,24 @@ const EmployeeEdit = () => {
           Edit Employee: {formData.first_name} {formData.last_name}
         </Typography>
       </Box>
+
+      {/* 🔥 Tampilkan warning jika menggunakan fallback */}
+      {usingFallback && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" fontWeight="bold">
+            Using offline data
+          </Typography>
+          <Typography variant="body2">
+            Some data couldn't be loaded from the server. Using default values for departments, positions, and offices.
+          </Typography>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit}>
         <Paper sx={{ p: 3 }}>
@@ -424,7 +534,7 @@ const EmployeeEdit = () => {
                   label="Gender"
                 >
                   <MenuItem value="">Select Gender</MenuItem>
-                  {genderOptions.map(option => (
+                  {GENDER_OPTIONS.map(option => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>
@@ -559,7 +669,7 @@ const EmployeeEdit = () => {
                   label="Employment Type *"
                   required
                 >
-                  {employmentTypes.map(type => (
+                  {EMPLOYMENT_TYPE_OPTIONS.map(type => (
                     <MenuItem key={type.value} value={type.value}>
                       {type.label}
                     </MenuItem>
@@ -577,7 +687,7 @@ const EmployeeEdit = () => {
                   onChange={handleChange}
                   label="Status"
                 >
-                  {statusOptions.map(option => (
+                  {STATUS_OPTIONS.map(option => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>
@@ -594,7 +704,7 @@ const EmployeeEdit = () => {
                   onChange={handleChange}
                   label="Employment Status"
                 >
-                  {employmentStatusOptions.map(option => (
+                  {EMPLOYMENT_STATUS_OPTIONS.map(option => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>
@@ -650,6 +760,8 @@ const EmployeeEdit = () => {
                 name="emergency_contact_name"
                 value={formData.emergency_contact_name || ''}
                 onChange={handleChange}
+                error={!!errors.emergency_contact_name}
+                helperText={errors.emergency_contact_name}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -659,6 +771,8 @@ const EmployeeEdit = () => {
                 name="emergency_contact_phone"
                 value={formData.emergency_contact_phone || ''}
                 onChange={handleChange}
+                error={!!errors.emergency_contact_phone}
+                helperText={errors.emergency_contact_phone}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -668,6 +782,8 @@ const EmployeeEdit = () => {
                 name="emergency_contact_relation"
                 value={formData.emergency_contact_relation || ''}
                 onChange={handleChange}
+                error={!!errors.emergency_contact_relation}
+                helperText={errors.emergency_contact_relation}
                 placeholder="e.g., Spouse, Parent, Sibling"
               />
             </Grid>
@@ -686,6 +802,8 @@ const EmployeeEdit = () => {
                 name="card_number"
                 value={formData.card_number || ''}
                 onChange={handleChange}
+                error={!!errors.card_number}
+                helperText={errors.card_number || "Leave empty for auto-generation"}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -697,7 +815,7 @@ const EmployeeEdit = () => {
                   onChange={handleChange}
                   label="Card Type"
                 >
-                  {cardTypeOptions.map(option => (
+                  {CARD_TYPE_OPTIONS.map(option => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>
@@ -751,6 +869,7 @@ const EmployeeEdit = () => {
             <Button
               variant="outlined"
               onClick={() => navigate(`/employees/${id}`)}
+              disabled={loading}
             >
               Cancel
             </Button>
@@ -758,9 +877,9 @@ const EmployeeEdit = () => {
               type="submit"
               variant="contained"
               disabled={loading}
-              startIcon={<SaveIcon />}
+              startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
             >
-              Save Changes
+              {loading ? 'Saving...' : 'Save Changes'}
             </Button>
           </Box>
         </Paper>

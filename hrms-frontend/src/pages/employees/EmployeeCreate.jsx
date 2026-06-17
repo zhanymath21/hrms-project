@@ -1,5 +1,5 @@
 // src/pages/employees/EmployeeCreate.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -24,6 +24,7 @@ import {
   IconButton,
   InputAdornment,
   Autocomplete,
+  Chip,
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -31,6 +32,10 @@ import {
   Visibility,
   VisibilityOff,
   PersonAdd as PersonAddIcon,
+  Business as BusinessIcon,
+  Work as WorkIcon,
+  People as PeopleIcon,
+  LocationOn as LocationOnIcon,
 } from '@mui/icons-material';
 import { useEmployee } from '../contexts/EmployeeContext';
 import { useNavigate } from 'react-router-dom';
@@ -38,19 +43,66 @@ import { DatePicker } from '@mui/x-date-pickers';
 import { format } from 'date-fns';
 import api from '../../services/axios';
 
+// 🔥 FALLBACK DATA
+const FALLBACK_DATA = {
+  departments: [
+    { id: 1, name: 'Engineering', code: 'ENG' },
+    { id: 2, name: 'Human Resources', code: 'HR' },
+    { id: 3, name: 'Finance', code: 'FIN' },
+    { id: 4, name: 'Marketing', code: 'MKT' },
+    { id: 5, name: 'Operations', code: 'OPS' },
+  ],
+  positions: [
+    { id: 1, title: 'Software Engineer' },
+    { id: 2, title: 'Senior Software Engineer' },
+    { id: 3, title: 'HR Manager' },
+    { id: 4, title: 'Finance Manager' },
+    { id: 5, title: 'Marketing Specialist' },
+  ],
+  offices: [
+    { id: 1, name: 'Head Office', code: 'HO', address: 'Jakarta' },
+    { id: 2, name: 'Branch Office - Bandung', code: 'BO-BDG', address: 'Bandung' },
+    { id: 3, name: 'Branch Office - Surabaya', code: 'BO-SBY', address: 'Surabaya' },
+  ],
+};
+
+// 🔥 STATUS OPTIONS - HANYA "resigned"
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Active', color: 'success' },
+  { value: 'inactive', label: 'Inactive', color: 'default' },
+  { value: 'suspended', label: 'Suspended', color: 'warning' },
+  { value: 'terminated', label: 'Terminated', color: 'error' },
+  { value: 'resigned', label: 'Resigned', color: 'warning' },  // 🔥 HANYA resigned
+];
+
+const EMPLOYMENT_TYPE_OPTIONS = [
+  { value: 'full_time', label: 'Full Time' },
+  { value: 'part_time', label: 'Part Time' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'intern', label: 'Intern' },
+];
+
+const EMPLOYMENT_STATUS_OPTIONS = [
+  { value: 'probation', label: 'Probation' },
+  { value: 'permanent', label: 'Permanent' },
+  { value: 'contract', label: 'Contract' },
+];
+
 const EmployeeCreate = () => {
   const navigate = useNavigate();
   const { addEmployee, loading } = useEmployee();
   const [activeStep, setActiveStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
   
   // Data from API
-  const [departments, setDepartments] = useState([]);
-  const [positions, setPositions] = useState([]);
+  const [departments, setDepartments] = useState(FALLBACK_DATA.departments);
+  const [positions, setPositions] = useState(FALLBACK_DATA.positions);
   const [managers, setManagers] = useState([]);
-  const [offices, setOffices] = useState([]);
+  const [offices, setOffices] = useState(FALLBACK_DATA.offices);
   const [loadingData, setLoadingData] = useState(true);
+  const [usingFallback, setUsingFallback] = useState(true);
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -75,7 +127,7 @@ const EmployeeCreate = () => {
     default_office_id: '',
     default_office_name: '',
     employment_type: 'full_time',
-    status: 'active',
+    status: 'active',        // 🔥 Default active
     employment_status: 'probation',
     salary: '',
     manager_id: '',
@@ -101,80 +153,105 @@ const EmployeeCreate = () => {
 
   const steps = ['Personal Information', 'Employment Details', 'Emergency Contact', 'Card & Notifications'];
 
-  // Fetch departments from API
-  const fetchDepartments = async () => {
+  // Fetch departments
+  const fetchDepartments = useCallback(async () => {
     try {
       const response = await api.get('/departments');
-      if (response.data.status === 'success') {
-        setDepartments(response.data.data || []);
+      let deptData = [];
+      if (response.data?.status === 'success' && Array.isArray(response.data.data)) {
+        deptData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        deptData = response.data;
       }
+      if (deptData.length > 0) {
+        setDepartments(deptData);
+        return true;
+      }
+      return false;
     } catch (error) {
-      console.error('Error fetching departments:', error);
+      console.warn('Error fetching departments, using fallback:', error.message);
+      return false;
     }
-  };
+  }, []);
 
-  // Fetch positions from API
-  const fetchPositions = async () => {
+  // Fetch positions
+  const fetchPositions = useCallback(async () => {
     try {
       const response = await api.get('/positions');
-      if (response.data.status === 'success') {
-        setPositions(response.data.data || []);
+      let posData = [];
+      if (response.data?.status === 'success' && Array.isArray(response.data.data)) {
+        posData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        posData = response.data;
       }
+      if (posData.length > 0) {
+        setPositions(posData);
+        return true;
+      }
+      return false;
     } catch (error) {
-      console.error('Error fetching positions:', error);
+      console.warn('Error fetching positions, using fallback:', error.message);
+      return false;
     }
-  };
+  }, []);
 
-  // Fetch managers (employees with manager positions)
-  const fetchManagers = async () => {
+  // Fetch managers
+  const fetchManagers = useCallback(async () => {
     try {
       const response = await api.get('/employees', {
-        params: {
-          status: 'active',
-          per_page: 100
-        }
+        params: { status: 'active', per_page: 100 }
       });
-      if (response.data.status === 'success') {
-        const allEmployees = response.data.data.data || [];
-        // Filter employees who can be managers (has manager title or specific positions)
-        const potentialManagers = allEmployees.filter(emp => 
-          emp.position?.title?.toLowerCase().includes('manager') ||
-          emp.position?.title?.toLowerCase().includes('head') ||
-          emp.position?.title?.toLowerCase().includes('director')
-        );
-        setManagers(potentialManagers);
+      let empData = [];
+      if (response.data?.status === 'success' && response.data.data?.data) {
+        empData = response.data.data.data;
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        empData = response.data.data;
       }
+      const potentialManagers = empData.filter(emp => 
+        emp.position?.title?.toLowerCase().includes('manager') ||
+        emp.position?.title?.toLowerCase().includes('head') ||
+        emp.position?.title?.toLowerCase().includes('director')
+      );
+      setManagers(potentialManagers.length > 0 ? potentialManagers : empData.slice(0, 5));
+      return true;
     } catch (error) {
-      console.error('Error fetching managers:', error);
+      console.warn('Error fetching managers:', error.message);
+      return false;
     }
-  };
-
-  // Fetch offices
-  const fetchOffices = async () => {
-    try {
-      const response = await api.get('/offices');
-      if (response.data.status === 'success') {
-        setOffices(response.data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching offices:', error);
-    }
-  };
+  }, []);
 
   // Load all data
   useEffect(() => {
     const loadData = async () => {
       setLoadingData(true);
-      await Promise.all([
-        fetchDepartments(),
-        fetchPositions(),
-        fetchManagers(),
-        fetchOffices()
-      ]);
-      setLoadingData(false);
+      try {
+        const results = await Promise.allSettled([
+          fetchDepartments(),
+          fetchPositions(),
+          fetchManagers(),
+        ]);
+        const allFailed = results.every(r => r.status === 'rejected' || r.value === false);
+        if (allFailed) {
+          setUsingFallback(true);
+          setDepartments(FALLBACK_DATA.departments);
+          setPositions(FALLBACK_DATA.positions);
+          setOffices(FALLBACK_DATA.offices);
+        } else {
+          setUsingFallback(false);
+        }
+        setOffices(FALLBACK_DATA.offices);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setDepartments(FALLBACK_DATA.departments);
+        setPositions(FALLBACK_DATA.positions);
+        setOffices(FALLBACK_DATA.offices);
+        setUsingFallback(true);
+      } finally {
+        setLoadingData(false);
+      }
     };
     loadData();
-  }, []);
+  }, [fetchDepartments, fetchPositions, fetchManagers]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -224,7 +301,7 @@ const EmployeeCreate = () => {
       setFormData(prev => ({
         ...prev,
         manager_id: newValue.id,
-        manager_name: `${newValue.first_name} ${newValue.last_name}`
+        manager_name: `${newValue.first_name || ''} ${newValue.last_name || ''}`.trim()
       }));
     } else {
       setFormData(prev => ({
@@ -294,6 +371,7 @@ const EmployeeCreate = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError('');
     
     if (activeStep === steps.length - 1) {
       if (validateStep()) {
@@ -332,6 +410,7 @@ const EmployeeCreate = () => {
           navigate('/employees');
         } catch (error) {
           console.error('Error creating employee:', error);
+          setSubmitError(error.response?.data?.message || error.message || 'Failed to create employee');
           if (error.response?.data?.errors) {
             setErrors(error.response.data.errors);
           }
@@ -342,10 +421,12 @@ const EmployeeCreate = () => {
     }
   };
 
+  // Loading state
   if (loadingData) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
+      <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="400px" gap={2}>
+        <CircularProgress size={48} />
+        <Typography color="textSecondary">Loading data...</Typography>
       </Box>
     );
   }
@@ -361,6 +442,23 @@ const EmployeeCreate = () => {
         </Typography>
       </Box>
 
+      {usingFallback && (
+        <Alert severity="info" sx={{ mb: 2 }} icon={<BusinessIcon />}>
+          <Typography variant="subtitle2" fontWeight="bold">
+            Using offline data
+          </Typography>
+          <Typography variant="body2">
+            Some data couldn't be loaded from the server. Using default values.
+          </Typography>
+        </Alert>
+      )}
+
+      {submitError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setSubmitError('')}>
+          {submitError}
+        </Alert>
+      )}
+
       <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
         {steps.map((label) => (
           <Step key={label}>
@@ -374,6 +472,7 @@ const EmployeeCreate = () => {
         {activeStep === 0 && (
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">
+              <PersonAddIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
               Personal Information
             </Typography>
             <Divider sx={{ mb: 3 }} />
@@ -515,6 +614,7 @@ const EmployeeCreate = () => {
         {activeStep === 1 && (
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">
+              <WorkIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
               Employment Details
             </Typography>
             <Divider sx={{ mb: 3 }} />
@@ -553,7 +653,7 @@ const EmployeeCreate = () => {
               <Grid item xs={12} md={6}>
                 <Autocomplete
                   options={departments}
-                  getOptionLabel={(option) => option.name || option}
+                  getOptionLabel={(option) => option.name || ''}
                   value={departments.find(d => d.id === formData.department_id) || null}
                   onChange={handleDepartmentChange}
                   renderInput={(params) => (
@@ -571,7 +671,7 @@ const EmployeeCreate = () => {
               <Grid item xs={12} md={6}>
                 <Autocomplete
                   options={positions}
-                  getOptionLabel={(option) => `${option.title} (${option.code || ''})`}
+                  getOptionLabel={(option) => option.title || ''}
                   value={positions.find(p => p.id === formData.position_id) || null}
                   onChange={handlePositionChange}
                   renderInput={(params) => (
@@ -590,7 +690,7 @@ const EmployeeCreate = () => {
               <Grid item xs={12} md={6}>
                 <Autocomplete
                   options={offices}
-                  getOptionLabel={(option) => option.name || option}
+                  getOptionLabel={(option) => option.name || ''}
                   value={offices.find(o => o.id === formData.default_office_id) || null}
                   onChange={handleOfficeChange}
                   renderInput={(params) => (
@@ -614,10 +714,11 @@ const EmployeeCreate = () => {
                     label="Employment Type *"
                     required
                   >
-                    <MenuItem value="full_time">Full Time</MenuItem>
-                    <MenuItem value="part_time">Part Time</MenuItem>
-                    <MenuItem value="contract">Contract</MenuItem>
-                    <MenuItem value="intern">Intern</MenuItem>
+                    {EMPLOYMENT_TYPE_OPTIONS.map(option => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </Grid>
@@ -631,10 +732,11 @@ const EmployeeCreate = () => {
                     onChange={handleChange}
                     label="Status"
                   >
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="inactive">Inactive</MenuItem>
-                    <MenuItem value="suspended">Suspended</MenuItem>
-                    <MenuItem value="terminated">Terminated</MenuItem>
+                    {STATUS_OPTIONS.map(option => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </Grid>
@@ -647,9 +749,11 @@ const EmployeeCreate = () => {
                     onChange={handleChange}
                     label="Employment Status"
                   >
-                    <MenuItem value="probation">Probation</MenuItem>
-                    <MenuItem value="permanent">Permanent</MenuItem>
-                    <MenuItem value="contract">Contract</MenuItem>
+                    {EMPLOYMENT_STATUS_OPTIONS.map(option => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </Grid>
@@ -672,7 +776,10 @@ const EmployeeCreate = () => {
               <Grid item xs={12} md={6}>
                 <Autocomplete
                   options={managers}
-                  getOptionLabel={(option) => `${option.first_name} ${option.last_name} (${option.employee_id})`}
+                  getOptionLabel={(option) => {
+                    const name = `${option.first_name || ''} ${option.last_name || ''}`.trim();
+                    return name || option.employee_id || option.email || '';
+                  }}
                   value={managers.find(m => m.id === formData.manager_id) || null}
                   onChange={handleManagerChange}
                   renderInput={(params) => (
@@ -694,6 +801,7 @@ const EmployeeCreate = () => {
         {activeStep === 2 && (
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">
+              <PeopleIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
               Emergency Contact
             </Typography>
             <Divider sx={{ mb: 3 }} />
@@ -742,6 +850,7 @@ const EmployeeCreate = () => {
         {activeStep === 3 && (
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">
+              <LocationOnIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
               Card & Notification Settings
             </Typography>
             <Divider sx={{ mb: 3 }} />
@@ -834,6 +943,7 @@ const EmployeeCreate = () => {
           <Button
             variant="outlined"
             onClick={activeStep === 0 ? () => navigate('/employees') : handleBack}
+            disabled={loading}
           >
             {activeStep === 0 ? 'Cancel' : 'Back'}
           </Button>
@@ -843,7 +953,7 @@ const EmployeeCreate = () => {
             disabled={loading}
             startIcon={activeStep === steps.length - 1 ? <SaveIcon /> : null}
           >
-            {activeStep === steps.length - 1 ? 'Create Employee' : 'Next'}
+            {loading ? 'Saving...' : activeStep === steps.length - 1 ? 'Create Employee' : 'Next'}
           </Button>
         </Box>
       </form>

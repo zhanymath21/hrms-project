@@ -241,7 +241,7 @@ const EmployeeDetails = () => {
             <InfoRow label="Position" value={employee.position?.title || `ID: ${employee.position_id}`} icon={WorkIcon} />
             <InfoRow label="Employment Type" value={getEmploymentTypeLabel(employee.employment_type)} />
             <InfoRow label="Hire Date" value={formatDate(employee.hire_date)} />
-            <InfoRow label="Salary" value={employee.salary ? `Rp ${parseFloat(employee.salary).toLocaleString()}` : '-'} icon={AttachMoneyIcon} />
+            <InfoRow label="Salary" value={employee.salary ? `USD ${parseFloat(employee.salary).toLocaleString()}` : '-'} icon={AttachMoneyIcon} />
             <InfoRow label="Manager" value={employee.manager?.first_name ? `${employee.manager.first_name} ${employee.manager.last_name}` : `ID: ${employee.manager_id}`} />
           </SectionCard>
         </Grid>

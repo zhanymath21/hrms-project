@@ -42,7 +42,7 @@ return new class extends Migration
             $table->foreignId('department_id')->constrained()->onDelete('cascade');
             $table->foreignId('position_id')->constrained()->onDelete('cascade');
             $table->enum('employment_type', ['full_time', 'part_time', 'contract', 'intern']);
-            $table->enum('status', ['active', 'inactive', 'suspended', 'terminated'])->default('active');
+            $table->enum('status', ['active', 'inactive', 'suspended', 'terminated', 'resigned'])->default('active');
             $table->decimal('salary', 10, 2)->nullable();
             $table->string('emergency_contact_name')->nullable();
             $table->string('emergency_contact_phone')->nullable();

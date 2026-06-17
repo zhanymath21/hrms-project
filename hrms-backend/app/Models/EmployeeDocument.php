@@ -9,9 +9,11 @@ class EmployeeDocument extends Model
 {
     use HasFactory;
 
+    protected $table = 'employee_documents';
+
     protected $fillable = [
         'employee_id',
-        'document_type',
+        'document_type',     // ✅ Sesuai tabel
         'title',
         'file_name',
         'file_path',
@@ -28,10 +30,5 @@ class EmployeeDocument extends Model
     public function uploader()
     {
         return $this->belongsTo(Employee::class, 'uploaded_by');
-    }
-
-    public function getFileUrlAttribute()
-    {
-        return asset('storage/' . $this->file_path);
     }
 }
