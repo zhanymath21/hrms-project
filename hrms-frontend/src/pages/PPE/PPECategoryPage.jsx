@@ -3,33 +3,43 @@ import {
   Box, Button, Typography, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Chip, IconButton,
-  Stack, Alert, Skeleton, Grid, Card, CardContent
+  Stack, Alert, Skeleton, Grid, Card, CardContent,
+  InputAdornment, FormControl, InputLabel, Select, MenuItem,
+  Tooltip
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SearchIcon from '@mui/icons-material/Search';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ClearIcon from '@mui/icons-material/Clear';
 import CategoryIcon from '@mui/icons-material/Category';
 import ShieldIcon from '@mui/icons-material/Shield';
 import CloseIcon from '@mui/icons-material/Close';
+import SortIcon from '@mui/icons-material/Sort';
 import ppeCategoryService from '../../services/ppeCategoryService';
 
 // ========== CONSTANTS ==========
 const CATEGORY_ICONS = {
-  HEAD: '🪖',
-  EYE: '👓',
-  EAR: '🦻',
-  RESP: '😷',
-  HAND: '🧤',
-  FOOT: '👢',
-  BODY: '🦺',
-  FALL: '🪢',
-  HIVIS: '🚦',
+  HEAD: '🪖', EYE: '👓', EAR: '🦻', RESP: '😷',
+  HAND: '🧤', FOOT: '👢', BODY: '🦺', FALL: '🪢', HIVIS: '🚦',
 };
 
 const CATEGORY_COLORS = [
   '#1976d2', '#388e3c', '#f57c00', '#7b1fa2', '#c2185b',
   '#0097a7', '#e64a19', '#5d4037', '#6a1b9a'
+];
+
+const SORT_OPTIONS = [
+  { value: 'name_asc', label: 'Name A-Z' },
+  { value: 'name_desc', label: 'Name Z-A' },
+  { value: 'code_asc', label: 'Code A-Z' },
+  { value: 'code_desc', label: 'Code Z-A' },
+  { value: 'items_desc', label: 'Most Items' },
+  { value: 'items_asc', label: 'Least Items' },
+  { value: 'newest', label: 'Newest First' },
+  { value: 'oldest', label: 'Oldest First' },
 ];
 
 // ========== STAT CARD ==========
@@ -42,6 +52,133 @@ function StatCard({ icon, title, value, color }) {
         <Typography variant="body2" color="textSecondary">{title}</Typography>
       </CardContent>
     </Card>
+  );
+}
+
+// ========== FILTER BAR ==========
+function FilterBar({ filters, setFilters, onClear }) {
+  const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
+
+  return (
+    <Paper sx={{ p: 2, mb: 2, borderRadius: 2 }}>
+      <Grid container spacing={2} alignItems="center">
+        {/* Search */}
+        <Grid item xs={12} sm={6} md={4}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search category name, code, description..."
+            value={filters.search}
+            onChange={e => setFilters({ ...filters, search: e.target.value })}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: filters.search && (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setFilters({ ...filters, search: '' })}>
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Grid>
+
+        {/* Has Items Filter */}
+        <Grid item xs={6} sm={4} md={2}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Has Items</InputLabel>
+            <Select
+              label="Has Items"
+              value={filters.has_items}
+              onChange={e => setFilters({ ...filters, has_items: e.target.value })}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="yes">With Items</MenuItem>
+              <MenuItem value="no">Without Items</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+
+        {/* Sort */}
+        <Grid item xs={6} sm={4} md={3}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Sort By</InputLabel>
+            <Select
+              label="Sort By"
+              value={filters.sort}
+              onChange={e => setFilters({ ...filters, sort: e.target.value })}
+            >
+              {SORT_OPTIONS.map(opt => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+
+        {/* Clear Filters */}
+        <Grid item xs={12} sm={4} md={3}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {activeFilterCount > 0 && (
+              <Button
+                fullWidth
+                variant="outlined"
+                color="error"
+                size="small"
+                onClick={onClear}
+                startIcon={<ClearIcon />}
+              >
+                Clear Filters ({activeFilterCount})
+              </Button>
+            )}
+            <Tooltip title="Filter active">
+              <FilterListIcon color={activeFilterCount > 0 ? 'primary' : 'disabled'} />
+            </Tooltip>
+          </Stack>
+        </Grid>
+      </Grid>
+
+      {/* Active Filter Chips */}
+      {activeFilterCount > 0 && (
+        <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap', gap: 0.5 }}>
+          {filters.search && (
+            <Chip
+              icon={<SearchIcon />}
+              label={`Search: "${filters.search}"`}
+              size="small"
+              onDelete={() => setFilters({ ...filters, search: '' })}
+            />
+          )}
+          {filters.has_items && (
+            <Chip
+              icon={<FilterListIcon />}
+              label={`Items: ${filters.has_items === 'yes' ? 'With Items' : 'Without Items'}`}
+              size="small"
+              onDelete={() => setFilters({ ...filters, has_items: '' })}
+            />
+          )}
+          {filters.sort && (
+            <Chip
+              icon={<SortIcon />}
+              label={`Sort: ${SORT_OPTIONS.find(o => o.value === filters.sort)?.label || filters.sort}`}
+              size="small"
+              onDelete={() => setFilters({ ...filters, sort: '' })}
+            />
+          )}
+          <Chip
+            label="Clear All"
+            size="small"
+            color="error"
+            variant="outlined"
+            onClick={onClear}
+            sx={{ cursor: 'pointer' }}
+          />
+        </Stack>
+      )}
+    </Paper>
   );
 }
 
@@ -139,6 +276,13 @@ export default function PPECategoryPage() {
   const [formDialog, setFormDialog] = useState({ open: false, editData: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, item: null });
 
+  // ✅ FILTERS
+  const [filters, setFilters] = useState({
+    search: '',
+    has_items: '',
+    sort: 'name_asc',
+  });
+
   useEffect(() => { loadCategories(); }, []);
 
   const loadCategories = async () => {
@@ -185,14 +329,53 @@ export default function PPECategoryPage() {
     }
   };
 
+  const clearFilters = () => {
+    setFilters({ search: '', has_items: '', sort: 'name_asc' });
+  };
+
   const getIcon = (code) => CATEGORY_ICONS[code] || '📦';
   const getColor = (index) => CATEGORY_COLORS[index % CATEGORY_COLORS.length];
+
+  // ✅ FILTER & SORT LOGIC
+  const filteredCategories = categories
+    .filter(cat => {
+      // Search filter
+      if (filters.search) {
+        const search = filters.search.toLowerCase();
+        const matchName = cat.name?.toLowerCase().includes(search);
+        const matchCode = cat.code?.toLowerCase().includes(search);
+        const matchDesc = cat.description?.toLowerCase().includes(search);
+        if (!matchName && !matchCode && !matchDesc) return false;
+      }
+
+      // Has items filter
+      if (filters.has_items === 'yes' && (cat.items_count || 0) === 0) return false;
+      if (filters.has_items === 'no' && (cat.items_count || 0) > 0) return false;
+
+      return true;
+    })
+    .sort((a, b) => {
+      switch (filters.sort) {
+        case 'name_asc': return (a.name || '').localeCompare(b.name || '');
+        case 'name_desc': return (b.name || '').localeCompare(a.name || '');
+        case 'code_asc': return (a.code || '').localeCompare(b.code || '');
+        case 'code_desc': return (b.code || '').localeCompare(a.code || '');
+        case 'items_desc': return (b.items_count || 0) - (a.items_count || 0);
+        case 'items_asc': return (a.items_count || 0) - (b.items_count || 0);
+        case 'newest': return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        case 'oldest': return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+        default: return 0;
+      }
+    });
+
+  const activeFilterCount = Object.values(filters).filter(v => v !== '' && v !== 'name_asc').length;
 
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
         <Skeleton variant="text" width={300} height={50} />
-        <Skeleton variant="rounded" height={300} sx={{ mt: 2 }} />
+        <Skeleton variant="rounded" height={120} sx={{ mt: 2, mb: 2 }} />
+        <Skeleton variant="rounded" height={300} />
       </Box>
     );
   }
@@ -236,20 +419,34 @@ export default function PPECategoryPage() {
         <Grid item xs={6} sm={4}>
           <StatCard
             icon={<ShieldIcon sx={{ fontSize: 36 }} />}
-            title="Active"
-            value={categories.length}
+            title="With Items"
+            value={categories.filter(c => (c.items_count || 0) > 0).length}
             color="#388e3c"
           />
         </Grid>
         <Grid item xs={6} sm={4}>
           <StatCard
             icon={<ShieldIcon sx={{ fontSize: 36 }} />}
-            title="PPE Items"
+            title="Total PPE Items"
             value={categories.reduce((sum, c) => sum + (c.items_count || 0), 0)}
             color="#f57c00"
           />
         </Grid>
       </Grid>
+
+      {/* ✅ FILTER BAR */}
+      <FilterBar
+        filters={filters}
+        setFilters={setFilters}
+        onClear={clearFilters}
+      />
+
+      {/* Results Info */}
+      {activeFilterCount > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Showing {filteredCategories.length} of {categories.length} categories
+        </Alert>
+      )}
 
       {/* TABLE */}
       <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
@@ -260,25 +457,36 @@ export default function PPECategoryPage() {
               <TableCell><strong>Code</strong></TableCell>
               <TableCell><strong>Description</strong></TableCell>
               <TableCell align="center"><strong>PPE Items</strong></TableCell>
+              <TableCell align="center"><strong>Created</strong></TableCell>
               <TableCell align="center"><strong>Actions</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {categories.length === 0 ? (
+            {filteredCategories.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
-                  <CategoryIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
-                  <Typography variant="h6" color="textSecondary">No categories yet</Typography>
-                  <Button
-                    startIcon={<AddIcon />}
-                    onClick={() => setFormDialog({ open: true, editData: null })}
-                    sx={{ mt: 1 }}
-                  >
-                    Add First Category
-                  </Button>
+                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                  {filters.search || filters.has_items ? (
+                    <>
+                      <SearchIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+                      <Typography variant="h6" color="textSecondary">No categories match your filters</Typography>
+                      <Button onClick={clearFilters} sx={{ mt: 1 }}>Clear Filters</Button>
+                    </>
+                  ) : (
+                    <>
+                      <CategoryIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
+                      <Typography variant="h6" color="textSecondary">No categories yet</Typography>
+                      <Button
+                        startIcon={<AddIcon />}
+                        onClick={() => setFormDialog({ open: true, editData: null })}
+                        sx={{ mt: 1 }}
+                      >
+                        Add First Category
+                      </Button>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
-            ) : categories.map((cat, index) => (
+            ) : filteredCategories.map((cat, index) => (
               <TableRow key={cat.id} hover>
                 <TableCell>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -292,9 +500,6 @@ export default function PPECategoryPage() {
                     </Box>
                     <Box>
                       <Typography fontWeight="bold" variant="body1">{cat.name}</Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        Created: {new Date(cat.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                      </Typography>
                     </Box>
                   </Box>
                 </TableCell>
@@ -317,6 +522,13 @@ export default function PPECategoryPage() {
                     color="info"
                     variant="outlined"
                   />
+                </TableCell>
+                <TableCell align="center">
+                  <Typography variant="body2" color="textSecondary">
+                    {new Date(cat.created_at).toLocaleDateString('en-US', {
+                      year: 'numeric', month: 'short', day: 'numeric'
+                    })}
+                  </Typography>
                 </TableCell>
                 <TableCell align="center">
                   <Stack direction="row" spacing={0.5} justifyContent="center">

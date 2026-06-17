@@ -60,8 +60,9 @@ class PPEController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = PPEItem::with(['category:id,name,code']);
+            $query = PPEItem::with(['category:id,name,code']); // ✅ Load category only
 
+            // Search
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
@@ -90,6 +91,18 @@ class PPEController extends Controller
             $perPage = min((int) $request->input('per_page', 15), 100);
             $items = $query->orderBy('name')->paginate($perPage);
 
+            // ✅ TAMBAHKAN holder_name jika ada
+            $items->getCollection()->transform(function ($item) {
+                // Jika current_holder_name kosong tapi ada current_holder_id
+                if (!$item->current_holder_name && $item->current_holder_id) {
+                    $employee = \App\Models\Employee::find($item->current_holder_id);
+                    if ($employee) {
+                        $item->current_holder_name = $employee->last_name ?? $employee->first_name ?? '';
+                    }
+                }
+                return $item;
+            });
+
             return response()->json([
                 'status' => 'success',
                 'data' => $items,
@@ -99,8 +112,6 @@ class PPEController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
             ], 500);
         }
     }
