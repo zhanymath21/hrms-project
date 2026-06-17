@@ -30,6 +30,7 @@ import DepartmentPage from './pages/Departments/DepartmentPage';
 import TurnoverPage from './pages/Turnover/TurnoverPage';
 import EmployeeAssetPage from './pages/EmployeeAssets/EmployeeAssetPage';
 import PPEListPage from './pages/PPE/PPEListPage';
+import PPECategoryPage from './pages/PPE/PPECategoryPage';
 
 import MainLayout from './layouts/MainLayout';
 
@@ -230,6 +231,14 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <PPEListPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/ppe/categories" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <PPECategoryPage />
           </MainLayout>
         </ProtectedRoute>
       } />

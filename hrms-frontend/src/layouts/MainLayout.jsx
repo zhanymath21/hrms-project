@@ -83,7 +83,16 @@ const menuItems = [
   { text: 'Work Schedules', icon: <ScheduleIcon />, path: '/schedules', color: '#8b5cf6' },
   { text: 'Office Locations', icon: <LocationOnIcon />, path: '/locations', color: '#f59e0b' },
   { text: 'Leave', icon: <LeaveIcon />, path: '/leave', color: '#ef4444' },
-  { text: 'PPE List', icon: <ShieldIcon />, path: '/ppe', color: '#f59e0b' },
+  { 
+    text: 'PPE Management', 
+    icon: <ShieldIcon />, 
+    path: '/ppe', 
+    color: '#f59e0b',
+    children: [
+      { text: 'PPE List', path: '/ppe' },
+      { text: 'PPE Categories', path: '/ppe/categories' },
+    ]
+  },
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },
 ];
 

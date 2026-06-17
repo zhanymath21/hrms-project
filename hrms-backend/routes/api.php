@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\EmployeeOfficeController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PPECategoryController;
 use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TurnoverReportController;
@@ -185,4 +186,11 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/ppe/{id}/return', [PPEController::class, 'return']);
     Route::post('/ppe/{id}/move', [PPEController::class, 'move']);
     Route::post('/ppe/{id}/write-off', [PPEController::class, 'writeOff']);
+
+    // PPE Categories (FULL CRUD)
+    Route::get('/ppe/categories', [PPECategoryController::class, 'index']);
+    Route::get('/ppe/categories/{id}', [PPECategoryController::class, 'show']);
+    Route::post('/ppe/categories', [PPECategoryController::class, 'store']);
+    Route::put('/ppe/categories/{id}', [PPECategoryController::class, 'update']);
+    Route::delete('/ppe/categories/{id}', [PPECategoryController::class, 'destroy']);
 });
