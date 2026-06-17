@@ -13,21 +13,26 @@ use Illuminate\Support\Facades\Validator;
 
 class PPEController extends Controller
 {
-    // ========== CATEGORIES ==========
+    /**
+     * Get all PPE categories
+     */
     public function categories(): JsonResponse
     {
+        $categories = PPECategory::orderBy('name')->get();
         return response()->json([
             'status' => 'success',
-            'data' => PPECategory::orderBy('name')->get(),
+            'data' => $categories,
         ]);
     }
 
-    // ========== STATS ==========
+    /**
+     * Get PPE statistics
+     */
     public function stats(Request $request): JsonResponse
     {
         $query = PPEItem::query();
 
-        if ($request->category_id) {
+        if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
 
@@ -39,166 +44,378 @@ class PPEController extends Controller
             'write_off' => (clone $query)->where('status', 'write_off')->count(),
             'good' => (clone $query)->where('condition', 'good')->count(),
             'damaged' => (clone $query)->whereIn('condition', ['damaged', 'poor'])->count(),
-            'expired' => (clone $query)->where('condition', 'expired')->orWhere('expiry_date', '<', now())->count(),
+            'expired' => (clone $query)->where(function ($q) {
+                $q->where('condition', 'expired')->orWhere('expiry_date', '<', now());
+            })->count(),
         ];
 
-        return response()->json(['status' => 'success', 'data' => $stats]);
+        return response()->json([
+            'status' => 'success',
+            'data' => $stats,
+        ]);
     }
 
-    // ========== LIST ITEMS ==========
+    /**
+     * Get all PPE items with filters & pagination
+     */
     public function index(Request $request): JsonResponse
     {
-        $query = PPEItem::with(['category:id,name,code', 'warehouse:id,name,code']);
+        try {
+            $query = PPEItem::with(['category:id,name,code']);
 
-        // Search
-        if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(function ($q) use ($s) {
-                $q->where('name', 'like', "%{$s}%")
-                    ->orWhere('code', 'like', "%{$s}%")
-                    ->orWhere('serial_number', 'like', "%{$s}%")
-                    ->orWhere('current_holder_name', 'like', "%{$s}%")
-                    ->orWhere('manufacturer', 'like', "%{$s}%")
-                    ->orWhere('location', 'like', "%{$s}%");
-            });
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%")
+                        ->orWhere('serial_number', 'like', "%{$search}%")
+                        ->orWhere('current_holder_name', 'like', "%{$search}%")
+                        ->orWhere('manufacturer', 'like', "%{$search}%")
+                        ->orWhere('location', 'like', "%{$search}%");
+                });
+            }
+
+            if ($request->filled('category_id')) {
+                $query->where('category_id', $request->category_id);
+            }
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+            if ($request->filled('condition')) {
+                $query->where('condition', $request->condition);
+            }
+            if ($request->filled('location')) {
+                $query->where('location', 'like', "%{$request->location}%");
+            }
+
+            $perPage = min((int) $request->input('per_page', 15), 100);
+            $items = $query->orderBy('name')->paginate($perPage);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $items,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('PPE index error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ], 500);
         }
-
-        if ($request->category_id) $query->where('category_id', $request->category_id);
-        if ($request->status) $query->where('status', $request->status);
-        if ($request->condition) $query->where('condition', $request->condition);
-        if ($request->warehouse_id) $query->where('warehouse_id', $request->warehouse_id);
-
-        $perPage = min((int) $request->input('per_page', 20), 100);
-        $items = $query->orderBy('name')->paginate($perPage);
-
-        return response()->json(['status' => 'success', 'data' => $items]);
     }
 
-    // ========== SHOW ITEM ==========
+    /**
+     * Get single PPE item with relations
+     */
     public function show($id): JsonResponse
     {
-        $item = PPEItem::with(['category', 'warehouse', 'currentHolder', 'creator'])->find($id);
+        $item = PPEItem::with(['category', 'currentHolder', 'creator'])->find($id);
+
         if (!$item) {
-            return response()->json(['status' => 'error', 'message' => 'Not found'], 404);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item not found',
+            ], 404);
         }
-        return response()->json(['status' => 'success', 'data' => $item]);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $item,
+        ]);
     }
 
-    // ========== CREATE ==========
+    /**
+     * Create new PPE item
+     */
     public function store(Request $request): JsonResponse
     {
-        $v = Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:ppe_items,code',
             'category_id' => 'required|exists:ppe_categories,id',
-            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'size' => 'nullable|string|max:50',
+            'color' => 'nullable|string|max:50',
+            'material' => 'nullable|string|max:100',
+            'manufacturer' => 'nullable|string|max:255',
+            'model' => 'nullable|string|max:100',
+            'serial_number' => 'nullable|string|max:100|unique:ppe_items,serial_number',
             'location' => 'nullable|string|max:255',
+            'price' => 'nullable|numeric|min:0',
+            'purchase_date' => 'nullable|date',
+            'supplier' => 'nullable|string|max:255',
+            'invoice_number' => 'nullable|string|max:100',
+            'description' => 'nullable|string',
+            'specifications' => 'nullable|string',
+            'certification' => 'nullable|string|max:255',
+            'certification_date' => 'nullable|date',
+            'expiry_date' => 'nullable|date',
             'status' => 'required|in:available,assigned,maintenance,write_off',
             'condition' => 'required|in:good,fair,poor,damaged,expired',
         ]);
 
-        if ($v->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $v->errors()], 422);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
         }
 
         DB::beginTransaction();
         try {
-            $item = PPEItem::create([...$request->all(), 'created_by' => auth()->id()]);
+            // Get authenticated employee ID
+            $employeeId = auth()->id() ?? auth('employee')->id();
+
+            $item = PPEItem::create([
+                'name' => $request->name,
+                'code' => strtoupper($request->code),
+                'category_id' => $request->category_id,
+                'size' => $request->size,
+                'color' => $request->color,
+                'material' => $request->material,
+                'manufacturer' => $request->manufacturer,
+                'model' => $request->model,
+                'serial_number' => $request->serial_number,
+                'location' => $request->location,
+                'price' => $request->price,
+                'purchase_date' => $request->purchase_date,
+                'supplier' => $request->supplier,
+                'invoice_number' => $request->invoice_number,
+                'description' => $request->description,
+                'specifications' => $request->specifications,
+                'certification' => $request->certification,
+                'certification_date' => $request->certification_date,
+                'expiry_date' => $request->expiry_date,
+                'status' => $request->status,
+                'condition' => $request->condition,
+                'created_by' => $employeeId,
+            ]);
+
+            // Get creator name for history
+            $creatorName = auth()->user()->first_name . ' ' . auth()->user()->last_name;
 
             // Log history
             PPEHistory::create([
                 'ppe_item_id' => $item->id,
                 'action_type' => 'created',
                 'new_data' => $item->toArray(),
-                'description' => "PPE '{$item->name}' created",
-                'performed_by' => auth('employee')->id(),
-                'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
+                'description' => "PPE '{$item->name}' was created",
+                'performed_by' => $employeeId,
+                'performed_by_name' => $creatorName,
             ]);
 
             DB::commit();
-            return response()->json(['status' => 'success', 'message' => 'PPE created', 'data' => $item->load('category')], 201);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'PPE item created successfully',
+                'data' => $item->load('category'),
+            ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            \Log::error('PPE create error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to create PPE item: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
-    // ========== UPDATE ==========
+    /**
+     * Update PPE item
+     */
     public function update(Request $request, $id): JsonResponse
     {
         $item = PPEItem::find($id);
-        if (!$item) return response()->json(['status' => 'error', 'message' => 'Not found'], 404);
+        if (!$item) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item not found',
+            ], 404);
+        }
 
-        $v = Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'code' => "required|string|max:50|unique:ppe_items,code,{$id}",
             'category_id' => 'required|exists:ppe_categories,id',
+            'size' => 'nullable|string|max:50',
+            'color' => 'nullable|string|max:50',
+            'material' => 'nullable|string|max:100',
+            'manufacturer' => 'nullable|string|max:255',
+            'model' => 'nullable|string|max:100',
+            'serial_number' => "nullable|string|max:100|unique:ppe_items,serial_number,{$id}",
+            'location' => 'nullable|string|max:255',
             'status' => 'required|in:available,assigned,maintenance,write_off',
             'condition' => 'required|in:good,fair,poor,damaged,expired',
         ]);
 
-        if ($v->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $v->errors()], 422);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors(),
+            ], 422);
         }
 
-        $oldData = $item->toArray();
-        $oldLocation = $item->location;
-        $oldCondition = $item->condition;
+        $employeeId = auth()->id() ?? auth('employee')->id();
+        $employeeName = auth()->user()->first_name . ' ' . auth()->user()->last_name;
 
-        $item->update([...$request->all(), 'updated_by' => auth()->id()]);
-        $newData = $item->fresh()->toArray();
+        // Save old data for history
+        $oldData = [
+            'name' => $item->name,
+            'location' => $item->location,
+            'condition' => $item->condition,
+            'status' => $item->status,
+        ];
 
-        // Log history
+        // Update item
+        $item->update([
+            'name' => $request->name,
+            'code' => strtoupper($request->code),
+            'category_id' => $request->category_id,
+            'size' => $request->size,
+            'color' => $request->color,
+            'material' => $request->material,
+            'manufacturer' => $request->manufacturer,
+            'model' => $request->model,
+            'serial_number' => $request->serial_number,
+            'location' => $request->location,
+            'price' => $request->price,
+            'purchase_date' => $request->purchase_date,
+            'supplier' => $request->supplier,
+            'invoice_number' => $request->invoice_number,
+            'description' => $request->description,
+            'specifications' => $request->specifications,
+            'certification' => $request->certification,
+            'certification_date' => $request->certification_date,
+            'expiry_date' => $request->expiry_date,
+            'status' => $request->status,
+            'condition' => $request->condition,
+            'updated_by' => $employeeId,
+        ]);
+
+        $item->refresh();
+
+        // Track changes
         $changes = [];
-        if ($oldLocation !== $item->location) {
-            $changes[] = "Location changed from '{$oldLocation}' to '{$item->location}'";
+
+        if ($oldData['location'] !== $item->location) {
+            $changes[] = "Location changed from '{$oldData['location']}' to '{$item->location}'";
             PPEHistory::create([
                 'ppe_item_id' => $item->id,
                 'action_type' => 'moved',
-                'old_data' => ['location' => $oldLocation],
+                'old_data' => ['location' => $oldData['location']],
                 'new_data' => ['location' => $item->location],
-                'description' => implode(', ', $changes),
-                'performed_by' => auth('employee')->id(),
-                'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
+                'description' => "Location changed from '{$oldData['location']}' to '{$item->location}'",
+                'performed_by' => $employeeId,
+                'performed_by_name' => $employeeName,
             ]);
         }
 
-        if ($oldCondition !== $item->condition) {
+        if ($oldData['condition'] !== $item->condition) {
+            $changes[] = "Condition changed from '{$oldData['condition']}' to '{$item->condition}'";
             PPEHistory::create([
                 'ppe_item_id' => $item->id,
                 'action_type' => 'condition_change',
-                'old_data' => ['condition' => $oldCondition],
+                'old_data' => ['condition' => $oldData['condition']],
                 'new_data' => ['condition' => $item->condition],
-                'description' => "Condition changed from '{$oldCondition}' to '{$item->condition}'",
-                'performed_by' => auth('employee')->id(),
-                'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
+                'description' => "Condition changed from '{$oldData['condition']}' to '{$item->condition}'",
+                'performed_by' => $employeeId,
+                'performed_by_name' => $employeeName,
             ]);
         }
 
-        return response()->json(['status' => 'success', 'message' => 'PPE updated', 'data' => $item->fresh()->load('category')]);
+        if (empty($changes)) {
+            PPEHistory::create([
+                'ppe_item_id' => $item->id,
+                'action_type' => 'updated',
+                'old_data' => $oldData,
+                'new_data' => $item->toArray(),
+                'description' => "PPE '{$item->name}' was updated",
+                'performed_by' => $employeeId,
+                'performed_by_name' => $employeeName,
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'PPE item updated successfully',
+            'data' => $item->load('category'),
+        ]);
     }
 
-    // ========== DELETE ==========
+    /**
+     * Delete PPE item (soft delete)
+     */
     public function destroy($id): JsonResponse
     {
         $item = PPEItem::find($id);
-        if (!$item) return response()->json(['status' => 'error', 'message' => 'Not found'], 404);
+        if (!$item) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item not found',
+            ], 404);
+        }
 
-        $item->update(['deleted_by' => auth('employee')->id()]);
+        $employeeId = auth()->id() ?? auth('employee')->id();
+        $employeeName = auth()->user()->first_name . ' ' . auth()->user()->last_name;
+
+        $item->update(['deleted_by' => $employeeId]);
         $item->delete();
 
-        return response()->json(['status' => 'success', 'message' => 'PPE deleted']);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'PPE item deleted successfully',
+        ]);
     }
 
-    // ========== ASSIGN TO EMPLOYEE ==========
+    // ==========================================
+    // ASSIGN, RETURN, MOVE, WRITE-OFF
+    // ==========================================
+
+    /**
+     * Assign PPE to employee
+     * POST /api/ppe/{id}/assign
+     */
     public function assign(Request $request, $id): JsonResponse
     {
         $item = PPEItem::find($id);
-        if (!$item) return response()->json(['status' => 'error', 'message' => 'Not found'], 404);
-        if ($item->status !== 'available') return response()->json(['status' => 'error', 'message' => 'Not available'], 400);
+        if (!$item) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item not found',
+            ], 404);
+        }
+
+        // Cek apakah item tersedia
+        if ($item->status !== 'available') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item is not available. Current status: ' . $item->status,
+            ], 400);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'current_holder_id' => 'required|exists:employees,id',
+            'current_holder_name' => 'required|string|max:255',
+            'current_holder_department' => 'nullable|string|max:255',
+            'current_holder_position' => 'nullable|string|max:255',
+            'expected_return_date' => 'nullable|date',
+            'location' => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
         $oldHolder = $item->current_holder_name;
+        $oldLocation = $item->location;
 
+        // Update item
         $item->update([
             'current_holder_id' => $request->current_holder_id,
             'current_holder_name' => $request->current_holder_name,
@@ -210,29 +427,66 @@ class PPEController extends Controller
             'location' => $request->location ?? $item->location,
         ]);
 
+        $employeeId = auth()->id() ?? auth('employee')->id();
+        $employeeName = auth()->user()->first_name . ' ' . auth()->user()->last_name;
+
         // Log history
+        $description = "Assigned to {$item->current_holder_name}";
+        if ($request->location && $request->location !== $oldLocation) {
+            $description .= " at location '{$request->location}'";
+        }
+
         PPEHistory::create([
             'ppe_item_id' => $item->id,
             'action_type' => 'assigned',
-            'old_data' => ['holder' => $oldHolder, 'status' => 'available'],
-            'new_data' => ['holder' => $item->current_holder_name, 'status' => 'assigned'],
-            'description' => "Assigned to {$item->current_holder_name}" . ($request->location ? " at {$request->location}" : ''),
-            'performed_by' => auth('employee')->id(),
-            'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
+            'old_data' => [
+                'holder' => $oldHolder,
+                'status' => 'available',
+                'location' => $oldLocation,
+            ],
+            'new_data' => [
+                'holder' => $item->current_holder_name,
+                'status' => 'assigned',
+                'location' => $item->location,
+            ],
+            'description' => $description,
+            'performed_by' => $employeeId,
+            'performed_by_name' => $employeeName,
         ]);
 
-        return response()->json(['status' => 'success', 'message' => 'PPE assigned', 'data' => $item->fresh()]);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'PPE assigned successfully',
+            'data' => $item->fresh()->load(['category', 'currentHolder']),
+        ]);
     }
 
-    // ========== RETURN ==========
+    /**
+     * Return PPE from employee
+     * POST /api/ppe/{id}/return
+     */
     public function return($id): JsonResponse
     {
         $item = PPEItem::find($id);
-        if (!$item) return response()->json(['status' => 'error', 'message' => 'Not found'], 404);
-        if ($item->status !== 'assigned') return response()->json(['status' => 'error', 'message' => 'Not assigned'], 400);
+        if (!$item) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item not found',
+            ], 404);
+        }
+
+        // Cek apakah item sedang di-assign
+        if ($item->status !== 'assigned') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE is not currently assigned. Current status: ' . $item->status,
+            ], 400);
+        }
 
         $oldHolder = $item->current_holder_name;
+        $oldHolderId = $item->current_holder_id;
 
+        // Clear holder info
         $item->update([
             'current_holder_id' => null,
             'current_holder_name' => null,
@@ -243,58 +497,129 @@ class PPEController extends Controller
             'status' => 'available',
         ]);
 
+        $employeeId = auth()->id() ?? auth('employee')->id();
+        $employeeName = auth()->user()->first_name . ' ' . auth()->user()->last_name;
+
         // Log history
         PPEHistory::create([
             'ppe_item_id' => $item->id,
             'action_type' => 'returned',
-            'old_data' => ['holder' => $oldHolder, 'status' => 'assigned'],
-            'new_data' => ['holder' => null, 'status' => 'available'],
-            'description' => "Returned from {$oldHolder}",
-            'performed_by' => auth('employee')->id(),
-            'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
+            'old_data' => [
+                'holder' => $oldHolder,
+                'holder_id' => $oldHolderId,
+                'status' => 'assigned',
+            ],
+            'new_data' => [
+                'holder' => null,
+                'status' => 'available',
+            ],
+            'description' => "Returned by {$oldHolder}",
+            'performed_by' => $employeeId,
+            'performed_by_name' => $employeeName,
         ]);
 
-        return response()->json(['status' => 'success', 'message' => 'PPE returned', 'data' => $item->fresh()]);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'PPE returned successfully',
+            'data' => $item->fresh()->load('category'),
+        ]);
     }
 
-    // ========== MOVE LOCATION ==========
+    /**
+     * Move PPE to new location
+     * POST /api/ppe/{id}/move
+     */
     public function move(Request $request, $id): JsonResponse
     {
         $item = PPEItem::find($id);
-        if (!$item) return response()->json(['status' => 'error', 'message' => 'Not found'], 404);
+        if (!$item) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item not found',
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'location' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
         $oldLocation = $item->location;
-        $oldWarehouse = $item->warehouse_id;
 
         $item->update([
             'location' => $request->location,
-            'warehouse_id' => $request->warehouse_id,
         ]);
+
+        $employeeId = auth()->id() ?? auth('employee')->id();
+        $employeeName = auth()->user()->first_name . ' ' . auth()->user()->last_name;
 
         // Log history
         PPEHistory::create([
             'ppe_item_id' => $item->id,
             'action_type' => 'moved',
-            'old_data' => ['location' => $oldLocation, 'warehouse_id' => $oldWarehouse],
-            'new_data' => ['location' => $item->location, 'warehouse_id' => $item->warehouse_id],
+            'old_data' => ['location' => $oldLocation],
+            'new_data' => ['location' => $item->location],
             'description' => "Moved from '{$oldLocation}' to '{$item->location}'",
-            'performed_by' => auth('employee')->id(),
-            'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
+            'performed_by' => $employeeId,
+            'performed_by_name' => $employeeName,
         ]);
 
-        return response()->json(['status' => 'success', 'message' => 'Location updated', 'data' => $item->fresh()]);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'PPE location updated successfully',
+            'data' => $item->fresh()->load('category'),
+        ]);
     }
 
-    // ========== WRITE-OFF ==========
+    /**
+     * Write-off PPE
+     * POST /api/ppe/{id}/write-off
+     */
     public function writeOff(Request $request, $id): JsonResponse
     {
         $item = PPEItem::find($id);
-        if (!$item) return response()->json(['status' => 'error', 'message' => 'Not found'], 404);
+        if (!$item) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item not found',
+            ], 404);
+        }
+
+        // Cek jangan write-off yang sudah write-off
+        if ($item->status === 'write_off') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE is already written off',
+            ], 400);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'write_off_reason' => 'required|in:expired,damaged,lost,stolen,obsolete,recalled,replaced,other',
+            'write_off_notes' => 'nullable|string|max:500',
+            'write_off_approval_number' => 'nullable|string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $oldStatus = $item->status;
+        $employeeId = auth()->id() ?? auth('employee')->id();
+        $employeeName = auth()->user()->first_name . ' ' . auth()->user()->last_name;
 
         $item->update([
             'status' => 'write_off',
             'write_off_date' => now(),
-            'write_off_by' => auth('employee')->id(),
+            'write_off_by' => $employeeId,
             'write_off_reason' => $request->write_off_reason,
             'write_off_notes' => $request->write_off_notes,
             'write_off_approval_number' => $request->write_off_approval_number,
@@ -304,25 +629,58 @@ class PPEController extends Controller
         PPEHistory::create([
             'ppe_item_id' => $item->id,
             'action_type' => 'write_off',
-            'old_data' => ['status' => 'available'],
-            'new_data' => ['status' => 'write_off', 'reason' => $request->write_off_reason],
-            'description' => "Written off: {$request->write_off_reason}",
+            'old_data' => ['status' => $oldStatus],
+            'new_data' => [
+                'status' => 'write_off',
+                'reason' => $request->write_off_reason,
+            ],
+            'description' => "Written off - Reason: {$request->write_off_reason}",
             'notes' => $request->write_off_notes,
-            'performed_by' => auth('employee')->id(),
-            'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
+            'performed_by' => $employeeId,
+            'performed_by_name' => $employeeName,
         ]);
 
-        return response()->json(['status' => 'success', 'message' => 'PPE written off', 'data' => $item->fresh()]);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'PPE written off successfully',
+            'data' => $item->fresh()->load('category'),
+        ]);
     }
 
-    // ========== HISTORY ==========
+    /**
+     * Get PPE history timeline
+     * GET /api/ppe/{id}/history
+     */
     public function history($id): JsonResponse
     {
-        $histories = PPEHistory::where('ppe_item_id', $id)
-            ->with('performer:id,first_name,last_name')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $item = PPEItem::find($id);
+        if (!$item) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PPE item not found',
+            ], 404);
+        }
 
-        return response()->json(['status' => 'success', 'data' => $histories]);
+        $histories = PPEHistory::where('ppe_item_id', $id)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($h) {
+                return [
+                    'id' => $h->id,
+                    'action_type' => $h->action_type,
+                    'old_data' => $h->old_data,
+                    'new_data' => $h->new_data,
+                    'description' => $h->description,
+                    'notes' => $h->notes,
+                    'performed_by' => $h->performed_by,
+                    'performed_by_name' => $h->performed_by_name,
+                    'created_at' => $h->created_at,
+                ];
+            });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $histories,
+        ]);
     }
 }

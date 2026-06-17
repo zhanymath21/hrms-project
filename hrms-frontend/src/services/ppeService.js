@@ -12,7 +12,7 @@ api.interceptors.request.use(config => {
 });
 
 const ppeService = {
-  // Items
+  // Items CRUD
   getItems: async (params = {}) => {
     const res = await api.get('/ppe', { params });
     return res.data.data || res.data;

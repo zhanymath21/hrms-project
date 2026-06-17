@@ -173,11 +173,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // PPE Routes
     Route::get('/ppe/categories', [PPEController::class, 'categories']);
     Route::get('/ppe/stats', [PPEController::class, 'stats']);
+
     Route::get('/ppe', [PPEController::class, 'index']);
     Route::get('/ppe/{id}', [PPEController::class, 'show']);
     Route::get('/ppe/{id}/history', [PPEController::class, 'history']);
     Route::post('/ppe', [PPEController::class, 'store']);
     Route::put('/ppe/{id}', [PPEController::class, 'update']);
+
     Route::delete('/ppe/{id}', [PPEController::class, 'destroy']);
     Route::post('/ppe/{id}/assign', [PPEController::class, 'assign']);
     Route::post('/ppe/{id}/return', [PPEController::class, 'return']);
