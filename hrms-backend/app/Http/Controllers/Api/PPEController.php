@@ -111,7 +111,7 @@ class PPEController extends Controller
                 'action_type' => 'created',
                 'new_data' => $item->toArray(),
                 'description' => "PPE '{$item->name}' created",
-                'performed_by' => auth()->id(),
+                'performed_by' => auth('employee')->id(),
                 'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
             ]);
 
@@ -158,7 +158,7 @@ class PPEController extends Controller
                 'old_data' => ['location' => $oldLocation],
                 'new_data' => ['location' => $item->location],
                 'description' => implode(', ', $changes),
-                'performed_by' => auth()->id(),
+                'performed_by' => auth('employee')->id(),
                 'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
             ]);
         }
@@ -170,7 +170,7 @@ class PPEController extends Controller
                 'old_data' => ['condition' => $oldCondition],
                 'new_data' => ['condition' => $item->condition],
                 'description' => "Condition changed from '{$oldCondition}' to '{$item->condition}'",
-                'performed_by' => auth()->id(),
+                'performed_by' => auth('employee')->id(),
                 'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
             ]);
         }
@@ -184,7 +184,7 @@ class PPEController extends Controller
         $item = PPEItem::find($id);
         if (!$item) return response()->json(['status' => 'error', 'message' => 'Not found'], 404);
 
-        $item->update(['deleted_by' => auth()->id()]);
+        $item->update(['deleted_by' => auth('employee')->id()]);
         $item->delete();
 
         return response()->json(['status' => 'success', 'message' => 'PPE deleted']);
@@ -217,7 +217,7 @@ class PPEController extends Controller
             'old_data' => ['holder' => $oldHolder, 'status' => 'available'],
             'new_data' => ['holder' => $item->current_holder_name, 'status' => 'assigned'],
             'description' => "Assigned to {$item->current_holder_name}" . ($request->location ? " at {$request->location}" : ''),
-            'performed_by' => auth()->id(),
+            'performed_by' => auth('employee')->id(),
             'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
         ]);
 
@@ -250,7 +250,7 @@ class PPEController extends Controller
             'old_data' => ['holder' => $oldHolder, 'status' => 'assigned'],
             'new_data' => ['holder' => null, 'status' => 'available'],
             'description' => "Returned from {$oldHolder}",
-            'performed_by' => auth()->id(),
+            'performed_by' => auth('employee')->id(),
             'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
         ]);
 
@@ -278,7 +278,7 @@ class PPEController extends Controller
             'old_data' => ['location' => $oldLocation, 'warehouse_id' => $oldWarehouse],
             'new_data' => ['location' => $item->location, 'warehouse_id' => $item->warehouse_id],
             'description' => "Moved from '{$oldLocation}' to '{$item->location}'",
-            'performed_by' => auth()->id(),
+            'performed_by' => auth('employee')->id(),
             'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
         ]);
 
@@ -294,7 +294,7 @@ class PPEController extends Controller
         $item->update([
             'status' => 'write_off',
             'write_off_date' => now(),
-            'write_off_by' => auth()->id(),
+            'write_off_by' => auth('employee')->id(),
             'write_off_reason' => $request->write_off_reason,
             'write_off_notes' => $request->write_off_notes,
             'write_off_approval_number' => $request->write_off_approval_number,
@@ -308,7 +308,7 @@ class PPEController extends Controller
             'new_data' => ['status' => 'write_off', 'reason' => $request->write_off_reason],
             'description' => "Written off: {$request->write_off_reason}",
             'notes' => $request->write_off_notes,
-            'performed_by' => auth()->id(),
+            'performed_by' => auth('employee')->id(),
             'performed_by_name' => auth()->user()->first_name . ' ' . auth()->user()->last_name,
         ]);
 

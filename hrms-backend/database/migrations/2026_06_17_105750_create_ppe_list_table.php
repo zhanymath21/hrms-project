@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Categories dulu
+        // Categories
         Schema::create('ppe_categories', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -18,7 +18,6 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Seed categories
         DB::table('ppe_categories')->insert([
             ['name' => 'Head Protection', 'code' => 'HEAD', 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Eye & Face Protection', 'code' => 'EYE', 'created_at' => now(), 'updated_at' => now()],
@@ -31,7 +30,7 @@ return new class extends Migration
             ['name' => 'High Visibility', 'code' => 'HIVIS', 'created_at' => now(), 'updated_at' => now()],
         ]);
 
-        // PPE Items (TANPA warehouse_id)
+        // PPE Items
         Schema::create('ppe_items', function (Blueprint $table) {
             $table->id();
 
@@ -48,11 +47,11 @@ return new class extends Migration
             $table->string('model')->nullable();
             $table->string('serial_number')->nullable()->unique();
 
-            // ✅ LOCATION (Gedung, Ruangan, Rak)
-            $table->string('location')->nullable(); // e.g. "Gedung A Lt.2 - Lemari PPE"
+            // Location
+            $table->string('location')->nullable();
 
-            // ✅ CURRENT HOLDER (Yang pegang/makai)
-            $table->foreignId('current_holder_id')->nullable()->constrained('users')->onDelete('set null');
+            // Current Holder (Employee)
+            $table->foreignId('current_holder_id')->nullable()->constrained('employees')->onDelete('set null');
             $table->string('current_holder_name')->nullable();
             $table->string('current_holder_department')->nullable();
             $table->string('current_holder_position')->nullable();
@@ -83,7 +82,7 @@ return new class extends Migration
 
             // Write-Off
             $table->timestamp('write_off_date')->nullable();
-            $table->foreignId('write_off_by')->nullable()->constrained('users')->onDelete('set null');
+            $table->foreignId('write_off_by')->nullable()->constrained('employees')->onDelete('set null');
             $table->enum('write_off_reason', [
                 'expired',
                 'damaged',
@@ -97,16 +96,16 @@ return new class extends Migration
             $table->text('write_off_notes')->nullable();
             $table->string('write_off_approval_number')->nullable();
 
-            // Audit
-            $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
-            $table->foreignId('updated_by')->nullable()->constrained('users')->onDelete('set null');
-            $table->foreignId('deleted_by')->nullable()->constrained('users')->onDelete('set null');
+            // Audit Trail (✅ UBAH KE EMPLOYEES)
+            $table->foreignId('created_by')->nullable()->constrained('employees')->onDelete('set null');
+            $table->foreignId('updated_by')->nullable()->constrained('employees')->onDelete('set null');
+            $table->foreignId('deleted_by')->nullable()->constrained('employees')->onDelete('set null');
 
             $table->timestamps();
             $table->softDeletes();
         });
 
-        // History Table
+        // History
         Schema::create('ppe_histories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('ppe_item_id')->constrained('ppe_items')->onDelete('cascade');
@@ -124,7 +123,7 @@ return new class extends Migration
             $table->json('new_data')->nullable();
             $table->text('description')->nullable();
             $table->string('notes')->nullable();
-            $table->foreignId('performed_by')->nullable()->constrained('users')->onDelete('set null');
+            $table->foreignId('performed_by')->nullable()->constrained('employees')->onDelete('set null');
             $table->string('performed_by_name')->nullable();
             $table->timestamps();
         });

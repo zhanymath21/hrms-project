@@ -34,6 +34,6 @@ class PPEHistory extends Model
 
     public function performer()
     {
-        return $this->belongsTo(User::class, 'performed_by');
+        return $this->belongsTo(Employee::class, 'performed_by');
     }
 }
