@@ -47,7 +47,7 @@ Route::get('/export/attendance/monthly', [ReportController::class, 'exportMonthl
 // ==========================================
 // PROTECTED
 // ==========================================
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:api')->group(function () {
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);

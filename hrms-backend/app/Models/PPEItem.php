@@ -76,23 +76,17 @@ class PPEItem extends Model
      */
     public function currentHolder()
     {
-        return $this->belongsTo(User::class, 'current_holder_id');
+        return $this->belongsTo(Employee::class, 'current_holder_id');
     }
 
-    /**
-     * Get creator
-     */
     public function creator()
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->belongsTo(Employee::class, 'created_by');
     }
 
-    /**
-     * Get who write-off this item
-     */
     public function writeOffBy()
     {
-        return $this->belongsTo(User::class, 'write_off_by');
+        return $this->belongsTo(Employee::class, 'write_off_by');
     }
 
     /**
