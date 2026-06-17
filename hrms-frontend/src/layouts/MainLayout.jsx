@@ -42,6 +42,8 @@ import {
   Business as DepartmentIcon,        
   BadgeOutlined as PositionIcon,   
   TrendingDown as TrendingDownIcon,
+  Inventory as InventoryIcon,       // ✅ Untuk Assets
+  Description as DocumentIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -58,9 +60,11 @@ const menuItems = [
     path: '/employees', 
     color: '#10b981',
     children: [
-      { text: 'All Employees', path: '/employees', icon: <People /> },
-      { text: 'Add Employee', path: '/employees/create', icon: <AddIcon /> },
-      { text: 'Turnover', path: '/turnover', icon: <TrendingDownIcon /> },
+      { text: '👥 All Employees', path: '/employees' },
+      { text: '➕ Add Employee', path: '/employees/create' },
+      // { text: '🏢 Departments & Positions', path: '/departments' },
+      { text: '📦 Assets & Documents', path: '/employee-assets' },
+      { text: '📊 Turnover', path: '/turnover' },
     ]
   },
   { 

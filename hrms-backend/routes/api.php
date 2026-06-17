@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\EmployeeCardController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\WorkScheduleController;
 use App\Http\Controllers\Api\DailyReportController;
+use App\Http\Controllers\Api\EmployeeAssetController;
+use App\Http\Controllers\Api\EmployeeDocumentController;
 use App\Http\Controllers\Api\EmployeeOfficeController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
@@ -61,6 +63,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('employees', EmployeeController::class);
     Route::put('/employees/{id}/card', [EmployeeCardController::class, 'assignCard']);
     Route::delete('/employees/{id}/card', [EmployeeCardController::class, 'removeCard']);
+
+    // Employee Assets
+    Route::get('/employee-assets', [EmployeeAssetController::class, 'index']);
+    Route::get('/employee-assets/{id}', [EmployeeAssetController::class, 'show']);
+    Route::post('/employee-assets/assign', [EmployeeAssetController::class, 'assign']);
+    Route::post('/employee-assets/{id}/return', [EmployeeAssetController::class, 'return']);
+    Route::post('/employee-assets/replace', [EmployeeAssetController::class, 'replace']);
+    Route::get('/employee-assets/history/{employeeId}', [EmployeeAssetController::class, 'history']);
+
+    // Employee Documents
+    Route::get('/employees/{employeeId}/documents', [EmployeeDocumentController::class, 'index']);
+    Route::post('/employees/{employeeId}/documents', [EmployeeDocumentController::class, 'store']);
+    Route::delete('/employee-documents/{id}', [EmployeeDocumentController::class, 'destroy']);
 
     // Employee Office Assignments
     Route::get('/employee-offices', [EmployeeOfficeController::class, 'getEmployeeOffices']);

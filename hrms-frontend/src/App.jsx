@@ -28,6 +28,7 @@ import AttendanceReport from './pages/reports/AttendanceReport';
 import Leave from './pages/leave/Leave';
 import DepartmentPage from './pages/Departments/DepartmentPage'; 
 import TurnoverPage from './pages/Turnover/TurnoverPage';
+import EmployeeAssetPage from './pages/EmployeeAssets/EmployeeAssetPage';
 
 import MainLayout from './layouts/MainLayout';
 
@@ -162,6 +163,14 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <TurnoverPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/employee-assets" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <EmployeeAssetPage />
           </MainLayout>
         </ProtectedRoute>
       } />
