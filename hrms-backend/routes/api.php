@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\EmployeeOfficeController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TurnoverReportController;
 
@@ -168,4 +169,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/leave-balance', [ReportController::class, 'leaveBalanceReport']);
     Route::get('/reports/attendance/daily', [ReportController::class, 'dailyAttendance']);
     Route::get('/reports/attendance/monthly', [ReportController::class, 'monthlyAttendance']);
+
+    // PPE Routes
+    Route::get('/ppe/categories', [PPEController::class, 'categories']);
+    Route::get('/ppe/stats', [PPEController::class, 'stats']);
+    Route::get('/ppe', [PPEController::class, 'index']);
+    Route::get('/ppe/{id}', [PPEController::class, 'show']);
+    Route::get('/ppe/{id}/history', [PPEController::class, 'history']);
+    Route::post('/ppe', [PPEController::class, 'store']);
+    Route::put('/ppe/{id}', [PPEController::class, 'update']);
+    Route::delete('/ppe/{id}', [PPEController::class, 'destroy']);
+    Route::post('/ppe/{id}/assign', [PPEController::class, 'assign']);
+    Route::post('/ppe/{id}/return', [PPEController::class, 'return']);
+    Route::post('/ppe/{id}/move', [PPEController::class, 'move']);
+    Route::post('/ppe/{id}/write-off', [PPEController::class, 'writeOff']);
 });
