@@ -199,66 +199,57 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/ppe/categories/{id}', [PPECategoryController::class, 'destroy']);
 
     // ==========================================
-    // 🔥 RECRUITMENT / CANDIDATE ROUTES
+    // 🔥 RECRUITMENT ROUTES - Ikuti Format Leaves
     // ==========================================
 
     // Candidates
-    Route::prefix('candidates')->group(function () {
-        Route::get('/', [CandidateController::class, 'index']);
-        Route::get('/stats', [CandidateController::class, 'stats']);
-        Route::get('/cv', [CandidateController::class, 'getWithCV']);
-        Route::post('/', [CandidateController::class, 'store']);
-        Route::get('/{id}', [CandidateController::class, 'show']);
-        Route::put('/{id}', [CandidateController::class, 'update']);
-        Route::delete('/{id}', [CandidateController::class, 'destroy']);
-        Route::post('/{id}/cv', [CandidateController::class, 'uploadCV']);
-        Route::put('/{id}/status', [CandidateController::class, 'updateStatus']);
-        Route::get('/{id}/applications', [CandidateController::class, 'getApplications']);
-    });
+    Route::get('/candidates', [CandidateController::class, 'index']);
+    Route::get('/candidates/stats', [CandidateController::class, 'stats']);
+    Route::get('/candidates/cv', [CandidateController::class, 'getWithCV']);
+    Route::post('/candidates', [CandidateController::class, 'store']);
+    Route::get('/candidates/{id}', [CandidateController::class, 'show']);
+    Route::put('/candidates/{id}', [CandidateController::class, 'update']);
+    Route::delete('/candidates/{id}', [CandidateController::class, 'destroy']);
+    Route::post('/candidates/{id}/cv', [CandidateController::class, 'uploadCV']);
+    Route::put('/candidates/{id}/status', [CandidateController::class, 'updateStatus']);
+    Route::get('/candidates/{id}/applications', [CandidateController::class, 'getApplications']);
 
-    // Vacancies / Job Postings
-    Route::prefix('vacancies')->group(function () {
-        Route::get('/', [VacancyController::class, 'index']);
-        Route::get('/stats', [VacancyController::class, 'stats']);
-        Route::post('/', [VacancyController::class, 'store']);
-        Route::get('/{id}', [VacancyController::class, 'show']);
-        Route::put('/{id}', [VacancyController::class, 'update']);
-        Route::delete('/{id}', [VacancyController::class, 'destroy']);
-        Route::put('/{id}/status', [VacancyController::class, 'updateStatus']);
-        Route::get('/{id}/applications', [VacancyController::class, 'getApplications']);
-    });
+    // Vacancies
+    Route::get('/vacancies', [VacancyController::class, 'index']);
+    Route::get('/vacancies/stats', [VacancyController::class, 'stats']);
+    Route::post('/vacancies', [VacancyController::class, 'store']);
+    Route::get('/vacancies/{id}', [VacancyController::class, 'show']);
+    Route::put('/vacancies/{id}', [VacancyController::class, 'update']);
+    Route::delete('/vacancies/{id}', [VacancyController::class, 'destroy']);
+    Route::put('/vacancies/{id}/status', [VacancyController::class, 'updateStatus']);
+    Route::get('/vacancies/{id}/applications', [VacancyController::class, 'getApplications']);
 
     // Applications
-    Route::prefix('applications')->group(function () {
-        Route::get('/', [ApplicationController::class, 'index']);
-        Route::get('/stats', [ApplicationController::class, 'stats']);
-        Route::post('/', [ApplicationController::class, 'store']);
-        Route::get('/{id}', [ApplicationController::class, 'show']);
-        Route::put('/{id}', [ApplicationController::class, 'update']);
-        Route::delete('/{id}', [ApplicationController::class, 'destroy']);
-        Route::put('/{id}/status', [ApplicationController::class, 'updateStatus']);
-    });
+    Route::get('/applications', [ApplicationController::class, 'index']);
+    Route::get('/applications/stats', [ApplicationController::class, 'stats']);
+    Route::post('/applications', [ApplicationController::class, 'store']);
+    Route::get('/applications/{id}', [ApplicationController::class, 'show']);
+    Route::put('/applications/{id}', [ApplicationController::class, 'update']);
+    Route::delete('/applications/{id}', [ApplicationController::class, 'destroy']);
+    Route::put('/applications/{id}/status', [ApplicationController::class, 'updateStatus']);
+    Route::get('/applications/candidate/{candidateId}', [ApplicationController::class, 'getByCandidate']);
+    Route::get('/applications/vacancy/{vacancyId}', [ApplicationController::class, 'getByVacancy']);
+    Route::post('/applications/bulk-status', [ApplicationController::class, 'bulkUpdateStatus']);
 
     // Onboarding
-    Route::prefix('onboarding')->group(function () {
-        Route::get('/', [OnboardingController::class, 'index']);
-        Route::get('/stats', [OnboardingController::class, 'stats']);
-        Route::post('/', [OnboardingController::class, 'store']);
-        Route::get('/{id}', [OnboardingController::class, 'show']);
-        Route::put('/{id}', [OnboardingController::class, 'update']);
-        Route::delete('/{id}', [OnboardingController::class, 'destroy']);
-        Route::put('/{id}/progress', [OnboardingController::class, 'updateProgress']);
-        Route::post('/{id}/complete', [OnboardingController::class, 'complete']);
-    });
+    Route::get('/onboarding', [OnboardingController::class, 'index']);
+    Route::get('/onboarding/stats', [OnboardingController::class, 'stats']);
+    Route::post('/onboarding', [OnboardingController::class, 'store']);
+    Route::get('/onboarding/{id}', [OnboardingController::class, 'show']);
+    Route::put('/onboarding/{id}', [OnboardingController::class, 'update']);
+    Route::delete('/onboarding/{id}', [OnboardingController::class, 'destroy']);
+    Route::put('/onboarding/{id}/progress', [OnboardingController::class, 'updateProgress']);
+    Route::post('/onboarding/{id}/complete', [OnboardingController::class, 'complete']);
 
-    // ==========================================
-    // 🔥 RECRUITMENT DASHBOARD ROUTES
-    // ==========================================
-    Route::prefix('recruitment')->group(function () {
-        Route::get('/dashboard', [CandidateController::class, 'dashboard']);
-        Route::get('/pipeline', [CandidateController::class, 'pipeline']);
-        Route::get('/metrics', [CandidateController::class, 'metrics']);
-        Route::get('/status-options', [CandidateController::class, 'statusOptions']);
-        Route::get('/document-types', [CandidateController::class, 'documentTypes']);
-    });
+    // Recruitment Dashboard
+    Route::get('/recruitment/dashboard', [CandidateController::class, 'dashboard']);
+    Route::get('/recruitment/pipeline', [CandidateController::class, 'pipeline']);
+    Route::get('/recruitment/metrics', [CandidateController::class, 'metrics']);
+    Route::get('/recruitment/status-options', [CandidateController::class, 'statusOptions']);
+    Route::get('/recruitment/document-types', [CandidateController::class, 'documentTypes']);
 });
