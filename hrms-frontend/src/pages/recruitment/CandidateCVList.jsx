@@ -1,3 +1,4 @@
+// src/pages/recruitment/CandidateCVList.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -55,16 +56,27 @@ const CandidateCVList = () => {
   const fetchCandidates = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await api.get('/candidates', {
         params: { has_cv: true, per_page: 50 }
       });
       
+      let data = [];
       if (response.data?.status === 'success') {
-        setCandidates(response.data.data.data || []);
+        if (response.data.data?.data && Array.isArray(response.data.data.data)) {
+          data = response.data.data.data;
+        } else if (Array.isArray(response.data.data)) {
+          data = response.data.data;
+        }
+      } else if (Array.isArray(response.data)) {
+        data = response.data;
       }
+      
+      setCandidates(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching candidates:', err);
       setError(err.response?.data?.message || 'Failed to fetch candidates');
+      setCandidates([]);
     } finally {
       setLoading(false);
     }
@@ -87,33 +99,16 @@ const CandidateCVList = () => {
 
   return (
     <Box>
-      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
-          <Typography variant="h4" component="h1" fontWeight="bold">
-            📄 Candidate CVs
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            Manage and view candidate resumes and CVs
-          </Typography>
+          <Typography variant="h4" component="h1" fontWeight="bold">📄 Candidate CVs</Typography>
+          <Typography variant="body2" color="textSecondary">Manage and view candidate resumes and CVs</Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={fetchCandidates}
-          disabled={loading}
-        >
-          Refresh
-        </Button>
+        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchCandidates} disabled={loading}>Refresh</Button>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
-      {/* Search */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <TextField
           fullWidth
@@ -122,33 +117,22 @@ const CandidateCVList = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
+            startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
             endAdornment: searchTerm && (
               <InputAdornment position="end">
-                <IconButton size="small" onClick={() => setSearchTerm('')}>
-                  <ClearIcon fontSize="small" />
-                </IconButton>
+                <IconButton size="small" onClick={() => setSearchTerm('')}><ClearIcon fontSize="small" /></IconButton>
               </InputAdornment>
             ),
           }}
         />
       </Paper>
 
-      {/* CV Grid */}
       {loading ? (
-        <Box display="flex" justifyContent="center" py={4}>
-          <CircularProgress />
-        </Box>
+        <Box display="flex" justifyContent="center" py={4}><CircularProgress /></Box>
       ) : filteredCandidates.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <DescriptionIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-          <Typography color="textSecondary">
-            {searchTerm ? 'No CVs match your search' : 'No CVs uploaded yet'}
-          </Typography>
+          <Typography color="textSecondary">{searchTerm ? 'No CVs match your search' : 'No CVs uploaded yet'}</Typography>
         </Paper>
       ) : (
         <Grid container spacing={3}>
@@ -170,55 +154,22 @@ const CandidateCVList = () => {
                         </Typography>
                       </Box>
                     </Box>
-
                     <Box>
-                      <Typography variant="body2" color="textSecondary">
-                        Email: {candidate.email}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary">
-                        Applied: {formatDate(candidate.created_at)}
-                      </Typography>
+                      <Typography variant="body2" color="textSecondary">Email: {candidate.email}</Typography>
+                      <Typography variant="body2" color="textSecondary">Applied: {formatDate(candidate.created_at)}</Typography>
                     </Box>
-
                     <Box display="flex" alignItems="center" gap={1}>
                       {getFileIcon(candidate.cv_file_type)}
-                      <Typography variant="body2" noWrap flex={1}>
-                        {candidate.cv_file_name || 'CV.pdf'}
-                      </Typography>
-                      <Chip
-                        label={candidate.cv_file_size ? `${(candidate.cv_file_size / 1024).toFixed(1)} KB` : '-'}
-                        size="small"
-                        variant="outlined"
-                      />
+                      <Typography variant="body2" noWrap flex={1}>{candidate.cv_file_name || 'CV.pdf'}</Typography>
+                      <Chip label={candidate.cv_file_size ? `${(candidate.cv_file_size / 1024).toFixed(1)} KB` : '-'} size="small" variant="outlined" />
                     </Box>
-
                     <Stack direction="row" spacing={1}>
-                      <Tooltip title="View CV">
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<VisibilityIcon />}
-                          onClick={() => {
-                            setSelectedCandidate(candidate);
-                            setPreviewOpen(true);
-                          }}
-                          fullWidth
-                        >
-                          View
-                        </Button>
-                      </Tooltip>
-                      <Tooltip title="Download CV">
-                        <Button
-                          variant="contained"
-                          size="small"
-                          startIcon={<DownloadIcon />}
-                          href={candidate.cv_url}
-                          download
-                          fullWidth
-                        >
-                          Download
-                        </Button>
-                      </Tooltip>
+                      <Button variant="outlined" size="small" startIcon={<VisibilityIcon />} fullWidth onClick={() => { setSelectedCandidate(candidate); setPreviewOpen(true); }}>
+                        View
+                      </Button>
+                      <Button variant="contained" size="small" startIcon={<DownloadIcon />} fullWidth href={candidate.cv_url} download>
+                        Download
+                      </Button>
                     </Stack>
                   </Stack>
                 </CardContent>
@@ -229,29 +180,15 @@ const CandidateCVList = () => {
       )}
 
       {/* Preview Dialog */}
-      <Dialog
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
+      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>
           CV - {selectedCandidate?.first_name} {selectedCandidate?.last_name}
-          <IconButton
-            onClick={() => setPreviewOpen(false)}
-            sx={{ position: 'absolute', right: 8, top: 8 }}
-          >
-            <ClearIcon />
-          </IconButton>
+          <IconButton onClick={() => setPreviewOpen(false)} sx={{ position: 'absolute', right: 8, top: 8 }}><ClearIcon /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
           {selectedCandidate?.cv_url ? (
             <Box sx={{ height: 500, width: '100%' }}>
-              <iframe
-                src={selectedCandidate.cv_url}
-                title="CV Preview"
-                style={{ width: '100%', height: '100%', border: 'none' }}
-              />
+              <iframe src={selectedCandidate.cv_url} title="CV Preview" style={{ width: '100%', height: '100%', border: 'none' }} />
             </Box>
           ) : (
             <Box sx={{ py: 4, textAlign: 'center' }}>
@@ -262,14 +199,7 @@ const CandidateCVList = () => {
         </DialogContent>
         <DialogActions>
           {selectedCandidate?.cv_url && (
-            <Button
-              startIcon={<DownloadIcon />}
-              href={selectedCandidate.cv_url}
-              download
-              variant="contained"
-            >
-              Download CV
-            </Button>
+            <Button startIcon={<DownloadIcon />} href={selectedCandidate.cv_url} download variant="contained">Download CV</Button>
           )}
           <Button onClick={() => setPreviewOpen(false)}>Close</Button>
         </DialogActions>

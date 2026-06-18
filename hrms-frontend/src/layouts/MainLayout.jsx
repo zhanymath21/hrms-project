@@ -18,15 +18,12 @@ import {
   MenuItem,
   Divider,
   Tooltip,
-  alpha,
-  useTheme,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Dashboard,
   People,
   Work,
-  EventNote,
   Settings,
   AccountCircle,
   Logout,
@@ -47,20 +44,17 @@ import {
   Description as DocumentIcon,
   Add as AddIcon,
   Shield as ShieldIcon,
-  // 🔥 Tambahan import yang hilang
-  Category as CategoryIcon, 
+  Category as CategoryIcon,
   PersonAdd as PersonAddIcon,
   Article as ArticleIcon,
   FileCopy as FileCopyIcon,
   HowToReg as HowToRegIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { styled } from '@mui/material/styles';
 import NotificationBell from '../pages/components/NotificationBell';
 
 const drawerWidth = 280;
 
-// 🔥 Perbaiki menuItems dengan lengkap
 const menuItems = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/', color: '#6366f1' },
   { 
@@ -90,74 +84,23 @@ const menuItems = [
     icon: <AttendanceIcon />,
     color: '#3b82f6',
     children: [
-      {
-        text: 'Attendance',
-        icon: <AttendanceIcon />,
-        path: '/attendance',
-        color: '#3b82f6',
-      },
-      {
-        text: 'Attendance Report',
-        icon: <ReportIcon />,
-        path: '/attendance-report',
-        color: '#8b5cf6',
-      },
-      {
-        text: 'Work Schedules',
-        icon: <ScheduleIcon />,
-        path: '/schedules',
-        color: '#8b5cf6',
-      },
-      {
-        text: 'Office Locations',
-        icon: <LocationOnIcon />,
-        path: '/locations',
-        color: '#f59e0b',
-      },
-      {
-        text: 'Leave',
-        icon: <LeaveIcon />,
-        path: '/leave',
-        color: '#ef4444',
-      },
+      { text: 'Attendance', icon: <AttendanceIcon />, path: '/attendance', color: '#3b82f6' },
+      { text: 'Attendance Report', icon: <ReportIcon />, path: '/attendance-report', color: '#8b5cf6' },
+      { text: 'Work Schedules', icon: <ScheduleIcon />, path: '/schedules', color: '#8b5cf6' },
+      { text: 'Office Locations', icon: <LocationOnIcon />, path: '/locations', color: '#f59e0b' },
+      { text: 'Leave', icon: <LeaveIcon />, path: '/leave', color: '#ef4444' },
     ],
   },
-  // 🔥 Recruitment Menu
   {
     text: 'Recruitment',
     icon: <PersonAddIcon />,
     color: '#ec4899',
     children: [
-      {
-        text: 'Candidates',
-        icon: <PersonAddIcon />,
-        path: '/candidates',
-        color: '#ec4899',
-      },
-      {
-        text: 'Candidate CV',
-        icon: <DocumentIcon />,
-        path: '/candidates/cv',
-        color: '#f59e0b',
-      },
-      {
-        text: 'Job Vacancies',
-        icon: <ArticleIcon />,
-        path: '/vacancies',
-        color: '#3b82f6',
-      },
-      {
-        text: 'Applications',
-        icon: <FileCopyIcon />,
-        path: '/applications',
-        color: '#8b5cf6',
-      },
-      {
-        text: 'Onboarding',
-        icon: <HowToRegIcon />,
-        path: '/onboarding',
-        color: '#10b981',
-      },
+      { text: 'Candidates', icon: <PersonAddIcon />, path: '/candidates', color: '#ec4899' },
+      { text: 'Candidate CV', icon: <DocumentIcon />, path: '/candidates/cv', color: '#f59e0b' },
+      { text: 'Job Vacancies', icon: <ArticleIcon />, path: '/vacancies', color: '#3b82f6' },
+      { text: 'Applications', icon: <FileCopyIcon />, path: '/applications', color: '#8b5cf6' },
+      { text: 'Onboarding', icon: <HowToRegIcon />, path: '/onboarding', color: '#10b981' },
     ],
   },
   { 
@@ -173,23 +116,6 @@ const menuItems = [
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },
 ];
 
-const DrawerHeader = styled('div')(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  padding: theme.spacing(0, 1),
-  ...theme.mixins.toolbar,
-}));
-
-const GlassAppBar = styled(AppBar)(({ theme }) => ({
-  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.9)} 0%, ${alpha(
-    theme.palette.primary.dark,
-    0.9
-  )} 100%)`,
-  backdropFilter: 'blur(10px)',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-}));
-
 const MainLayout = ({ children }) => {
   const [open, setOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -197,7 +123,6 @@ const MainLayout = ({ children }) => {
   const [expandedMenu, setExpandedMenu] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const theme = useTheme();
 
   const handleDrawerOpen = () => setOpen(true);
   const handleDrawerClose = () => setOpen(false);
@@ -228,11 +153,38 @@ const MainLayout = ({ children }) => {
     return true;
   });
 
+  // 🔥 Safe alpha function
+  const getAlphaColor = (color, opacity) => {
+    if (!color) return `rgba(99, 102, 241, ${opacity})`;
+    if (color.startsWith('#')) {
+      const hex = color.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+    return color;
+  };
+
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <CssBaseline />
       
-      <GlassAppBar position="fixed" elevation={0}>
+      {/* 🔥 APP BAR - Tanpa styled */}
+      <AppBar 
+        position="fixed" 
+        elevation={0}
+        sx={{
+          backgroundColor: '#6366f1',
+          background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          zIndex: 1200,
+          width: { sm: `calc(100% - ${open ? drawerWidth : 80}px)` },
+          ml: { sm: `${open ? drawerWidth : 80}px` },
+          transition: 'all 0.3s ease',
+        }}
+      >
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconButton color="inherit" onClick={handleDrawerOpen} edge="start"
@@ -257,7 +209,7 @@ const MainLayout = ({ children }) => {
             </Tooltip>
           </Box>
         </Toolbar>
-      </GlassAppBar>
+      </AppBar>
 
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}
         PaperProps={{ sx: { mt: 1.5, width: 200, borderRadius: 2 } }}
@@ -270,24 +222,40 @@ const MainLayout = ({ children }) => {
         <MenuItem onClick={handleLogout}><Logout sx={{ mr: 1 }} /> Logout</MenuItem>
       </Menu>
 
-      <Drawer variant="permanent" open={open}
+      {/* 🔥 DRAWER - Tanpa styled */}
+      <Drawer 
+        variant="permanent" 
+        open={open}
         sx={{
-          width: open ? drawerWidth : 80, flexShrink: 0,
+          width: open ? drawerWidth : 80,
+          flexShrink: 0,
           '& .MuiDrawer-paper': {
-            width: open ? drawerWidth : 80, boxSizing: 'border-box',
-            transition: theme.transitions.create('width', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-            overflowX: 'hidden', borderRight: 'none',
-            background: `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`,
+            width: open ? drawerWidth : 80,
+            boxSizing: 'border-box',
+            transition: 'all 0.3s ease',
+            overflowX: 'hidden',
+            borderRight: 'none',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)',
             boxShadow: '2px 0 12px rgba(0,0,0,0.05)',
           },
+        }}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          minHeight: 64,
+          px: 2,
         }}>
-        <DrawerHeader sx={{ justifyContent: 'center', py: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {open && (
-              <Typography variant="h6" sx={{ fontWeight: 800, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' }}>
+              <Typography variant="h6" sx={{ 
+                fontWeight: 800, 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                color: 'transparent',
+              }}>
                 HRMS Portal
               </Typography>
             )}
@@ -295,11 +263,10 @@ const MainLayout = ({ children }) => {
               {open ? <ChevronLeft /> : <ChevronRight />}
             </IconButton>
           </Box>
-        </DrawerHeader>
+        </Box>
         
         <Divider sx={{ mx: 2, mb: 2 }} />
         
-        {/* MENU LIST */}
         <List sx={{ px: 2 }}>
           {filteredMenuItems.map((item) => {
             const isActive = isMenuActive(item);
@@ -312,46 +279,83 @@ const MainLayout = ({ children }) => {
                   <ListItemButton
                     onClick={() => hasChildren ? handleSubmenuToggle(item.text) : navigate(item.path)}
                     sx={{
-                      borderRadius: 2, py: 1.5, px: 2, minHeight: 48,
+                      borderRadius: 2,
+                      py: 1.5,
+                      px: 2,
+                      minHeight: 48,
                       justifyContent: open ? 'initial' : 'center',
-                      backgroundColor: isActive ? alpha(item.color, 0.1) : 'transparent',
-                      color: isActive ? item.color : 'text.primary',
-                      '&:hover': { backgroundColor: alpha(item.color, 0.08), transform: 'translateX(4px)', transition: 'all 0.2s ease' },
+                      backgroundColor: isActive ? getAlphaColor(item.color, 0.1) : 'transparent',
+                      color: isActive ? item.color : '#1e293b',
+                      '&:hover': { 
+                        backgroundColor: getAlphaColor(item.color, 0.08),
+                        transform: 'translateX(4px)',
+                        transition: 'all 0.2s ease',
+                      },
+                    }}
+                  >
+                    <Box sx={{ 
+                      minWidth: 0, 
+                      mr: open ? 2 : 'auto',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      color: isActive ? item.color : 'inherit',
                     }}>
-                    <ListItemIcon sx={{ minWidth: 0, mr: open ? 2 : 'auto', justifyContent: 'center', color: isActive ? item.color : 'inherit' }}>
                       {item.icon}
-                    </ListItemIcon>
+                    </Box>
                     {open && (
                       <>
-                        <ListItemText primary={item.text} primaryTypographyProps={{ sx: { fontWeight: isActive ? 700 : 500, fontSize: '0.9rem' } }} />
+                        <ListItemText 
+                          primary={item.text} 
+                          primaryTypographyProps={{ 
+                            sx: { 
+                              fontWeight: isActive ? 700 : 500,
+                              fontSize: '0.9rem',
+                            } 
+                          }} 
+                        />
                         {hasChildren && (
-                          <ChevronRight sx={{ fontSize: 18, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                          <Box sx={{ 
+                            fontSize: 18,
+                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                          }}>
+                            <ChevronRight />
+                          </Box>
                         )}
                       </>
                     )}
                   </ListItemButton>
                 </ListItem>
 
-                {/* SUBMENU */}
                 {hasChildren && isExpanded && open && (
                   <Box sx={{ pl: 4, mb: 1 }}>
                     {item.children.map((child) => {
                       const isChildActive = location.pathname === child.path;
                       return (
                         <ListItem key={child.text} disablePadding sx={{ mb: 0.5 }}>
-                          <ListItemButton onClick={() => navigate(child.path)}
+                          <ListItemButton 
+                            onClick={() => navigate(child.path)}
                             sx={{
-                              borderRadius: 2, py: 1, px: 2,
-                              backgroundColor: isChildActive ? alpha(item.color, 0.08) : 'transparent',
-                              '&:hover': { backgroundColor: alpha(item.color, 0.05) },
-                            }}>
-                            <ListItemIcon sx={{ minWidth: 24, color: isChildActive ? item.color : 'text.secondary' }}>
+                              borderRadius: 2,
+                              py: 1,
+                              px: 2,
+                              backgroundColor: isChildActive ? getAlphaColor(item.color, 0.08) : 'transparent',
+                              '&:hover': { backgroundColor: getAlphaColor(item.color, 0.05) },
+                            }}
+                          >
+                            <Box sx={{ minWidth: 24, color: isChildActive ? item.color : '#64748b' }}>
                               {child.icon || <ChevronRight fontSize="small" />}
-                            </ListItemIcon>
-                            <ListItemText primary={child.text}
+                            </Box>
+                            <ListItemText 
+                              primary={child.text}
                               primaryTypographyProps={{
-                                sx: { fontSize: '0.82rem', fontWeight: isChildActive ? 600 : 400, color: isChildActive ? item.color : 'text.secondary' }
-                              }} />
+                                sx: {
+                                  fontSize: '0.82rem',
+                                  fontWeight: isChildActive ? 600 : 400,
+                                  color: isChildActive ? item.color : '#64748b',
+                                }
+                              }}
+                            />
                           </ListItemButton>
                         </ListItem>
                       );
@@ -366,9 +370,9 @@ const MainLayout = ({ children }) => {
         <Box sx={{ flexGrow: 1 }} />
         
         {open && (
-          <Box sx={{ p: 2, m: 1, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+          <Box sx={{ p: 2, m: 1, borderRadius: 2, bgcolor: 'rgba(99, 102, 241, 0.05)' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Avatar sx={{ width: 40, height: 40, bgcolor: 'primary.main' }}>A</Avatar>
+              <Avatar sx={{ width: 40, height: 40, bgcolor: '#6366f1' }}>A</Avatar>
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>Admin User</Typography>
                 <Typography variant="caption" color="text.secondary">Administrator</Typography>
@@ -378,17 +382,19 @@ const MainLayout = ({ children }) => {
         )}
       </Drawer>
 
-      <Box component="main"
+      {/* 🔥 MAIN CONTENT */}
+      <Box
+        component="main"
         sx={{
-          flexGrow: 1, p: 3,
+          flexGrow: 1,
+          p: 3,
           width: { xs: '100%', md: `calc(100% - ${open ? drawerWidth : 80}px)` },
-          transition: theme.transitions.create('width', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
-          minHeight: '100vh', bgcolor: 'background.default',
-        }}>
-        <DrawerHeader />
+          transition: 'all 0.3s ease',
+          minHeight: '100vh',
+          bgcolor: '#f8fafc',
+          mt: '64px',
+        }}
+      >
         {children}
       </Box>
     </Box>

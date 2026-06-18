@@ -51,12 +51,25 @@ const VacancyList = () => {
   const fetchVacancies = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await api.get('/vacancies');
+      
+      let data = [];
       if (response.data?.status === 'success') {
-        setVacancies(response.data.data || []);
+        if (response.data.data?.data && Array.isArray(response.data.data.data)) {
+          data = response.data.data.data;
+        } else if (Array.isArray(response.data.data)) {
+          data = response.data.data;
+        }
+      } else if (Array.isArray(response.data)) {
+        data = response.data;
       }
+      
+      setVacancies(Array.isArray(data) ? data : []);
     } catch (err) {
+      console.error('Error fetching vacancies:', err);
       setError(err.response?.data?.message || 'Failed to fetch vacancies');
+      setVacancies([]);
     } finally {
       setLoading(false);
     }
@@ -81,27 +94,13 @@ const VacancyList = () => {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
-          <Typography variant="h4" component="h1" fontWeight="bold">
-            💼 Job Vacancies
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            Manage open positions and job postings
-          </Typography>
+          <Typography variant="h4" component="h1" fontWeight="bold">💼 Job Vacancies</Typography>
+          <Typography variant="body2" color="textSecondary">Manage open positions and job postings</Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/vacancies/create')}
-        >
-          Add Vacancy
-        </Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/vacancies/create')}>Add Vacancy</Button>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
       <Paper sx={{ p: 2, mb: 3 }}>
         <TextField
@@ -111,14 +110,10 @@ const VacancyList = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
-            startAdornment: (
-              <InputAdornment position="start"><SearchIcon /></InputAdornment>
-            ),
+            startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
             endAdornment: searchTerm && (
               <InputAdornment position="end">
-                <IconButton size="small" onClick={() => setSearchTerm('')}>
-                  <ClearIcon fontSize="small" />
-                </IconButton>
+                <IconButton size="small" onClick={() => setSearchTerm('')}><ClearIcon fontSize="small" /></IconButton>
               </InputAdornment>
             ),
           }}
@@ -145,24 +140,16 @@ const VacancyList = () => {
             ) : (
               filteredVacancies.map((vacancy) => (
                 <TableRow key={vacancy.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight="medium">
-                      {vacancy.title}
-                    </Typography>
-                  </TableCell>
+                  <TableCell><Typography variant="body2" fontWeight="medium">{vacancy.title || '-'}</Typography></TableCell>
                   <TableCell>{vacancy.department?.name || '-'}</TableCell>
                   <TableCell>
-                    <Chip
-                      label={vacancy.status}
-                      color={vacancy.status === 'open' ? 'success' : 'default'}
-                      size="small"
-                    />
+                    <Chip label={vacancy.status || 'unknown'} color={vacancy.status === 'open' ? 'success' : vacancy.status === 'closed' ? 'error' : 'default'} size="small" />
                   </TableCell>
-                  <TableCell>{vacancy.applicants_count || 0}</TableCell>
+                  <TableCell>{vacancy.applicants_count || vacancy.applications?.length || 0}</TableCell>
                   <TableCell>{formatDate(vacancy.created_at)}</TableCell>
                   <TableCell>
                     <Tooltip title="View">
-                      <IconButton size="small" color="info">
+                      <IconButton size="small" color="info" onClick={() => navigate(`/vacancies/${vacancy.id}`)}>
                         <VisibilityIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
@@ -187,9 +174,7 @@ const VacancyList = () => {
       <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, vacancy: null })}>
         <DialogTitle>Delete Vacancy</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{deleteDialog.vacancy?.title}"?
-          </Typography>
+          <Typography>Are you sure you want to delete "{deleteDialog.vacancy?.title}"?</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialog({ open: false, vacancy: null })}>Cancel</Button>

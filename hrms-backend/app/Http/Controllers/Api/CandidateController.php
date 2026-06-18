@@ -204,7 +204,7 @@ class CandidateController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'cv' => 'required|file|mimes:pdf,doc,docx|max:10240' // max 10MB
+            'cv' => 'required|file|mimes:pdf,doc,docx|max:10240'
         ]);
 
         if ($validator->fails()) {
@@ -214,25 +214,42 @@ class CandidateController extends Controller
             ], 422);
         }
 
+        $file = $request->file('cv');
+
+        // 🔥 PERBAIKAN: Simpan dengan cara yang lebih sederhana
+        $fileName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+
+        // 🔥 PERBAIKAN: Simpan langsung di folder candidates
+        $path = $file->storeAs('public/candidates', $fileName);
+
+        // 🔥 PERBAIKAN: Convert path untuk database
+        $dbPath = str_replace('public/', '', $path);
+
         // Delete old CV
         if ($candidate->cv_file_path) {
-            Storage::disk('public')->delete($candidate->cv_file_path);
+            Storage::delete('public/' . $candidate->cv_file_path);
         }
-
-        $file = $request->file('cv');
-        $path = $file->store("candidates/{$candidate->id}/cv", 'public');
 
         $candidate->update([
             'cv_file_name' => $file->getClientOriginalName(),
-            'cv_file_path' => $path,
+            'cv_file_path' => $dbPath,
             'cv_file_type' => $file->getMimeType(),
             'cv_file_size' => $file->getSize(),
+        ]);
+
+        // 🔥 PERBAIKAN: Log untuk debugging
+        \Log::info('CV Upload Debug:', [
+            'candidate_id' => $candidate->id,
+            'file_name' => $file->getClientOriginalName(),
+            'file_path' => $dbPath,
+            'full_storage_path' => storage_path('app/public/candidates/' . $fileName),
         ]);
 
         return response()->json([
             'status' => 'success',
             'message' => 'CV uploaded successfully',
-            'data' => $candidate
+            'data' => $candidate,
+            'cv_url' => asset('storage/candidates/' . $fileName),
         ]);
     }
 

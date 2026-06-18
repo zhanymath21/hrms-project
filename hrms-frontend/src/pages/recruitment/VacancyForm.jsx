@@ -1,3 +1,4 @@
+// src/pages/recruitment/VacancyForm.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -47,9 +48,13 @@ const VacancyForm = () => {
   const fetchDepartments = async () => {
     try {
       const response = await api.get('/departments');
+      let data = [];
       if (response.data?.status === 'success') {
-        setDepartments(response.data.data || []);
+        data = Array.isArray(response.data.data) ? response.data.data : [];
+      } else if (Array.isArray(response.data)) {
+        data = response.data;
       }
+      setDepartments(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching departments:', err);
     }
@@ -113,134 +118,60 @@ const VacancyForm = () => {
   return (
     <Box>
       <Box display="flex" alignItems="center" mb={3} gap={2}>
-        <IconButton onClick={() => navigate('/vacancies')}>
-          <ArrowBackIcon />
-        </IconButton>
+        <IconButton onClick={() => navigate('/vacancies')}><ArrowBackIcon /></IconButton>
         <Typography variant="h4" component="h1" fontWeight="bold">
           {isEdit ? 'Edit Vacancy' : 'Add New Vacancy'}
         </Typography>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
       <Paper sx={{ p: 3 }}>
         <form onSubmit={handleSubmit}>
           <Grid container spacing={3}>
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Job Title *"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                required
-              />
+              <TextField fullWidth label="Job Title *" name="title" value={formData.title} onChange={handleChange} required />
             </Grid>
-
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Department *</InputLabel>
-                <Select
-                  name="department_id"
-                  value={formData.department_id}
-                  onChange={handleChange}
-                  label="Department *"
-                  required
-                >
+                <Select name="department_id" value={formData.department_id} onChange={handleChange} label="Department *" required>
                   <MenuItem value="">Select Department</MenuItem>
                   {departments.map(dept => (
-                    <MenuItem key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </MenuItem>
+                    <MenuItem key={dept.id} value={dept.id}>{dept.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
-                <Select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleChange}
-                  label="Status"
-                >
+                <Select name="status" value={formData.status} onChange={handleChange} label="Status">
                   <MenuItem value="open">Open</MenuItem>
                   <MenuItem value="closed">Closed</MenuItem>
                   <MenuItem value="on_hold">On Hold</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
-
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Location"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-              />
+              <TextField fullWidth label="Location" name="location" value={formData.location} onChange={handleChange} />
             </Grid>
-
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Salary Min"
-                name="salary_min"
-                type="number"
-                value={formData.salary_min}
-                onChange={handleChange}
-                InputProps={{ startAdornment: '$' }}
-              />
+              <TextField fullWidth label="Salary Min" name="salary_min" type="number" value={formData.salary_min} onChange={handleChange} InputProps={{ startAdornment: '$' }} />
             </Grid>
-
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Salary Max"
-                name="salary_max"
-                type="number"
-                value={formData.salary_max}
-                onChange={handleChange}
-                InputProps={{ startAdornment: '$' }}
-              />
+              <TextField fullWidth label="Salary Max" name="salary_max" type="number" value={formData.salary_max} onChange={handleChange} InputProps={{ startAdornment: '$' }} />
             </Grid>
-
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                name="description"
-                multiline
-                rows={4}
-                value={formData.description}
-                onChange={handleChange}
-              />
+              <TextField fullWidth label="Description" name="description" multiline rows={4} value={formData.description} onChange={handleChange} />
             </Grid>
-
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Requirements"
-                name="requirements"
-                multiline
-                rows={4}
-                value={formData.requirements}
-                onChange={handleChange}
-                placeholder="List requirements separated by new line"
-              />
+              <TextField fullWidth label="Requirements" name="requirements" multiline rows={4} value={formData.requirements} onChange={handleChange} placeholder="List requirements separated by new line" />
             </Grid>
           </Grid>
 
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4 }}>
-            <Button variant="outlined" onClick={() => navigate('/vacancies')} disabled={loading}>
-              Cancel
-            </Button>
+            <Button variant="outlined" onClick={() => navigate('/vacancies')} disabled={loading}>Cancel</Button>
             <Button type="submit" variant="contained" disabled={loading} startIcon={<SaveIcon />}>
               {loading ? 'Saving...' : isEdit ? 'Update' : 'Create'}
             </Button>

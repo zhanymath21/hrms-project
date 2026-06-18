@@ -38,8 +38,13 @@ const NotificationBell = () => {
   const handleOpen = async (event) => {
     setAnchorEl(event.currentTarget);
     setLoading(true);
-    await fetchNotifications();
-    setLoading(false);
+    try {
+      await fetchNotifications();
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleClose = () => {
@@ -47,16 +52,24 @@ const NotificationBell = () => {
   };
 
   const handleNotificationClick = async (notification) => {
-    if (!notification.is_read) {
-      await markAsRead(notification.id);
+    try {
+      if (!notification.is_read) {
+        await markAsRead(notification.id);
+      }
+      
+      // Navigate based on notification type
+      if (notification.type === 'leave_request' || notification.type === 'leave_approved' || notification.type === 'leave_rejected') {
+        navigate('/leave');
+      } else if (notification.type === 'attendance') {
+        navigate('/attendance');
+      } else if (notification.type === 'employee') {
+        navigate('/employees');
+      }
+      
+      handleClose();
+    } catch (error) {
+      console.error('Error handling notification click:', error);
     }
-    
-    // Navigate based on notification type
-    if (notification.type === 'leave_request' || notification.type === 'leave_approved' || notification.type === 'leave_rejected') {
-      navigate('/leave');
-    }
-    
-    handleClose();
   };
 
   const getNotificationIcon = (type) => {
@@ -81,11 +94,15 @@ const NotificationBell = () => {
     }
   };
 
+  // 🔥 PERBAIKAN: Handle jika notifications undefined
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
+  const safeUnreadCount = typeof unreadCount === 'number' ? unreadCount : 0;
+
   return (
     <>
       <Tooltip title="Notifications">
         <IconButton color="inherit" onClick={handleOpen}>
-          <Badge badgeContent={unreadCount} color="error">
+          <Badge badgeContent={safeUnreadCount} color="error">
             <NotificationsIcon />
           </Badge>
         </IconButton>
@@ -111,8 +128,18 @@ const NotificationBell = () => {
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             Notifications
           </Typography>
-          {unreadCount > 0 && (
-            <Button size="small" startIcon={<DoneAllIcon />} onClick={markAllAsRead}>
+          {safeUnreadCount > 0 && (
+            <Button 
+              size="small" 
+              startIcon={<DoneAllIcon />} 
+              onClick={async () => {
+                try {
+                  await markAllAsRead();
+                } catch (error) {
+                  console.error('Error marking all as read:', error);
+                }
+              }}
+            >
               Mark all read
             </Button>
           )}
@@ -122,15 +149,15 @@ const NotificationBell = () => {
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
             <CircularProgress size={32} />
           </Box>
-        ) : notifications.length === 0 ? (
+        ) : safeNotifications.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <NotificationsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
             <Typography color="textSecondary">No notifications</Typography>
           </Box>
         ) : (
           <List sx={{ p: 0 }}>
-            {notifications.map((notification, index) => (
-              <React.Fragment key={notification.id}>
+            {safeNotifications.map((notification, index) => (
+              <React.Fragment key={notification.id || index}>
                 <ListItem
                   onClick={() => handleNotificationClick(notification)}
                   sx={{
@@ -148,17 +175,17 @@ const NotificationBell = () => {
                   <ListItemText
                     primary={
                       <Typography variant="body2" sx={{ fontWeight: notification.is_read ? 400 : 600 }}>
-                        {notification.title}
+                        {notification.title || 'Notification'}
                       </Typography>
                     }
                     secondary={
                       <>
                         <Typography variant="caption" color="textSecondary" component="span">
-                          {notification.message}
+                          {notification.message || 'No message'}
                         </Typography>
                         <br />
                         <Typography variant="caption" color="textSecondary">
-                          {formatDate(notification.created_at, 'dd/MM/yyyy HH:mm')}
+                          {notification.created_at ? formatDate(notification.created_at) : ''}
                         </Typography>
                       </>
                     }
@@ -167,14 +194,20 @@ const NotificationBell = () => {
                     <Chip label="New" size="small" color="primary" sx={{ height: 20, fontSize: 10 }} />
                   )}
                 </ListItem>
-                {index < notifications.length - 1 && <Divider />}
+                {index < safeNotifications.length - 1 && <Divider />}
               </React.Fragment>
             ))}
           </List>
         )}
 
         <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider', textAlign: 'center' }}>
-          <Button size="small" onClick={() => navigate('/notifications')}>
+          <Button 
+            size="small" 
+            onClick={() => {
+              navigate('/notifications');
+              handleClose();
+            }}
+          >
             View All Notifications
           </Button>
         </Box>

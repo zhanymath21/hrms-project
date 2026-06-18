@@ -26,13 +26,13 @@ import WorkSchedules from './pages/schedules/WorkSchedules';
 import OfficeLocations from './pages/locations/OfficeLocations';
 import AttendanceReport from './pages/reports/AttendanceReport';
 import Leave from './pages/leave/Leave';
-import DepartmentPage from './pages/Departments/DepartmentPage'; 
+import DepartmentPage from './pages/Departments/DepartmentPage';
 import TurnoverPage from './pages/Turnover/TurnoverPage';
 import EmployeeAssetPage from './pages/EmployeeAssets/EmployeeAssetPage';
 import PPEListPage from './pages/PPE/PPEListPage';
 import PPECategoryPage from './pages/PPE/PPECategoryPage';
 
-// 🔥 Recruitment / Candidate Pages
+// Recruitment / Candidate Pages
 import CandidateList from './pages/recruitment/CandidateList';
 import CandidateForm from './pages/recruitment/CandidateForm';
 import CandidateCVList from './pages/recruitment/CandidateCVList';
@@ -44,25 +44,89 @@ import OnboardingList from './pages/recruitment/OnboardingList';
 
 import MainLayout from './layouts/MainLayout';
 
+// 🔥 THEME LENGKAP
 const theme = createTheme({
   palette: {
     primary: {
       main: '#6366f1',
+      light: '#818cf8',
+      dark: '#4f46e5',
+      contrastText: '#ffffff',
     },
     secondary: {
       main: '#ec4899',
+      light: '#f472b6',
+      dark: '#db2777',
+      contrastText: '#ffffff',
     },
+    background: {
+      default: '#f8fafc',
+      paper: '#ffffff',
+    },
+    text: {
+      primary: '#1e293b',
+      secondary: '#64748b',
+    },
+    error: { main: '#ef4444' },
+    warning: { main: '#f59e0b' },
+    info: { main: '#3b82f6' },
+    success: { main: '#10b981' },
   },
   shape: {
     borderRadius: 12,
   },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h1: { fontWeight: 700 },
+    h2: { fontWeight: 700 },
+    h3: { fontWeight: 600 },
+    h4: { fontWeight: 600 },
+    h5: { fontWeight: 600 },
+    h6: { fontWeight: 600 },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 600,
+          borderRadius: 8,
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+        },
+      },
+    },
+    MuiTableHead: {
+      styleOverrides: {
+        root: {
+          '& .MuiTableCell-root': {
+            fontWeight: 600,
+            backgroundColor: '#f8fafc',
+          },
+        },
+      },
+    },
+  },
 });
 
-// Error boundary component
+// 🔥 ERROR BOUNDARY
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -70,16 +134,45 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
+    console.error('ERROR OBJECT:', error);
+    console.error('ERROR STACK:', error?.stack);
+    console.error('ERROR INFO:', errorInfo);
+    this.setState({ errorInfo });
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 20, textAlign: 'center' }}>
-          <h2>Something went wrong</h2>
-          <p>{this.state.error?.message}</p>
-          <button onClick={() => window.location.reload()}>Refresh Page</button>
+        <div style={{ 
+          padding: '40px 20px', 
+          textAlign: 'center',
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#f8fafc'
+        }}>
+          <h2 style={{ color: '#ef4444', marginBottom: 16 }}>⚠️ Something went wrong</h2>
+          <p style={{ color: '#64748b', maxWidth: 500 }}>
+            {this.state.error?.message || 'An unexpected error occurred'}
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: 20,
+              padding: '10px 24px',
+              backgroundColor: '#6366f1',
+              color: 'white',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            Refresh Page
+          </button>
         </div>
       );
     }
@@ -87,6 +180,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// 🔥 APP
 function App() {
   return (
     <ErrorBoundary>
@@ -106,14 +200,25 @@ function App() {
               </EmployeeProvider>
             </AuthProvider>
           </BrowserRouter>
-          <ToastContainer position="top-right" autoClose={3000} />
+          <ToastContainer 
+            position="top-right" 
+            autoClose={3000} 
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="light"
+          />
         </LocalizationProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
 }
 
-// Separate component for routes to use hooks
+// 🔥 APP ROUTES
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
 
@@ -341,6 +446,33 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <OnboardingList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Settings */}
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <div>Settings Page</div>
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Notifications */}
+      <Route path="/notifications" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <div>Notifications Page</div>
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Profile */}
+      <Route path="/profile" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <div>Profile Page</div>
           </MainLayout>
         </ProtectedRoute>
       } />
