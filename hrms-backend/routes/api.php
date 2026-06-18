@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\EmployeeCardController;
 use App\Http\Controllers\Api\AttendanceController;
-use App\Http\Controllers\API\CandidateController;
+use App\Http\Controllers\Api\CandidateController;
 use App\Http\Controllers\Api\WorkScheduleController;
 use App\Http\Controllers\Api\DailyReportController;
 use App\Http\Controllers\Api\EmployeeAssetController;
@@ -23,7 +23,7 @@ use App\Http\Controllers\Api\PPECategoryController;
 use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TurnoverReportController;
-use App\Http\Controllers\API\VacancyController;
+use App\Http\Controllers\Api\VacancyController;
 
 // ==========================================
 // TEST
