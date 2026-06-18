@@ -32,6 +32,16 @@ import EmployeeAssetPage from './pages/EmployeeAssets/EmployeeAssetPage';
 import PPEListPage from './pages/PPE/PPEListPage';
 import PPECategoryPage from './pages/PPE/PPECategoryPage';
 
+// 🔥 Recruitment / Candidate Pages
+import CandidateList from './pages/recruitment/CandidateList';
+import CandidateForm from './pages/recruitment/CandidateForm';
+import CandidateCVList from './pages/recruitment/CandidateCVList';
+import CandidateDetail from './pages/recruitment/CandidateDetail';
+import VacancyList from './pages/recruitment/VacancyList';
+import VacancyForm from './pages/recruitment/VacancyForm';
+import ApplicationList from './pages/recruitment/ApplicationList';
+import OnboardingList from './pages/recruitment/OnboardingList';
+
 import MainLayout from './layouts/MainLayout';
 
 const theme = createTheme({
@@ -129,6 +139,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* ============ EMPLOYEE ROUTES ============ */}
       <Route path="/employees" element={
         <ProtectedRoute>
           <MainLayout>
@@ -161,6 +172,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* ============ TURNOVER ============ */}
       <Route path="/turnover" element={
         <ProtectedRoute>
           <MainLayout>
@@ -169,6 +181,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* ============ EMPLOYEE ASSETS ============ */}
       <Route path="/employee-assets" element={
         <ProtectedRoute>
           <MainLayout>
@@ -177,7 +190,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
             
-      {/* ✅ DEPARTMENTS ROUTE */}
+      {/* ============ DEPARTMENTS ============ */}
       <Route path="/departments" element={
         <ProtectedRoute>
           <MainLayout>
@@ -186,6 +199,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* ============ ATTENDANCE ============ */}
       <Route path="/attendance" element={
         <ProtectedRoute>
           <MainLayout>
@@ -218,7 +232,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
-      {/* Leave Route */}
+      {/* ============ LEAVE ============ */}
       <Route path="/leave" element={
         <ProtectedRoute>
           <MainLayout>
@@ -227,6 +241,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* ============ PPE ============ */}
       <Route path="/ppe" element={
         <ProtectedRoute>
           <MainLayout>
@@ -242,8 +257,95 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
+
+      {/* ============ RECRUITMENT / CANDIDATE ============ */}
       
-      {/* Catch all */}
+      {/* Candidates */}
+      <Route path="/candidates" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <CandidateList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/candidates/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <CandidateForm />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/candidates/:id" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <CandidateDetail />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/candidates/:id/edit" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <CandidateForm />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Candidate CV */}
+      <Route path="/candidates/cv" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <CandidateCVList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Vacancies */}
+      <Route path="/vacancies" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <VacancyList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/vacancies/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <VacancyForm />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/vacancies/:id/edit" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <VacancyForm />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Applications */}
+      <Route path="/applications" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ApplicationList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Onboarding */}
+      <Route path="/onboarding" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <OnboardingList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Catch all - redirect to login */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

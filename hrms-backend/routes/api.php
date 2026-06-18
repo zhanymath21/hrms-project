@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ApplicationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\EmployeeCardController;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\API\CandidateController;
 use App\Http\Controllers\Api\WorkScheduleController;
 use App\Http\Controllers\Api\DailyReportController;
 use App\Http\Controllers\Api\EmployeeAssetController;
@@ -16,10 +18,12 @@ use App\Http\Controllers\Api\EmployeeOfficeController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PPECategoryController;
 use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TurnoverReportController;
+use App\Http\Controllers\API\VacancyController;
 
 // ==========================================
 // TEST
@@ -193,4 +197,68 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/ppe/categories', [PPECategoryController::class, 'store']);
     Route::put('/ppe/categories/{id}', [PPECategoryController::class, 'update']);
     Route::delete('/ppe/categories/{id}', [PPECategoryController::class, 'destroy']);
+
+    // ==========================================
+    // 🔥 RECRUITMENT / CANDIDATE ROUTES
+    // ==========================================
+
+    // Candidates
+    Route::prefix('candidates')->group(function () {
+        Route::get('/', [CandidateController::class, 'index']);
+        Route::get('/stats', [CandidateController::class, 'stats']);
+        Route::get('/cv', [CandidateController::class, 'getWithCV']);
+        Route::post('/', [CandidateController::class, 'store']);
+        Route::get('/{id}', [CandidateController::class, 'show']);
+        Route::put('/{id}', [CandidateController::class, 'update']);
+        Route::delete('/{id}', [CandidateController::class, 'destroy']);
+        Route::post('/{id}/cv', [CandidateController::class, 'uploadCV']);
+        Route::put('/{id}/status', [CandidateController::class, 'updateStatus']);
+        Route::get('/{id}/applications', [CandidateController::class, 'getApplications']);
+    });
+
+    // Vacancies / Job Postings
+    Route::prefix('vacancies')->group(function () {
+        Route::get('/', [VacancyController::class, 'index']);
+        Route::get('/stats', [VacancyController::class, 'stats']);
+        Route::post('/', [VacancyController::class, 'store']);
+        Route::get('/{id}', [VacancyController::class, 'show']);
+        Route::put('/{id}', [VacancyController::class, 'update']);
+        Route::delete('/{id}', [VacancyController::class, 'destroy']);
+        Route::put('/{id}/status', [VacancyController::class, 'updateStatus']);
+        Route::get('/{id}/applications', [VacancyController::class, 'getApplications']);
+    });
+
+    // Applications
+    Route::prefix('applications')->group(function () {
+        Route::get('/', [ApplicationController::class, 'index']);
+        Route::get('/stats', [ApplicationController::class, 'stats']);
+        Route::post('/', [ApplicationController::class, 'store']);
+        Route::get('/{id}', [ApplicationController::class, 'show']);
+        Route::put('/{id}', [ApplicationController::class, 'update']);
+        Route::delete('/{id}', [ApplicationController::class, 'destroy']);
+        Route::put('/{id}/status', [ApplicationController::class, 'updateStatus']);
+    });
+
+    // Onboarding
+    Route::prefix('onboarding')->group(function () {
+        Route::get('/', [OnboardingController::class, 'index']);
+        Route::get('/stats', [OnboardingController::class, 'stats']);
+        Route::post('/', [OnboardingController::class, 'store']);
+        Route::get('/{id}', [OnboardingController::class, 'show']);
+        Route::put('/{id}', [OnboardingController::class, 'update']);
+        Route::delete('/{id}', [OnboardingController::class, 'destroy']);
+        Route::put('/{id}/progress', [OnboardingController::class, 'updateProgress']);
+        Route::post('/{id}/complete', [OnboardingController::class, 'complete']);
+    });
+
+    // ==========================================
+    // 🔥 RECRUITMENT DASHBOARD ROUTES
+    // ==========================================
+    Route::prefix('recruitment')->group(function () {
+        Route::get('/dashboard', [CandidateController::class, 'dashboard']);
+        Route::get('/pipeline', [CandidateController::class, 'pipeline']);
+        Route::get('/metrics', [CandidateController::class, 'metrics']);
+        Route::get('/status-options', [CandidateController::class, 'statusOptions']);
+        Route::get('/document-types', [CandidateController::class, 'documentTypes']);
+    });
 });

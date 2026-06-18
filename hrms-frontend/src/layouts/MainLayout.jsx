@@ -1,3 +1,4 @@
+// src/layouts/MainLayout.jsx
 import React, { useState } from 'react';
 import {
   AppBar,
@@ -38,14 +39,20 @@ import {
   Schedule as ScheduleIcon,
   LocationOn as LocationOnIcon,
   Assessment as ReportIcon,
-  EventNote as LeaveIcon,
-  Business as DepartmentIcon,        
-  BadgeOutlined as PositionIcon,   
+  Umbrella as LeaveIcon,
+  Business as DepartmentIcon,
+  BadgeOutlined as PositionIcon,
   TrendingDown as TrendingDownIcon,
-  Inventory as InventoryIcon,       // ✅ Untuk Assets
+  Inventory as InventoryIcon,
   Description as DocumentIcon,
   Add as AddIcon,
   Shield as ShieldIcon,
+  // 🔥 Tambahan import yang hilang
+  Category as CategoryIcon, 
+  PersonAdd as PersonAddIcon,
+  Article as ArticleIcon,
+  FileCopy as FileCopyIcon,
+  HowToReg as HowToRegIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
@@ -53,6 +60,7 @@ import NotificationBell from '../pages/components/NotificationBell';
 
 const drawerWidth = 280;
 
+// 🔥 Perbaiki menuItems dengan lengkap
 const menuItems = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/', color: '#6366f1' },
   { 
@@ -61,11 +69,10 @@ const menuItems = [
     path: '/employees', 
     color: '#10b981',
     children: [
-      { text: '👥 All Employees', path: '/employees' },
-      { text: '➕ Add Employee', path: '/employees/create' },
-      // { text: '🏢 Departments & Positions', path: '/departments' },
-      { text: '📦 Assets & Documents', path: '/employee-assets' },
-      { text: '📊 Turnover', path: '/turnover' },
+      { text: '👥 All Employees', path: '/employees', icon: <People /> },
+      { text: '➕ Add Employee', path: '/employees/create', icon: <AddIcon /> },
+      { text: '📦 Assets & Documents', path: '/employee-assets', icon: <InventoryIcon /> },
+      { text: '📊 Turnover', path: '/turnover', icon: <TrendingDownIcon /> },
     ]
   },
   { 
@@ -75,22 +82,92 @@ const menuItems = [
     color: '#f59e0b',
     children: [
       { text: 'All Departments', path: '/departments', icon: <DepartmentIcon /> },
-      { text: 'Positions', path: '/departments?tab=positions', icon: <PositionIcon /> },
+      { text: 'Positions', path: '/positions', icon: <PositionIcon /> },
     ]
   },
-  { text: 'Attendance', icon: <AttendanceIcon />, path: '/attendance', color: '#3b82f6' },
-  { text: 'Attendance Report', icon: <ReportIcon />, path: '/attendance-report', color: '#8b5cf6' },
-  { text: 'Work Schedules', icon: <ScheduleIcon />, path: '/schedules', color: '#8b5cf6' },
-  { text: 'Office Locations', icon: <LocationOnIcon />, path: '/locations', color: '#f59e0b' },
-  { text: 'Leave', icon: <LeaveIcon />, path: '/leave', color: '#ef4444' },
+  {
+    text: 'Attendance',
+    icon: <AttendanceIcon />,
+    color: '#3b82f6',
+    children: [
+      {
+        text: 'Attendance',
+        icon: <AttendanceIcon />,
+        path: '/attendance',
+        color: '#3b82f6',
+      },
+      {
+        text: 'Attendance Report',
+        icon: <ReportIcon />,
+        path: '/attendance-report',
+        color: '#8b5cf6',
+      },
+      {
+        text: 'Work Schedules',
+        icon: <ScheduleIcon />,
+        path: '/schedules',
+        color: '#8b5cf6',
+      },
+      {
+        text: 'Office Locations',
+        icon: <LocationOnIcon />,
+        path: '/locations',
+        color: '#f59e0b',
+      },
+      {
+        text: 'Leave',
+        icon: <LeaveIcon />,
+        path: '/leave',
+        color: '#ef4444',
+      },
+    ],
+  },
+  // 🔥 Recruitment Menu
+  {
+    text: 'Recruitment',
+    icon: <PersonAddIcon />,
+    color: '#ec4899',
+    children: [
+      {
+        text: 'Candidates',
+        icon: <PersonAddIcon />,
+        path: '/candidates',
+        color: '#ec4899',
+      },
+      {
+        text: 'Candidate CV',
+        icon: <DocumentIcon />,
+        path: '/candidates/cv',
+        color: '#f59e0b',
+      },
+      {
+        text: 'Job Vacancies',
+        icon: <ArticleIcon />,
+        path: '/vacancies',
+        color: '#3b82f6',
+      },
+      {
+        text: 'Applications',
+        icon: <FileCopyIcon />,
+        path: '/applications',
+        color: '#8b5cf6',
+      },
+      {
+        text: 'Onboarding',
+        icon: <HowToRegIcon />,
+        path: '/onboarding',
+        color: '#10b981',
+      },
+    ],
+  },
   { 
     text: 'PPE Management', 
     icon: <ShieldIcon />, 
     path: '/ppe', 
     color: '#f59e0b',
     children: [
-      { text: 'PPE List', path: '/ppe' },
-      { text: 'PPE Categories', path: '/ppe/categories' },
+      { text: 'PPE List', path: '/ppe', icon: <ShieldIcon /> },
+      { text: 'PPE Categories', path: '/ppe/categories', icon: <CategoryIcon /> },
     ]
   },
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },
@@ -269,7 +346,6 @@ const MainLayout = ({ children }) => {
                               '&:hover': { backgroundColor: alpha(item.color, 0.05) },
                             }}>
                             <ListItemIcon sx={{ minWidth: 24, color: isChildActive ? item.color : 'text.secondary' }}>
-                              {/* ✅ GUNAKAN CHILD.ICON */}
                               {child.icon || <ChevronRight fontSize="small" />}
                             </ListItemIcon>
                             <ListItemText primary={child.text}
