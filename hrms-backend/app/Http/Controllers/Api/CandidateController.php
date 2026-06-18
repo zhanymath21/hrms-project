@@ -1,6 +1,7 @@
 <?php
+// app/Http/Controllers/API/CandidateController.php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Candidate;
@@ -17,7 +18,6 @@ class CandidateController extends Controller
     {
         $query = Candidate::query();
 
-        // Search filter
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -29,17 +29,14 @@ class CandidateController extends Controller
             });
         }
 
-        // Status filter
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
 
-        // Has CV filter
         if ($request->has('has_cv') && $request->has_cv) {
             $query->whereNotNull('cv_file_path');
         }
 
-        // Pagination
         $perPage = $request->per_page ?? 15;
         $candidates = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
@@ -70,10 +67,14 @@ class CandidateController extends Controller
     }
 
     /**
-     * Create new candidate
+     * Create new candidate with CV upload
      */
     public function store(Request $request)
     {
+        \Log::info('=== STORE CANDIDATE ===');
+        \Log::info('Has file cv:', $request->hasFile('cv'));
+        \Log::info('Files:', $request->allFiles());
+
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -89,17 +90,27 @@ class CandidateController extends Controller
         ]);
 
         if ($validator->fails()) {
+            \Log::error('Validation failed:', $validator->errors()->toArray());
             return response()->json([
                 'status' => 'error',
                 'errors' => $validator->errors()
             ], 422);
         }
 
-        $candidate = Candidate::create($request->all());
+        // 🔥 PERBAIKAN: Create candidate tanpa file
+        $candidate = Candidate::create($request->except('cv'));
 
-        // Handle CV upload if present
+        // 🔥 PERBAIKAN: Handle CV upload
         if ($request->hasFile('cv')) {
-            $this->handleUploadCV($candidate, $request->file('cv'));
+            \Log::info('CV file detected, uploading...');
+            $uploaded = $this->uploadCVFile($candidate, $request->file('cv'));
+            if ($uploaded) {
+                \Log::info('CV uploaded successfully');
+            } else {
+                \Log::error('CV upload failed');
+            }
+        } else {
+            \Log::warning('No CV file in request');
         }
 
         return response()->json([
@@ -110,10 +121,13 @@ class CandidateController extends Controller
     }
 
     /**
-     * Update candidate
+     * Update candidate with CV upload
      */
     public function update(Request $request, $id)
     {
+        \Log::info('=== UPDATE CANDIDATE ===');
+        \Log::info('Has file cv:', $request->hasFile('cv'));
+
         $candidate = Candidate::find($id);
 
         if (!$candidate) {
@@ -138,21 +152,29 @@ class CandidateController extends Controller
         ]);
 
         if ($validator->fails()) {
+            \Log::error('Validation failed:', $validator->errors()->toArray());
             return response()->json([
                 'status' => 'error',
                 'errors' => $validator->errors()
             ], 422);
         }
 
-        $candidate->update($request->all());
+        $candidate->update($request->except('cv', '_method'));
 
-        // Handle CV upload if present
+        // 🔥 PERBAIKAN: Handle CV upload
         if ($request->hasFile('cv')) {
+            \Log::info('CV file detected, uploading...');
             // Delete old CV
             if ($candidate->cv_file_path) {
                 Storage::disk('public')->delete($candidate->cv_file_path);
+                \Log::info('Old CV deleted:', ['path' => $candidate->cv_file_path]);
             }
-            $this->handleUploadCV($candidate, $request->file('cv'));
+            $uploaded = $this->uploadCVFile($candidate, $request->file('cv'));
+            if ($uploaded) {
+                \Log::info('CV uploaded successfully');
+            } else {
+                \Log::error('CV upload failed');
+            }
         }
 
         return response()->json([
@@ -163,7 +185,7 @@ class CandidateController extends Controller
     }
 
     /**
-     * Delete candidate
+     * Delete candidate and CV
      */
     public function destroy($id)
     {
@@ -190,10 +212,49 @@ class CandidateController extends Controller
     }
 
     /**
-     * Upload CV for candidate (PUBLIC METHOD)
+     * 🔥 PERBAIKAN: Upload CV file helper
+     */
+    private function uploadCVFile($candidate, $file)
+    {
+        try {
+            // Generate unique filename
+            $fileName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+
+            // Store file
+            $path = $file->storeAs('candidates', $fileName, 'public');
+
+            \Log::info('CV file stored:', [
+                'path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime_type' => $file->getMimeType(),
+            ]);
+
+            // Update candidate
+            $candidate->update([
+                'cv_file_name' => $file->getClientOriginalName(),
+                'cv_file_path' => $path,
+                'cv_file_type' => $file->getMimeType(),
+                'cv_file_size' => $file->getSize(),
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            \Log::error('CV upload failed:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Upload CV for existing candidate
      */
     public function uploadCV(Request $request, $id)
     {
+        \Log::info('=== UPLOAD CV ===');
+
         $candidate = Candidate::find($id);
 
         if (!$candidate) {
@@ -214,42 +275,25 @@ class CandidateController extends Controller
             ], 422);
         }
 
-        $file = $request->file('cv');
-
-        // 🔥 PERBAIKAN: Simpan dengan cara yang lebih sederhana
-        $fileName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
-
-        // 🔥 PERBAIKAN: Simpan langsung di folder candidates
-        $path = $file->storeAs('public/candidates', $fileName);
-
-        // 🔥 PERBAIKAN: Convert path untuk database
-        $dbPath = str_replace('public/', '', $path);
-
         // Delete old CV
         if ($candidate->cv_file_path) {
-            Storage::delete('public/' . $candidate->cv_file_path);
+            Storage::disk('public')->delete($candidate->cv_file_path);
         }
 
-        $candidate->update([
-            'cv_file_name' => $file->getClientOriginalName(),
-            'cv_file_path' => $dbPath,
-            'cv_file_type' => $file->getMimeType(),
-            'cv_file_size' => $file->getSize(),
-        ]);
+        $uploaded = $this->uploadCVFile($candidate, $request->file('cv'));
 
-        // 🔥 PERBAIKAN: Log untuk debugging
-        \Log::info('CV Upload Debug:', [
-            'candidate_id' => $candidate->id,
-            'file_name' => $file->getClientOriginalName(),
-            'file_path' => $dbPath,
-            'full_storage_path' => storage_path('app/public/candidates/' . $fileName),
-        ]);
+        if (!$uploaded) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to upload CV'
+            ], 500);
+        }
 
         return response()->json([
             'status' => 'success',
             'message' => 'CV uploaded successfully',
             'data' => $candidate,
-            'cv_url' => asset('storage/candidates/' . $fileName),
+            'cv_url' => asset('storage/' . $candidate->cv_file_path),
         ]);
     }
 
@@ -332,22 +376,6 @@ class CandidateController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $stats
-        ]);
-    }
-
-    /**
-     * 🔥 PERBAIKAN: Ganti nama method dari uploadCV menjadi handleUploadCV
-     * untuk menghindari konflik dengan method public uploadCV
-     */
-    private function handleUploadCV($candidate, $file)
-    {
-        $path = $file->store("candidates/{$candidate->id}/cv", 'public');
-
-        $candidate->update([
-            'cv_file_name' => $file->getClientOriginalName(),
-            'cv_file_path' => $path,
-            'cv_file_type' => $file->getMimeType(),
-            'cv_file_size' => $file->getSize(),
         ]);
     }
 
