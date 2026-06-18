@@ -71,8 +71,9 @@ class CandidateController extends Controller
      */
     public function store(Request $request)
     {
+        // 🔥 PERBAIKAN: Log dengan array
         \Log::info('=== STORE CANDIDATE ===');
-        \Log::info('Has file cv:', $request->hasFile('cv'));
+        \Log::info('Has file cv:', ['value' => $request->hasFile('cv')]);
         \Log::info('Files:', $request->allFiles());
 
         $validator = Validator::make($request->all(), [
@@ -97,10 +98,10 @@ class CandidateController extends Controller
             ], 422);
         }
 
-        // 🔥 PERBAIKAN: Create candidate tanpa file
+        // Create candidate tanpa file
         $candidate = Candidate::create($request->except('cv'));
 
-        // 🔥 PERBAIKAN: Handle CV upload
+        // Handle CV upload
         if ($request->hasFile('cv')) {
             \Log::info('CV file detected, uploading...');
             $uploaded = $this->uploadCVFile($candidate, $request->file('cv'));
@@ -125,8 +126,9 @@ class CandidateController extends Controller
      */
     public function update(Request $request, $id)
     {
+        // 🔥 PERBAIKAN: Log dengan array
         \Log::info('=== UPDATE CANDIDATE ===');
-        \Log::info('Has file cv:', $request->hasFile('cv'));
+        \Log::info('Has file cv:', ['value' => $request->hasFile('cv')]);
 
         $candidate = Candidate::find($id);
 
@@ -161,7 +163,7 @@ class CandidateController extends Controller
 
         $candidate->update($request->except('cv', '_method'));
 
-        // 🔥 PERBAIKAN: Handle CV upload
+        // Handle CV upload
         if ($request->hasFile('cv')) {
             \Log::info('CV file detected, uploading...');
             // Delete old CV
@@ -212,7 +214,7 @@ class CandidateController extends Controller
     }
 
     /**
-     * 🔥 PERBAIKAN: Upload CV file helper
+     * Upload CV file helper
      */
     private function uploadCVFile($candidate, $file)
     {
@@ -223,6 +225,7 @@ class CandidateController extends Controller
             // Store file
             $path = $file->storeAs('candidates', $fileName, 'public');
 
+            // 🔥 PERBAIKAN: Log dengan array
             \Log::info('CV file stored:', [
                 'path' => $path,
                 'original_name' => $file->getClientOriginalName(),
@@ -240,6 +243,7 @@ class CandidateController extends Controller
 
             return true;
         } catch (\Exception $e) {
+            // 🔥 PERBAIKAN: Log dengan array
             \Log::error('CV upload failed:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()

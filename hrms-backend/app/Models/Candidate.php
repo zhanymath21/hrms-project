@@ -26,7 +26,6 @@ class Candidate extends Model
         'cv_file_path',
         'cv_file_type',
         'cv_file_size',
-        'cv_url',
     ];
 
     protected $casts = [
