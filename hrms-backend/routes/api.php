@@ -245,8 +245,11 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/onboarding/{id}', [OnboardingController::class, 'show']);
     Route::put('/onboarding/{id}', [OnboardingController::class, 'update']);
     Route::delete('/onboarding/{id}', [OnboardingController::class, 'destroy']);
+    Route::put('/onboarding/{id}/status', [OnboardingController::class, 'updateStatus']);
+    Route::get('/onboarding/{id}/history', [OnboardingController::class, 'getStatusHistory']);
     Route::put('/onboarding/{id}/progress', [OnboardingController::class, 'updateProgress']);
-    Route::post('/onboarding/{id}/complete', [OnboardingController::class, 'complete']);
+    Route::put('/onboarding/{id}/tasks', [OnboardingController::class, 'updateTasks']);
+    Route::put('/onboarding/{id}/tasks/{taskIndex}/toggle', [OnboardingController::class, 'toggleTask']);
 
     // Recruitment Dashboard
     Route::get('/recruitment/dashboard', [CandidateController::class, 'dashboard']);

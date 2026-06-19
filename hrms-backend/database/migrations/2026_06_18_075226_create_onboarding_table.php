@@ -8,25 +8,38 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::create('onboarding', function (Blueprint $table) {
+        Schema::create('onboardings', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('candidate_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('employee_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('department_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('position_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('position_title')->nullable();
+            $table->foreignId('candidate_id')->constrained()->onDelete('cascade');
+            $table->foreignId('employee_id')->nullable()->constrained()->onDelete('set null');
+            $table->foreignId('vacancy_id')->nullable()->constrained()->onDelete('set null');
+
+            $table->string('position_title');
             $table->date('start_date');
+            $table->date('expected_end_date')->nullable();
+            $table->date('actual_end_date')->nullable();
+
+            $table->string('status')->default('pending');
             $table->integer('progress')->default(0);
-            $table->enum('status', ['pending', 'in_progress', 'completed', 'cancelled'])->default('pending');
+
             $table->text('notes')->nullable();
-            $table->text('tasks')->nullable(); // JSON or text for onboarding tasks
+            $table->text('tasks')->nullable(); // JSON or text
+
+            $table->foreignId('created_by')->nullable()->constrained('employees')->onDelete('set null');
+            $table->foreignId('updated_by')->nullable()->constrained('employees')->onDelete('set null');
+
             $table->timestamps();
             $table->softDeletes();
+
+            $table->index('candidate_id');
+            $table->index('employee_id');
+            $table->index('status');
+            $table->index('start_date');
         });
     }
 
     public function down()
     {
-        Schema::dropIfExists('onboarding');
+        Schema::dropIfExists('onboardings');
     }
 };
