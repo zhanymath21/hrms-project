@@ -190,7 +190,7 @@ const IncidentEdit = () => {
       witnesses: prev.witnesses.filter((_, i) => i !== index)
     }));
   };
-
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -207,7 +207,9 @@ const IncidentEdit = () => {
             submitData.append('file', formData.file);
           }
         } else if (key === 'witnesses') {
-          submitData.append('witnesses', JSON.stringify(formData.witnesses));
+          // Ensure witnesses is always an array
+          const witnessesArray = Array.isArray(formData.witnesses) ? formData.witnesses : [];
+          submitData.append('witnesses', JSON.stringify(witnessesArray));
         } else if (key !== 'existing_file_path' && key !== 'existing_file_name') {
           submitData.append(key, formData[key] || '');
         }

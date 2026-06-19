@@ -113,7 +113,7 @@ class IncidentReportController extends Controller
                 'witnesses' => 'nullable|array',
                 'witnesses.*.name' => 'required|string',
                 'witnesses.*.contact' => 'nullable|string',
-                'file' => 'nullable|file|max:10240', // Max 10MB
+                'file' => 'nullable|file|max:10240',
             ]);
 
             if ($validator->fails()) {
@@ -138,9 +138,21 @@ class IncidentReportController extends Controller
                 $data['file_name'] = $file->getClientOriginalName();
             }
 
-            // Handle witnesses
+            // Handle witnesses - ensure it's an array
             if ($request->has('witnesses')) {
-                $data['witnesses'] = json_encode($request->witnesses);
+                $witnesses = $request->witnesses;
+                // If it's a string, try to decode it
+                if (is_string($witnesses)) {
+                    $witnesses = json_decode($witnesses, true);
+                }
+                // Ensure it's an array
+                if (is_array($witnesses)) {
+                    $data['witnesses'] = json_encode($witnesses);
+                } else {
+                    $data['witnesses'] = json_encode([]);
+                }
+            } else {
+                $data['witnesses'] = json_encode([]);
             }
 
             $incident = IncidentReport::create($data);
@@ -175,6 +187,8 @@ class IncidentReportController extends Controller
                 'severity' => 'sometimes|in:low,medium,high,critical',
                 'assigned_to' => 'nullable|exists:employees,id',
                 'witnesses' => 'nullable|array',
+                'witnesses.*.name' => 'required|string',
+                'witnesses.*.contact' => 'nullable|string',
                 'resolution_notes' => 'nullable|string',
                 'resolved_date' => 'nullable|date',
                 'file' => 'nullable|file|max:10240',
@@ -198,9 +212,25 @@ class IncidentReportController extends Controller
                 $data['file_name'] = $file->getClientOriginalName();
             }
 
-            // Handle witnesses
+            // Handle file removal
+            if ($request->has('remove_file') && $request->remove_file === 'true') {
+                $data['file_path'] = null;
+                $data['file_name'] = null;
+            }
+
+            // Handle witnesses - ensure it's an array
             if ($request->has('witnesses')) {
-                $data['witnesses'] = json_encode($request->witnesses);
+                $witnesses = $request->witnesses;
+                // If it's a string, try to decode it
+                if (is_string($witnesses)) {
+                    $witnesses = json_decode($witnesses, true);
+                }
+                // Ensure it's an array
+                if (is_array($witnesses)) {
+                    $data['witnesses'] = json_encode($witnesses);
+                } else {
+                    $data['witnesses'] = json_encode([]);
+                }
             }
 
             $incident->update($data);

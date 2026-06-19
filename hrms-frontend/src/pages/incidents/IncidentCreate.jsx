@@ -141,9 +141,11 @@ const IncidentCreate = () => {
             submitData.append('file', formData.file);
           }
         } else if (key === 'witnesses') {
-          submitData.append('witnesses', JSON.stringify(formData.witnesses));
+          // Ensure witnesses is always an array
+          const witnessesArray = Array.isArray(formData.witnesses) ? formData.witnesses : [];
+          submitData.append('witnesses', JSON.stringify(witnessesArray));
         } else {
-          submitData.append(key, formData[key]);
+          submitData.append(key, formData[key] || '');
         }
       });
 
