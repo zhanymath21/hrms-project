@@ -233,6 +233,7 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/applications/{id}', [ApplicationController::class, 'update']);
     Route::delete('/applications/{id}', [ApplicationController::class, 'destroy']);
     Route::put('/applications/{id}/status', [ApplicationController::class, 'updateStatus']);
+    Route::get('/applications/{id}/history', [ApplicationController::class, 'getStatusHistory']);
     Route::get('/applications/candidate/{candidateId}', [ApplicationController::class, 'getByCandidate']);
     Route::get('/applications/vacancy/{vacancyId}', [ApplicationController::class, 'getByVacancy']);
     Route::post('/applications/bulk-status', [ApplicationController::class, 'bulkUpdateStatus']);

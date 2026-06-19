@@ -1,360 +1,372 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\API;
 
-use App\Http\Controllers\Controller;
 use App\Models\Application;
-use App\Models\Candidate;
-use App\Models\Vacancy;
+use App\Models\ApplicationStatusHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class ApplicationController extends Controller
 {
-    /**
-     * Get all applications with pagination and filters
-     */
+    // ============ LIST ALL APPLICATIONS ============
     public function index(Request $request)
     {
-        $query = Application::with(['candidate', 'vacancy.department']);
+        $query = Application::with(['candidate', 'vacancy']);
 
-        // Filter by status
-        if ($request->has('status') && $request->status) {
-            $query->where('status', $request->status);
+        // Filters
+        if ($request->has('status')) {
+            $query->byStatus($request->status);
+        }
+        if ($request->has('candidate_id')) {
+            $query->byCandidate($request->candidate_id);
+        }
+        if ($request->has('vacancy_id')) {
+            $query->byVacancy($request->vacancy_id);
         }
 
-        // Filter by vacancy
-        if ($request->has('vacancy_id') && $request->vacancy_id) {
-            $query->where('vacancy_id', $request->vacancy_id);
-        }
-
-        // Filter by candidate
-        if ($request->has('candidate_id') && $request->candidate_id) {
-            $query->where('candidate_id', $request->candidate_id);
-        }
-
-        // Search by candidate name or email
-        if ($request->has('search') && $request->search) {
+        // Search
+        if ($request->has('search')) {
             $search = $request->search;
-            $query->whereHas('candidate', function ($q) use ($search) {
-                $q->where('first_name', 'LIKE', "%{$search}%")
-                    ->orWhere('last_name', 'LIKE', "%{$search}%")
-                    ->orWhere('email', 'LIKE', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('candidate', function ($q) use ($search) {
+                    $q->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                })->orWhereHas('vacancy', function ($q) use ($search) {
+                    $q->where('title', 'like', "%{$search}%");
+                });
             });
         }
 
-        $perPage = $request->per_page ?? 15;
-        $applications = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        $applications = $query->paginate($request->per_page ?? 15);
 
         return response()->json([
             'status' => 'success',
-            'data' => $applications
+            'data' => $applications,
         ]);
     }
 
-    /**
-     * Get single application
-     */
-    public function show($id)
+    // ============ GET STATISTICS ============
+    public function stats()
     {
-        $application = Application::with(['candidate', 'vacancy.department'])->find($id);
-
-        if (!$application) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Application not found'
-            ], 404);
-        }
+        $stats = [
+            'total' => Application::count(),
+            'pending' => Application::pending()->count(),
+            'accepted' => Application::accepted()->count(),
+            'rejected' => Application::rejected()->count(),
+            'by_status' => Application::select('status', DB::raw('count(*) as count'))
+                ->groupBy('status')
+                ->get(),
+            'by_candidate' => Application::select('candidate_id', DB::raw('count(*) as count'))
+                ->groupBy('candidate_id')
+                ->with('candidate')
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'candidate_id' => $item->candidate_id,
+                        'candidate_name' => $item->candidate ? $item->candidate->full_name : 'Unknown',
+                        'count' => $item->count,
+                    ];
+                }),
+            'by_vacancy' => Application::select('vacancy_id', DB::raw('count(*) as count'))
+                ->groupBy('vacancy_id')
+                ->with('vacancy')
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'vacancy_id' => $item->vacancy_id,
+                        'vacancy_title' => $item->vacancy ? $item->vacancy->title : 'Unknown',
+                        'count' => $item->count,
+                    ];
+                }),
+            'recent' => Application::with(['candidate', 'vacancy'])
+                ->orderBy('created_at', 'desc')
+                ->limit(5)
+                ->get(),
+        ];
 
         return response()->json([
             'status' => 'success',
-            'data' => $application
+            'data' => $stats,
         ]);
     }
 
-    /**
-     * Create new application
-     */
+    // ============ CREATE APPLICATION ============
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'candidate_id' => 'required|exists:candidates,id',
             'vacancy_id' => 'required|exists:vacancies,id',
+            'status' => 'sometimes|string|in:new,screening,interview,technical_test,hr_interview,offer,hired,rejected,withdrawn,pending,accepted',
             'notes' => 'nullable|string',
-            'interview_date' => 'nullable|date|after:now',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        // Check if application already exists
-        $existing = Application::where('candidate_id', $request->candidate_id)
-            ->where('vacancy_id', $request->vacancy_id)
-            ->first();
-
-        if ($existing) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Application already exists for this candidate and vacancy'
-            ], 422);
-        }
-
-        $application = Application::create([
-            'candidate_id' => $request->candidate_id,
-            'vacancy_id' => $request->vacancy_id,
-            'notes' => $request->notes,
-            'interview_date' => $request->interview_date,
-            'status' => 'pending',
-        ]);
-
-        // Update candidate status to 'screening' if not set
-        $candidate = Candidate::find($request->candidate_id);
-        if ($candidate && $candidate->status === 'new') {
-            $candidate->update(['status' => 'screening']);
-        }
-
-        // Update vacancy applicants count
-        $vacancy = Vacancy::find($request->vacancy_id);
-        if ($vacancy) {
-            $vacancy->increment('applicants_count');
-        }
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Application created successfully',
-            'data' => $application
-        ], 201);
-    }
-
-    /**
-     * Update application
-     */
-    public function update(Request $request, $id)
-    {
-        $application = Application::find($id);
-
-        if (!$application) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Application not found'
-            ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'notes' => 'nullable|string',
-            'interview_date' => 'nullable|date|after:now',
+            'interview_date' => 'nullable|date',
             'interview_notes' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
-        $application->update($request->only(['notes', 'interview_date', 'interview_notes']));
+        $application = Application::create([
+            'candidate_id' => $request->candidate_id,
+            'vacancy_id' => $request->vacancy_id,
+            'status' => $request->status ?? 'new',
+            'notes' => $request->notes,
+            'interview_date' => $request->interview_date,
+            'interview_notes' => $request->interview_notes,
+        ]);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Application updated successfully',
-            'data' => $application
+            'message' => 'Application created successfully',
+            'data' => $application->load(['candidate', 'vacancy', 'statusHistories.updatedBy']),
+        ], 201);
+    }
+
+    // ============ GET SINGLE APPLICATION ============
+    public function show($id)
+    {
+        $application = Application::with([
+            'candidate',
+            'vacancy.department',
+            'statusHistories.updatedBy'
+        ])->findOrFail($id);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $application,
         ]);
     }
 
-    /**
-     * Update application status
-     */
-    public function updateStatus(Request $request, $id)
+    // ============ UPDATE APPLICATION ============
+    public function update(Request $request, $id)
     {
-        $application = Application::find($id);
-
-        if (!$application) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Application not found'
-            ], 404);
-        }
+        $application = Application::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'status' => 'required|in:pending,reviewed,interview,accepted,rejected',
+            'candidate_id' => 'sometimes|exists:candidates,id',
+            'vacancy_id' => 'sometimes|exists:vacancies,id',
+            'status' => 'sometimes|string|in:new,screening,interview,technical_test,hr_interview,offer,hired,rejected,withdrawn,pending,accepted',
             'notes' => 'nullable|string',
-            'interview_date' => 'nullable|date|after:now',
+            'interview_date' => 'nullable|date',
+            'interview_notes' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $application->update($request->all());
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Application updated successfully',
+            'data' => $application->load(['candidate', 'vacancy', 'statusHistories.updatedBy']),
+        ]);
+    }
+
+    // ============ UPDATE STATUS ONLY ============
+    public function updateStatus(Request $request, $id)
+    {
+        $application = Application::findOrFail($id);
+
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|string|in:new,screening,interview,technical_test,hr_interview,offer,hired,rejected,withdrawn,pending,accepted',
+            'notes' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $oldStatus = $application->status;
         $newStatus = $request->status;
 
-        $application->update([
-            'status' => $newStatus,
-            'notes' => $request->notes ?? $application->notes,
-            'interview_date' => $request->interview_date ?? $application->interview_date,
-        ]);
+        // Update the status
+        $application->status = $newStatus;
 
-        // Update candidate status based on application status
-        $candidate = Candidate::find($application->candidate_id);
-        if ($candidate) {
-            switch ($newStatus) {
-                case 'interview':
-                    if ($candidate->status === 'screening' || $candidate->status === 'new') {
-                        $candidate->update(['status' => 'interview']);
-                    }
-                    break;
-                case 'accepted':
-                    $candidate->update(['status' => 'hired']);
-                    break;
-                case 'rejected':
-                    $candidate->update(['status' => 'rejected']);
-                    break;
-            }
+        if ($request->has('notes')) {
+            $application->notes = $request->notes;
         }
 
-        // Log status change (optional)
-        // You can add activity log here
+        $application->save();
+
+        // Add note to latest history if provided
+        if ($request->has('notes') && $request->notes) {
+            $latestHistory = ApplicationStatusHistory::where('application_id', $application->id)
+                ->where('new_status', $newStatus)
+                ->latest()
+                ->first();
+
+            if ($latestHistory) {
+                $latestHistory->notes = $request->notes;
+                $latestHistory->save();
+            }
+        }
 
         return response()->json([
             'status' => 'success',
             'message' => 'Application status updated successfully',
-            'data' => $application
+            'data' => [
+                'application' => $application->load(['candidate', 'vacancy']),
+                'status_history' => $application->statusHistoryWithUsers,
+            ],
         ]);
     }
 
-    /**
-     * Delete application
-     */
+    // ============ DELETE APPLICATION ============
     public function destroy($id)
     {
-        $application = Application::find($id);
+        $application = Application::findOrFail($id);
 
-        if (!$application) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Application not found'
-            ], 404);
-        }
-
-        // Decrement vacancy applicants count
-        $vacancy = Vacancy::find($application->vacancy_id);
-        if ($vacancy && $vacancy->applicants_count > 0) {
-            $vacancy->decrement('applicants_count');
-        }
-
+        // Delete related status histories
+        $application->statusHistories()->delete();
         $application->delete();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Application deleted successfully'
+            'message' => 'Application deleted successfully',
         ]);
     }
 
-    /**
-     * Get application statistics
-     */
-    public function stats()
-    {
-        $stats = [
-            'total' => Application::count(),
-            'pending' => Application::where('status', 'pending')->count(),
-            'reviewed' => Application::where('status', 'reviewed')->count(),
-            'interview' => Application::where('status', 'interview')->count(),
-            'accepted' => Application::where('status', 'accepted')->count(),
-            'rejected' => Application::where('status', 'rejected')->count(),
-        ];
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $stats
-        ]);
-    }
-
-    /**
-     * Get applications by candidate
-     */
+    // ============ GET BY CANDIDATE ============
     public function getByCandidate($candidateId)
     {
-        $candidate = Candidate::find($candidateId);
-
-        if (!$candidate) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Candidate not found'
-            ], 404);
-        }
-
-        $applications = Application::where('candidate_id', $candidateId)
-            ->with('vacancy')
+        $applications = Application::with(['candidate', 'vacancy'])
+            ->where('candidate_id', $candidateId)
             ->orderBy('created_at', 'desc')
             ->get();
 
         return response()->json([
             'status' => 'success',
-            'data' => $applications
+            'data' => $applications,
         ]);
     }
 
-    /**
-     * Get applications by vacancy
-     */
+    // ============ GET BY VACANCY ============
     public function getByVacancy($vacancyId)
     {
-        $vacancy = Vacancy::find($vacancyId);
-
-        if (!$vacancy) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Vacancy not found'
-            ], 404);
-        }
-
-        $applications = Application::where('vacancy_id', $vacancyId)
-            ->with('candidate')
+        $applications = Application::with(['candidate', 'vacancy'])
+            ->where('vacancy_id', $vacancyId)
             ->orderBy('created_at', 'desc')
             ->get();
 
         return response()->json([
             'status' => 'success',
-            'data' => $applications
+            'data' => $applications,
         ]);
     }
 
-    /**
-     * Bulk update application status
-     */
+    // ============ BULK UPDATE STATUS ============
     public function bulkUpdateStatus(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'ids' => 'required|array',
-            'ids.*' => 'exists:applications,id',
-            'status' => 'required|in:pending,reviewed,interview,accepted,rejected',
+            'application_ids' => 'required|array',
+            'application_ids.*' => 'exists:applications,id',
+            'status' => 'required|string|in:new,screening,interview,technical_test,hr_interview,offer,hired,rejected,withdrawn,pending,accepted',
+            'notes' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
-        $count = Application::whereIn('id', $request->ids)
-            ->update(['status' => $request->status]);
+        $applicationIds = $request->application_ids;
+        $newStatus = $request->status;
+        $notes = $request->notes ?? 'Bulk status update';
+
+        // Get all applications
+        $applications = Application::whereIn('id', $applicationIds)->get();
+
+        $updatedCount = 0;
+        $historyRecords = [];
+
+        foreach ($applications as $application) {
+            $oldStatus = $application->status;
+
+            // Update status
+            $application->status = $newStatus;
+            if ($request->has('notes')) {
+                $application->notes = $request->notes;
+            }
+            $application->save();
+
+            // Create history record
+            $history = ApplicationStatusHistory::create([
+                'application_id' => $application->id,
+                'old_status' => $oldStatus,
+                'new_status' => $newStatus,
+                'notes' => $notes,
+                'updated_by' => auth()->id() ?? null,
+            ]);
+
+            $historyRecords[] = $history;
+            $updatedCount++;
+        }
 
         return response()->json([
             'status' => 'success',
-            'message' => "{$count} applications updated successfully",
+            'message' => "Successfully updated {$updatedCount} applications",
             'data' => [
-                'updated_count' => $count
-            ]
+                'updated_count' => $updatedCount,
+                'status' => $newStatus,
+                'applications' => Application::with(['candidate', 'vacancy'])
+                    ->whereIn('id', $applicationIds)
+                    ->get(),
+                'history' => $historyRecords,
+            ],
+        ]);
+    }
+
+    // ============ GET STATUS HISTORY ============
+    public function getStatusHistory($id)
+    {
+        $application = Application::findOrFail($id);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $application->statusHistoryWithUsers,
+        ]);
+    }
+
+    // ============ GET APPLICATION SUMMARY ============
+    public function summary()
+    {
+        $summary = [
+            'total_applications' => Application::count(),
+            'by_status' => Application::select('status', DB::raw('count(*) as count'))
+                ->groupBy('status')
+                ->get()
+                ->mapWithKeys(function ($item) {
+                    return [$item->status => $item->count];
+                }),
+            'today_applications' => Application::whereDate('created_at', today())->count(),
+            'this_week_applications' => Application::whereBetween('created_at', [
+                now()->startOfWeek(),
+                now()->endOfWeek()
+            ])->count(),
+            'this_month_applications' => Application::whereMonth('created_at', now()->month)->count(),
+            'average_per_day' => Application::count() / max(now()->diffInDays(now()->copy()->startOfYear()), 1),
+        ];
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $summary,
         ]);
     }
 }

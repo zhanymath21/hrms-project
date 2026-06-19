@@ -40,6 +40,8 @@ import CandidateDetail from './pages/recruitment/CandidateDetail';
 import VacancyList from './pages/recruitment/VacancyList';
 import VacancyForm from './pages/recruitment/VacancyForm';
 import ApplicationList from './pages/recruitment/ApplicationList';
+import ApplicationCreate from './pages/recruitment/ApplicationCreate';
+import ApplicationDetail from './pages/recruitment/ApplicationDetail';
 import OnboardingList from './pages/recruitment/OnboardingList';
 
 import MainLayout from './layouts/MainLayout';
@@ -437,6 +439,21 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <ApplicationList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/applications/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ApplicationCreate />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/applications/:id" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ApplicationDetail />
           </MainLayout>
         </ProtectedRoute>
       } />

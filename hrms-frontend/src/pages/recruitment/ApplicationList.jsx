@@ -16,7 +16,11 @@ import {
   CircularProgress,
   Tooltip,
 } from '@mui/material';
-import { Refresh as RefreshIcon, Visibility as VisibilityIcon } from '@mui/icons-material';
+import { 
+  Refresh as RefreshIcon, 
+  Visibility as VisibilityIcon,
+  Add as AddIcon, // 🔥 TAMBAHKAN
+} from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/axios';
 import { formatDate } from '../../utils/dateFormat';
@@ -82,17 +86,40 @@ const ApplicationList = () => {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      {/* 🔥 PERBAIKAN: Header dengan tombol Create */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
         <Box>
-          <Typography variant="h4" component="h1" fontWeight="bold">📋 Applications</Typography>
-          <Typography variant="body2" color="textSecondary">Track all job applications</Typography>
+          <Typography variant="h4" component="h1" fontWeight="bold">
+            📋 Applications
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            Track all job applications
+          </Typography>
         </Box>
-        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchApplications} disabled={loading}>
-          Refresh
-        </Button>
+        <Box display="flex" gap={2}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/applications/create')}
+          >
+            Create Application
+          </Button>
+          <Button 
+            variant="outlined" 
+            startIcon={<RefreshIcon />} 
+            onClick={fetchApplications} 
+            disabled={loading}
+          >
+            Refresh
+          </Button>
+        </Box>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       <TableContainer component={Paper}>
         <Table>
@@ -107,9 +134,17 @@ const ApplicationList = () => {
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} align="center"><CircularProgress /></TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} align="center">
+                  <CircularProgress />
+                </TableCell>
+              </TableRow>
             ) : applications.length === 0 ? (
-              <TableRow><TableCell colSpan={5} align="center">No applications found</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} align="center">
+                  No applications found
+                </TableCell>
+              </TableRow>
             ) : (
               applications.map((app) => (
                 <TableRow key={app.id} hover>
@@ -121,12 +156,20 @@ const ApplicationList = () => {
                   </TableCell>
                   <TableCell>{app.vacancy?.title || '-'}</TableCell>
                   <TableCell>
-                    <Chip label={getStatusLabel(app.status)} color={getStatusColor(app.status)} size="small" />
+                    <Chip 
+                      label={getStatusLabel(app.status)} 
+                      color={getStatusColor(app.status)} 
+                      size="small" 
+                    />
                   </TableCell>
                   <TableCell>{formatDate(app.created_at)}</TableCell>
                   <TableCell align="center">
                     <Tooltip title="View Details">
-                      <Button size="small" startIcon={<VisibilityIcon />} onClick={() => navigate(`/applications/${app.id}`)}>
+                      <Button 
+                        size="small" 
+                        startIcon={<VisibilityIcon />} 
+                        onClick={() => navigate(`/applications/${app.id}`)}
+                      >
                         View
                       </Button>
                     </Tooltip>
