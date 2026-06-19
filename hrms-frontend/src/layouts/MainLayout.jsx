@@ -49,6 +49,8 @@ import {
   Article as ArticleIcon,
   FileCopy as FileCopyIcon,
   HowToReg as HowToRegIcon,
+  ReportProblem as IncidentIcon, 
+  Warning as WarningIcon, 
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from '../pages/components/NotificationBell';
@@ -111,6 +113,16 @@ const menuItems = [
     children: [
       { text: 'PPE List', path: '/ppe', icon: <ShieldIcon /> },
       { text: 'PPE Categories', path: '/ppe/categories', icon: <CategoryIcon /> },
+    ]
+  },
+    { 
+    text: 'Incident Reports', 
+    icon: <IncidentIcon />, 
+    path: '/incident-reports', 
+    color: '#ef4444',
+    children: [
+      { text: 'All Incidents', path: '/incident-reports', icon: <WarningIcon /> },
+      { text: 'Report Incident', path: '/incident-reports/create', icon: <AddIcon /> },
     ]
   },
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },

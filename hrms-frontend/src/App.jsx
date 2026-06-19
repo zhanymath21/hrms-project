@@ -46,6 +46,11 @@ import OnboardingList from './pages/recruitment/OnboardingList';
 import OnboardingDetail from './pages/recruitment/OnboardingDetail';
 import OnboardingEdit from './pages/recruitment/OnboardingEdit';
 
+import IncidentList from './pages/incidents/IncidentList';
+import IncidentCreate from './pages/incidents/IncidentCreate';
+import IncidentDetail from './pages/incidents/IncidentDetail';
+import IncidentEdit from './pages/incidents/IncidentEdit';
+
 
 import MainLayout from './layouts/MainLayout';
 
@@ -482,6 +487,46 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <OnboardingEdit />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/incident-reports" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <IncidentList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/incident-reports/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <IncidentCreate />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/incident-reports/:id" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <IncidentDetail />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/incident-reports/:id/edit" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <IncidentEdit />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/incident-reports/:id/edit" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <IncidentEdit />
           </MainLayout>
         </ProtectedRoute>
       } />

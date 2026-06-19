@@ -149,44 +149,35 @@ const OnboardingDetail = () => {
   };
 
   const handleToggleTask = async (index) => {
-      try {
-          setLoading(true);
-          console.log(`🔄 Toggling task at index ${index}`);
-          
-          const response = await api.put(`/onboarding/${id}/tasks/${index}/toggle`);
-          
-          console.log('✅ Task toggled successfully:', response.data);
-          
-          // Refresh onboarding data
-          await fetchOnboarding();
-      } catch (err) {
-          console.error('❌ Error toggling task:', err);
-          console.error('❌ Error response:', err.response);
-          console.error('❌ Error data:', err.response?.data);
-          
-          // Show detailed error message
-          let errorMessage = 'Failed to toggle task';
-          if (err.response?.data?.message) {
-              errorMessage = err.response.data.message;
-          } else if (err.response?.data?.errors) {
-              const errors = Object.values(err.response.data.errors).flat().join('\n');
-              errorMessage = errors;
-          }
-          
-          alert(`Error: ${errorMessage}`);
-          setError(errorMessage);
-      } finally {
-          setLoading(false);
-      }
+    if (onboarding.status === 'completed' || onboarding.status === 'cancelled') {
+      alert('Cannot modify tasks for completed or cancelled onboarding');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await api.put(`/onboarding/${id}/tasks/${index}/toggle`);
+      console.log('✅ Task toggled:', response.data);
+      await fetchOnboarding();
+    } catch (err) {
+      console.error('Error toggling task:', err);
+      alert('Failed to toggle task. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddTask = async () => {
-    if (!newTask.trim()) return;
-    
-    const currentTasks = onboarding?.tasks || [];
-    const updatedTasks = [...currentTasks, { title: newTask, completed: false }];
-    
+    if (!newTask.trim()) {
+      alert('Please enter a task description');
+      return;
+    }
+
     try {
+      setLoading(true);
+      const currentTasks = onboarding?.tasks || [];
+      const updatedTasks = [...currentTasks, { title: newTask.trim(), completed: false }];
+      
       await api.put(`/onboarding/${id}/tasks`, { tasks: updatedTasks });
       setNewTask('');
       setTaskDialog(false);
@@ -194,30 +185,41 @@ const OnboardingDetail = () => {
     } catch (err) {
       console.error('Error adding task:', err);
       alert('Failed to add task');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteTask = async (index) => {
     if (!window.confirm('Delete this task?')) return;
     
-    const currentTasks = onboarding?.tasks || [];
-    const updatedTasks = currentTasks.filter((_, i) => i !== index);
-    
     try {
+      setLoading(true);
+      const currentTasks = onboarding?.tasks || [];
+      const updatedTasks = currentTasks.filter((_, i) => i !== index);
+      
       await api.put(`/onboarding/${id}/tasks`, { tasks: updatedTasks });
       await fetchOnboarding();
     } catch (err) {
       console.error('Error deleting task:', err);
       alert('Failed to delete task');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleEditTask = async (index) => {
-    const currentTasks = onboarding?.tasks || [];
-    const updatedTasks = [...currentTasks];
-    updatedTasks[index].title = editingTaskTitle;
+    if (!editingTaskTitle.trim()) {
+      alert('Please enter a task description');
+      return;
+    }
     
     try {
+      setLoading(true);
+      const currentTasks = onboarding?.tasks || [];
+      const updatedTasks = [...currentTasks];
+      updatedTasks[index].title = editingTaskTitle.trim();
+      
       await api.put(`/onboarding/${id}/tasks`, { tasks: updatedTasks });
       setEditingTaskIndex(null);
       setEditingTaskTitle('');
@@ -225,6 +227,8 @@ const OnboardingDetail = () => {
     } catch (err) {
       console.error('Error editing task:', err);
       alert('Failed to edit task');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -357,6 +361,7 @@ const OnboardingDetail = () => {
   }
 
   const candidate = onboarding.candidate || {};
+  const isDisabled = onboarding.status === 'completed' || onboarding.status === 'cancelled';
 
   return (
     <Box>
@@ -430,17 +435,19 @@ const OnboardingDetail = () => {
           <Paper sx={{ p: 3 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
               <Typography variant="h6" fontWeight="bold">
-                Tasks
+                Tasks ({onboarding?.tasks?.length || 0})
               </Typography>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={() => setTaskDialog(true)}
-                disabled={onboarding.status === 'completed' || onboarding.status === 'cancelled'}
-              >
-                Add Task
-              </Button>
+              <span>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={() => setTaskDialog(true)}
+                  disabled={isDisabled}
+                >
+                  Add Task
+                </Button>
+              </span>
             </Box>
             <Divider sx={{ mb: 2 }} />
 
@@ -473,11 +480,7 @@ const OnboardingDetail = () => {
                             }
                           }}
                         />
-                        <Button
-                          size="small"
-                          variant="contained"
-                          onClick={() => handleEditTask(index)}
-                        >
+                        <Button size="small" variant="contained" onClick={() => handleEditTask(index)}>
                           Save
                         </Button>
                         <Button
@@ -494,12 +497,14 @@ const OnboardingDetail = () => {
                     ) : (
                       <>
                         <ListItemIcon>
-                          <Checkbox
-                            edge="start"
-                            checked={task.completed || false}
-                            onChange={() => handleToggleTask(index)}
-                            disabled={onboarding.status === 'completed' || onboarding.status === 'cancelled'}
-                          />
+                          <span>
+                            <Checkbox
+                              edge="start"
+                              checked={task.completed || false}
+                              onChange={() => handleToggleTask(index)}
+                              disabled={isDisabled}
+                            />
+                          </span>
                         </ListItemIcon>
                         <ListItemText
                           primary={task.title}
@@ -509,27 +514,31 @@ const OnboardingDetail = () => {
                           }}
                         />
                         <Box>
-                          <Tooltip title="Edit">
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                setEditingTaskIndex(index);
-                                setEditingTaskTitle(task.title);
-                              }}
-                              disabled={onboarding.status === 'completed' || onboarding.status === 'cancelled'}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
+                          <Tooltip title="Edit Task">
+                            <span>
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  setEditingTaskIndex(index);
+                                  setEditingTaskTitle(task.title);
+                                }}
+                                disabled={isDisabled}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </span>
                           </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleDeleteTask(index)}
-                              disabled={onboarding.status === 'completed' || onboarding.status === 'cancelled'}
-                            >
-                              <DeleteOutlineIcon fontSize="small" />
-                            </IconButton>
+                          <Tooltip title="Delete Task">
+                            <span>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleDeleteTask(index)}
+                                disabled={isDisabled}
+                              >
+                                <DeleteOutlineIcon fontSize="small" />
+                              </IconButton>
+                            </span>
                           </Tooltip>
                         </Box>
                       </>
