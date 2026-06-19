@@ -291,30 +291,45 @@ class OnboardingController extends Controller
     // ============ TOGGLE TASK COMPLETION ============
     public function toggleTask(Request $request, $id, $taskIndex)
     {
-        $onboarding = Onboarding::findOrFail($id);
+        try {
+            $onboarding = Onboarding::findOrFail($id);
 
-        $tasks = $onboarding->tasks ?? [];
+            // Get current tasks
+            $tasks = $onboarding->tasks ?? [];
 
-        if (!isset($tasks[$taskIndex])) {
+            // Check if task exists
+            if (!isset($tasks[$taskIndex])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Task not found at index ' . $taskIndex,
+                ], 404);
+            }
+
+            // Toggle task completion
+            $tasks[$taskIndex]['completed'] = !($tasks[$taskIndex]['completed'] ?? false);
+
+            // Update onboarding
+            $onboarding->tasks = $tasks;
+            $onboarding->updated_by = auth()->id();
+            $onboarding->save();
+
+            // Update progress based on tasks
+            $onboarding->updateProgress();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Task toggled successfully',
+                'data' => $onboarding->load(['candidate', 'employee', 'vacancy']),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error toggling task: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'Task not found',
-            ], 404);
+                'message' => 'Failed to toggle task: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $tasks[$taskIndex]['completed'] = !($tasks[$taskIndex]['completed'] ?? false);
-        $onboarding->tasks = $tasks;
-        $onboarding->updated_by = auth()->id();
-        $onboarding->save();
-
-        // Update progress
-        $onboarding->updateProgress();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Task toggled successfully',
-            'data' => $onboarding->load(['candidate', 'employee', 'vacancy']),
-        ]);
     }
 
     // ============ GET STATUS HISTORY ============

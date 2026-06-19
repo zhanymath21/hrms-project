@@ -43,6 +43,9 @@ import ApplicationList from './pages/recruitment/ApplicationList';
 import ApplicationCreate from './pages/recruitment/ApplicationCreate';
 import ApplicationDetail from './pages/recruitment/ApplicationDetail';
 import OnboardingList from './pages/recruitment/OnboardingList';
+import OnboardingDetail from './pages/recruitment/OnboardingDetail';
+import OnboardingEdit from './pages/recruitment/OnboardingEdit';
+
 
 import MainLayout from './layouts/MainLayout';
 
@@ -463,6 +466,22 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <OnboardingList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/onboarding/:id" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <OnboardingDetail />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/onboarding/:id/edit" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <OnboardingEdit />
           </MainLayout>
         </ProtectedRoute>
       } />
