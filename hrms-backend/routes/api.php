@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\DailyReportController;
 use App\Http\Controllers\Api\EmployeeAssetController;
 use App\Http\Controllers\Api\EmployeeDocumentController;
 use App\Http\Controllers\Api\EmployeeOfficeController;
+use App\Http\Controllers\API\IncidentReportController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
@@ -250,6 +251,21 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/onboarding/{id}/progress', [OnboardingController::class, 'updateProgress']);
     Route::put('/onboarding/{id}/tasks', [OnboardingController::class, 'updateTasks']);
     Route::put('/onboarding/{id}/tasks/{taskIndex}/toggle', [OnboardingController::class, 'toggleTask']);
+
+    Route::get('/incindent-reports', [IncidentReportController::class, 'index']);
+    Route::get('/incindent-reports/stats', [IncidentReportController::class, 'stats']);
+    Route::post('/incindent-reports', [IncidentReportController::class, 'store']);
+    Route::get('/incindent-reports/{id}', [IncidentReportController::class, 'show']);
+    Route::put('/incindent-reports/{id}', [IncidentReportController::class, 'update']);
+    Route::delete('/incindent-reports/{id}', [IncidentReportController::class, 'destroy']);
+
+    // Status Management
+    Route::put('/incindent-reports/{id}/status', [IncidentReportController::class, 'updateStatus']);
+    Route::get('/incindent-reports/{id}/history', [IncidentReportController::class, 'getStatusHistory']);
+
+    // Approval Flow
+    Route::post('/incindent-reports/{id}/approval-flow', [IncidentReportController::class, 'setApprovalFlow']);
+    Route::put('/incindent-reports/{id}/approve/{managerLevel}', [IncidentReportController::class, 'managerApprove']);
 
     // Recruitment Dashboard
     Route::get('/recruitment/dashboard', [CandidateController::class, 'dashboard']);
