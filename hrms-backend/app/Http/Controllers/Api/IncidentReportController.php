@@ -404,16 +404,24 @@ class IncidentReportController extends Controller
                 ], 422);
             }
 
-            // Store old values for history
-            $oldStatus = $incident->status;
-            $oldApprovalStatus = $incident->approval_status;
+            // Use DB::table to avoid any model casting issues
+            $now = date('Y-m-d H:i:s');
 
-            // Update the manager's approval
-            $incident->$statusField = $request->status;
-            $incident->$notesField = $request->notes ?? null;
-            $incident->$dateField = now()->toDateTimeString(); // Use Laravel's now() helper
+            $updateData = [
+                $statusField => $request->status,
+                $notesField => $request->notes ?? null,
+                $dateField => $now,
+            ];
 
-            // Update approval status
+            // Update directly using the query builder
+            \DB::table('incident_reports')
+                ->where('id', $incident->id)
+                ->update($updateData);
+
+            // Refresh the model
+            $incident->refresh();
+
+            // Update approval status using query builder
             $flow = $incident->approval_flow;
             if ($flow) {
                 $flowArray = is_string($flow) ? json_decode($flow, true) : $flow;
@@ -422,46 +430,67 @@ class IncidentReportController extends Controller
                     $approved = 0;
                     $rejected = 0;
 
+                    // Get current statuses from database directly
+                    $current = \DB::table('incident_reports')
+                        ->where('id', $incident->id)
+                        ->first();
+
                     for ($i = 1; $i <= $total && $i <= 4; $i++) {
                         $field = 'manager' . $i . '_status';
-                        if ($incident->$field === 'approved') {
+                        $status = $current->$field ?? 'pending';
+                        if ($status === 'approved') {
                             $approved++;
-                        } elseif ($incident->$field === 'rejected') {
+                        } elseif ($status === 'rejected') {
                             $rejected++;
                         }
                     }
 
+                    $newApprovalStatus = 'in_progress';
+                    $newStatus = $incident->status;
+
                     if ($rejected > 0) {
-                        $incident->approval_status = 'rejected';
-                        $incident->status = 'rejected';
+                        $newApprovalStatus = 'rejected';
+                        $newStatus = 'rejected';
                     } elseif ($approved === $total) {
-                        $incident->approval_status = 'approved';
-                        $incident->status = 'in_review';
+                        $newApprovalStatus = 'approved';
+                        $newStatus = 'in_review';
                     } elseif ($approved > 0 && $approved < $total) {
-                        $incident->approval_status = 'partially_approved';
-                    } else {
-                        $incident->approval_status = 'in_progress';
+                        $newApprovalStatus = 'partially_approved';
                     }
+
+                    // Update approval status
+                    \DB::table('incident_reports')
+                        ->where('id', $incident->id)
+                        ->update([
+                            'approval_status' => $newApprovalStatus,
+                            'status' => $newStatus,
+                        ]);
+
+                    $incident->refresh();
                 }
             }
 
-            $incident->save();
-
             // Create history record
-            IncidentStatusHistory::create([
+            \DB::table('incident_status_histories')->insert([
                 'incident_report_id' => $incident->id,
-                'old_status' => $oldStatus,
+                'old_status' => $incident->status,
                 'new_status' => $incident->status,
-                'old_approval_status' => $oldApprovalStatus,
+                'old_approval_status' => $incident->approval_status,
                 'new_approval_status' => $incident->approval_status,
                 'notes' => 'Manager ' . $managerLevel . ' ' . $request->status . ': ' . ($request->notes ?? 'No notes'),
                 'updated_by' => auth()->id() ?? null,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
+
+            // Refresh again to get latest data
+            $incident = IncidentReport::with(['manager1', 'manager2', 'manager3', 'manager4'])
+                ->find($id);
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Manager ' . $managerLevel . ' ' . $request->status . ' successfully',
-                'data' => $incident->load(['manager1', 'manager2', 'manager3', 'manager4']),
+                'data' => $incident,
             ]);
         } catch (\Exception $e) {
             Log::error('Error in manager approval: ' . $e->getMessage());
