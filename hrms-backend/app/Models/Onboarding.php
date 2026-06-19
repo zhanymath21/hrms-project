@@ -175,6 +175,99 @@ class Onboarding extends Model
         return count($this->tasks);
     }
 
+    // ============ HELPER METHODS ============
+
+    public function updateProgress()
+    {
+        if ($this->tasks) {
+            $tasks = collect($this->tasks);
+            $completed = $tasks->where('completed', true)->count();
+            $total = $tasks->count();
+            $progress = $total > 0 ? round(($completed / $total) * 100) : 0;
+
+            $oldProgress = $this->progress;
+            $oldStatus = $this->status;
+
+            $this->progress = $progress;
+
+            // Auto-update status based on progress
+            if ($progress == 100 && $this->status !== self::STATUS_COMPLETED) {
+                $this->status = self::STATUS_COMPLETED;
+                $this->actual_end_date = now();
+            } elseif ($progress > 0 && $this->status === self::STATUS_PENDING) {
+                $this->status = self::STATUS_IN_PROGRESS;
+            } elseif ($progress == 0 && $this->status === self::STATUS_IN_PROGRESS) {
+                $this->status = self::STATUS_PENDING;
+            }
+
+            $this->save();
+
+            // Create history if progress or status changed
+            if ($oldProgress != $progress || $oldStatus != $this->status) {
+                $this->createHistoryRecord(
+                    $oldStatus,
+                    $this->status,
+                    $oldProgress,
+                    $progress,
+                    'Progress updated via tasks'
+                );
+            }
+        }
+    }
+
+    public function createHistoryRecord($oldStatus, $newStatus, $oldProgress = null, $newProgress = null, $notes = null)
+    {
+        return OnboardingStatusHistory::create([
+            'onboarding_id' => $this->id,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus ?? $this->status,
+            'old_progress' => $oldProgress ?? $this->progress,
+            'new_progress' => $newProgress ?? $this->progress,
+            'notes' => $notes ?? 'Status updated',
+            'updated_by' => auth()->id() ?? null,
+        ]);
+    }
+
+    public function completeOnboarding()
+    {
+        $oldStatus = $this->status;
+        $oldProgress = $this->progress;
+
+        $this->status = self::STATUS_COMPLETED;
+        $this->progress = 100;
+        $this->actual_end_date = now();
+        $this->save();
+
+        $this->createHistoryRecord(
+            $oldStatus,
+            $this->status,
+            $oldProgress,
+            100,
+            'Onboarding completed'
+        );
+    }
+
+    public function cancelOnboarding($reason = null)
+    {
+        $oldStatus = $this->status;
+        $oldProgress = $this->progress;
+
+        $this->status = self::STATUS_CANCELLED;
+        if ($reason) {
+            $this->notes = ($this->notes ? $this->notes . "\n" : '') . "Cancelled: " . $reason;
+        }
+        $this->actual_end_date = now();
+        $this->save();
+
+        $this->createHistoryRecord(
+            $oldStatus,
+            $this->status,
+            $oldProgress,
+            $this->progress,
+            'Onboarding cancelled: ' . ($reason ?? 'No reason provided')
+        );
+    }
+
     // ============ BOOT METHOD ============
 
     protected static function boot()
@@ -194,57 +287,35 @@ class Onboarding extends Model
         });
 
         static::updating(function ($onboarding) {
-            $changes = [];
-
-            if ($onboarding->isDirty('status')) {
-                $changes['old_status'] = $onboarding->getOriginal('status');
-                $changes['new_status'] = $onboarding->status;
-            }
-
-            if ($onboarding->isDirty('progress')) {
-                $changes['old_progress'] = $onboarding->getOriginal('progress');
-                $changes['new_progress'] = $onboarding->progress;
-            }
-
-            if (!empty($changes)) {
-                OnboardingStatusHistory::create(array_merge([
+            // Only create history if there are changes
+            if ($onboarding->isDirty() || $onboarding->isDirty('status') || $onboarding->isDirty('progress')) {
+                $historyData = [
                     'onboarding_id' => $onboarding->id,
-                    'notes' => $onboarding->notes ?? null,
+                    'new_status' => $onboarding->status, // Always provide current status
                     'updated_by' => auth()->id() ?? null,
-                ], $changes));
+                ];
+
+                // Status changes
+                if ($onboarding->isDirty('status')) {
+                    $historyData['old_status'] = $onboarding->getOriginal('status');
+                }
+
+                // Progress changes
+                if ($onboarding->isDirty('progress')) {
+                    $historyData['old_progress'] = $onboarding->getOriginal('progress');
+                    $historyData['new_progress'] = $onboarding->progress;
+                }
+
+                // Notes
+                if ($onboarding->isDirty('notes') && $onboarding->notes) {
+                    $historyData['notes'] = $onboarding->notes;
+                }
+
+                // Only create if we have changes to track
+                if (isset($historyData['old_status']) || isset($historyData['old_progress'])) {
+                    OnboardingStatusHistory::create($historyData);
+                }
             }
         });
-    }
-
-    // ============ HELPER METHODS ============
-
-    public function updateProgress()
-    {
-        if ($this->tasks) {
-            $tasks = collect($this->tasks);
-            $completed = $tasks->where('completed', true)->count();
-            $total = $tasks->count();
-            $progress = $total > 0 ? round(($completed / $total) * 100) : 0;
-
-            $this->progress = $progress;
-            $this->save();
-        }
-    }
-
-    public function completeOnboarding()
-    {
-        $this->status = self::STATUS_COMPLETED;
-        $this->progress = 100;
-        $this->actual_end_date = now();
-        $this->save();
-    }
-
-    public function cancelOnboarding($reason = null)
-    {
-        $this->status = self::STATUS_CANCELLED;
-        if ($reason) {
-            $this->notes = ($this->notes ? $this->notes . "\n" : '') . "Cancelled: " . $reason;
-        }
-        $this->save();
     }
 }
