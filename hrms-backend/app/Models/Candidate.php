@@ -40,6 +40,10 @@ class Candidate extends Model
         return $this->first_name . ' ' . $this->last_name;
     }
 
+    public function statusHistories()
+    {
+        return $this->hasMany(CandidateStatusHistory::class)->orderBy('created_at', 'desc');
+    }
     // Accessor for CV URL
     public function getCvUrlAttribute()
     {
