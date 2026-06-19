@@ -21,6 +21,10 @@ import {
   DialogActions,
   LinearProgress,
   Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -67,6 +71,22 @@ const APPROVAL_STATUS_CONFIG = {
   partially_approved: { label: 'Partially Approved', color: '#8b5cf6' },
 };
 
+// ============ HELPER FUNCTION ============
+const parseWitnesses = (witnesses) => {
+  if (!witnesses) return [];
+  if (Array.isArray(witnesses)) return witnesses;
+  if (typeof witnesses === 'string') {
+    try {
+      const parsed = JSON.parse(witnesses);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Error parsing witnesses:', e);
+      return [];
+    }
+  }
+  return [];
+};
+
 const IncidentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -91,6 +111,9 @@ const IncidentDetail = () => {
   const [selectedManagers, setSelectedManagers] = useState([]);
   const [employees, setEmployees] = useState([]);
 
+  // Get current user from localStorage
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+
   useEffect(() => {
     fetchIncident();
     fetchEmployees();
@@ -106,7 +129,10 @@ const IncidentDetail = () => {
         setIncident(response.data.data);
         // Set approval flow if exists
         if (response.data.data.approval_flow) {
-          setApprovalFlow(JSON.parse(response.data.data.approval_flow) || []);
+          const flow = typeof response.data.data.approval_flow === 'string' 
+            ? JSON.parse(response.data.data.approval_flow) 
+            : response.data.data.approval_flow;
+          setApprovalFlow(Array.isArray(flow) ? flow : []);
         }
       } else {
         setError('Incident not found');
@@ -197,6 +223,25 @@ const IncidentDetail = () => {
     } catch (err) {
       console.error('Error setting approval flow:', err);
       alert('Failed to set approval flow');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // ============ MANAGER APPROVAL HANDLER ============
+  const handleManagerApprove = async (managerLevel, action) => {
+    const notes = window.prompt(`Enter notes for ${action} (optional):`);
+    
+    try {
+      setUpdating(true);
+      await api.put(`/incident-reports/${id}/approve/${managerLevel}`, {
+        status: action,
+        notes: notes || '',
+      });
+      await fetchIncident();
+    } catch (err) {
+      console.error('Error in manager approval:', err);
+      alert('Failed to process approval. Please try again.');
     } finally {
       setUpdating(false);
     }
@@ -362,6 +407,9 @@ const IncidentDetail = () => {
     );
   }
 
+  // Parse witnesses
+  const witnessesData = parseWitnesses(incident.witnesses);
+
   return (
     <Box>
       {/* Header */}
@@ -469,14 +517,14 @@ const IncidentDetail = () => {
           </Paper>
 
           {/* Witnesses */}
-          {incident.witnesses && incident.witnesses.length > 0 && (
+          {witnessesData.length > 0 && (
             <Paper sx={{ p: 3, mb: 3 }}>
               <Typography variant="h6" gutterBottom fontWeight="bold">
-                Witnesses
+                Witnesses ({witnessesData.length})
               </Typography>
               <Divider sx={{ mb: 2 }} />
               <Grid container spacing={2}>
-                {incident.witnesses.map((witness, index) => (
+                {witnessesData.map((witness, index) => (
                   <Grid item xs={12} sm={6} key={index}>
                     <Card variant="outlined">
                       <CardContent>
@@ -561,6 +609,134 @@ const IncidentDetail = () => {
                   </Typography>
                 </Box>
               </Box>
+            </CardContent>
+          </Card>
+
+          {/* ============ MANAGER APPROVALS ============ */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Manager Approvals
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              {approvalFlow.length === 0 ? (
+                <Typography variant="body2" color="textSecondary">
+                  No approval flow configured. Set up approval flow below.
+                </Typography>
+              ) : (
+                <Stack spacing={2}>
+                  {approvalFlow.map((managerId, index) => {
+                    const manager = employees.find(e => e.id === managerId);
+                    const level = index + 1;
+                    const statusField = `manager${level}_status`;
+                    const status = incident[statusField] || 'pending';
+                    const isApproved = status === 'approved';
+                    const isRejected = status === 'rejected';
+                    const isPending = status === 'pending';
+                    
+                    // Check if current user is this specific manager
+                    const isCurrentUserManager = currentUser?.id === managerId;
+                    
+                    return (
+                      <Box key={managerId} sx={{ 
+                        p: 2, 
+                        borderRadius: 1, 
+                        bgcolor: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#f9fafb',
+                        border: '1px solid',
+                        borderColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#e5e7eb',
+                      }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1' }}>
+                              {manager?.first_name?.[0]}{manager?.last_name?.[0]}
+                            </Avatar>
+                            <Box>
+                              <Typography variant="body2" fontWeight="medium">
+                                Manager {level}: {manager?.first_name} {manager?.last_name}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary">
+                                {isApproved ? `✅ Approved at ${formatDate(incident[`manager${level}_approved_at`], 'dd/MM/yyyy HH:mm')}` :
+                                 isRejected ? '❌ Rejected' :
+                                 isCurrentUserManager ? '📌 Action Required' :
+                                 '⏳ Pending approval'}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Box display="flex" gap={1} flexWrap="wrap">
+                            {/* ONLY show Approve/Reject buttons for the current manager if status is pending */}
+                            {isPending && isCurrentUserManager && (
+                              <>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="success"
+                                  onClick={() => handleManagerApprove(level, 'approved')}
+                                  disabled={updating}
+                                  startIcon={<CheckCircleIcon />}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="error"
+                                  onClick={() => handleManagerApprove(level, 'rejected')}
+                                  disabled={updating}
+                                  startIcon={<CancelIcon />}
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                            
+                            {/* Show status for already processed or other managers */}
+                            {isApproved && (
+                              <Chip 
+                                label="Approved" 
+                                size="small" 
+                                color="success" 
+                                icon={<CheckCircleIcon />}
+                              />
+                            )}
+                            {isRejected && (
+                              <Chip 
+                                label="Rejected" 
+                                size="small" 
+                                color="error" 
+                                icon={<CancelIcon />}
+                              />
+                            )}
+                            {isPending && !isCurrentUserManager && (
+                              <Chip 
+                                label={`Waiting`} 
+                                size="small" 
+                                color="warning"
+                                icon={<PendingIcon />}
+                              />
+                            )}
+                            {isPending && isCurrentUserManager && (
+                              <Chip 
+                                label="Action Required" 
+                                size="small" 
+                                color="info"
+                                sx={{ fontWeight: 600 }}
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                        
+                        {/* Show notes if any */}
+                        {incident[`manager${level}_notes`] && (
+                          <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                            📝 Note: {incident[`manager${level}_notes`]}
+                          </Typography>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              )}
             </CardContent>
           </Card>
 

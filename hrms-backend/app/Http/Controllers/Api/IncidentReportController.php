@@ -404,35 +404,59 @@ class IncidentReportController extends Controller
                 ], 422);
             }
 
+            // Store old values for history
+            $oldStatus = $incident->status;
+            $oldApprovalStatus = $incident->approval_status;
+
+            // Update the manager's approval
             $incident->$statusField = $request->status;
             $incident->$notesField = $request->notes ?? null;
-            $incident->$dateField = now();
+            $incident->$dateField = now()->toDateTimeString(); // Use Laravel's now() helper
 
-            // Update overall approval status
-            $incident->updateApprovalStatus();
+            // Update approval status
+            $flow = $incident->approval_flow;
+            if ($flow) {
+                $flowArray = is_string($flow) ? json_decode($flow, true) : $flow;
+                if (is_array($flowArray)) {
+                    $total = count($flowArray);
+                    $approved = 0;
+                    $rejected = 0;
 
-            // If approved by all managers or rejected, update main status
-            if ($incident->approval_status === 'approved') {
-                $incident->status = 'in_review';
-                $incident->createHistoryRecord(
-                    $incident->getOriginal('status'),
-                    'in_review',
-                    $incident->getOriginal('approval_status'),
-                    'approved',
-                    'Approved by all managers'
-                );
-            } elseif ($incident->approval_status === 'rejected') {
-                $incident->status = 'rejected';
-                $incident->createHistoryRecord(
-                    $incident->getOriginal('status'),
-                    'rejected',
-                    $incident->getOriginal('approval_status'),
-                    'rejected',
-                    'Rejected by manager ' . $managerLevel
-                );
+                    for ($i = 1; $i <= $total && $i <= 4; $i++) {
+                        $field = 'manager' . $i . '_status';
+                        if ($incident->$field === 'approved') {
+                            $approved++;
+                        } elseif ($incident->$field === 'rejected') {
+                            $rejected++;
+                        }
+                    }
+
+                    if ($rejected > 0) {
+                        $incident->approval_status = 'rejected';
+                        $incident->status = 'rejected';
+                    } elseif ($approved === $total) {
+                        $incident->approval_status = 'approved';
+                        $incident->status = 'in_review';
+                    } elseif ($approved > 0 && $approved < $total) {
+                        $incident->approval_status = 'partially_approved';
+                    } else {
+                        $incident->approval_status = 'in_progress';
+                    }
+                }
             }
 
             $incident->save();
+
+            // Create history record
+            IncidentStatusHistory::create([
+                'incident_report_id' => $incident->id,
+                'old_status' => $oldStatus,
+                'new_status' => $incident->status,
+                'old_approval_status' => $oldApprovalStatus,
+                'new_approval_status' => $incident->approval_status,
+                'notes' => 'Manager ' . $managerLevel . ' ' . $request->status . ': ' . ($request->notes ?? 'No notes'),
+                'updated_by' => auth()->id() ?? null,
+            ]);
 
             return response()->json([
                 'status' => 'success',
@@ -441,6 +465,8 @@ class IncidentReportController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Error in manager approval: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to process approval: ' . $e->getMessage(),
