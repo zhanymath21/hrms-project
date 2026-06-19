@@ -15,7 +15,7 @@ use App\Http\Controllers\Api\DailyReportController;
 use App\Http\Controllers\Api\EmployeeAssetController;
 use App\Http\Controllers\Api\EmployeeDocumentController;
 use App\Http\Controllers\Api\EmployeeOfficeController;
-use App\Http\Controllers\API\IncidentReportController;
+use App\Http\Controllers\Api\IncidentReportController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
