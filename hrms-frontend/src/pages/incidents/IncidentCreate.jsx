@@ -125,54 +125,116 @@ const IncidentCreate = () => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    setSuccess(false);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setSaving(true);
+  setError(null);
+  setSuccess(false);
 
-    try {
-      const submitData = new FormData();
-      
-      // Add all form fields
-      Object.keys(formData).forEach(key => {
-        if (key === 'file') {
-          if (formData.file) {
-            submitData.append('file', formData.file);
-          }
-        } else if (key === 'witnesses') {
-          // Ensure witnesses is always an array
-          const witnessesArray = Array.isArray(formData.witnesses) ? formData.witnesses : [];
-          submitData.append('witnesses', JSON.stringify(witnessesArray));
-        } else {
-          submitData.append(key, formData[key] || '');
-        }
-      });
-
-      const response = await api.post('/incident-reports', submitData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      if (response.data?.status === 'success') {
-        setSuccess(true);
-        setTimeout(() => {
-          navigate('/incident-reports');
-        }, 1500);
-      } else {
-        setError(response.data?.message || 'Failed to create incident report');
-      }
-    } catch (err) {
-      console.error('Error creating incident:', err);
-      if (err.response?.data?.errors) {
-        const errorMessages = Object.values(err.response.data.errors).flat().join(', ');
-        setError(errorMessages);
-      } else {
-        setError(err.response?.data?.message || 'Failed to create incident report');
-      }
-    } finally {
+  try {
+    // Validate required fields
+    if (!formData.title?.trim()) {
+      setError('Title is required');
       setSaving(false);
+      return;
     }
-  };
+    if (!formData.description?.trim()) {
+      setError('Description is required');
+      setSaving(false);
+      return;
+    }
+    if (!formData.incident_date) {
+      setError('Incident date is required');
+      setSaving(false);
+      return;
+    }
+    if (!formData.category) {
+      setError('Category is required');
+      setSaving(false);
+      return;
+    }
+    if (!formData.severity) {
+      setError('Severity is required');
+      setSaving(false);
+      return;
+    }
+
+    const submitData = new FormData();
+    
+    // Add all required fields with proper values
+    submitData.append('title', formData.title.trim());
+    submitData.append('description', formData.description.trim());
+    submitData.append('location', formData.location || '');
+    submitData.append('incident_date', formData.incident_date);
+    submitData.append('incident_time', formData.incident_time || '');
+    submitData.append('category', formData.category);
+    submitData.append('severity', formData.severity);
+    submitData.append('assigned_to', formData.assigned_to || '');
+    
+    // Handle witnesses - send as JSON string
+    const witnessesArray = Array.isArray(formData.witnesses) ? formData.witnesses : [];
+    submitData.append('witnesses', JSON.stringify(witnessesArray));
+    
+    // Handle file
+    if (formData.file) {
+      submitData.append('file', formData.file);
+    }
+
+    // Log all form data for debugging
+    console.log('📤 Sending FormData:');
+    console.log('  title:', formData.title);
+    console.log('  description:', formData.description);
+    console.log('  location:', formData.location);
+    console.log('  incident_date:', formData.incident_date);
+    console.log('  incident_time:', formData.incident_time);
+    console.log('  category:', formData.category);
+    console.log('  severity:', formData.severity);
+    console.log('  assigned_to:', formData.assigned_to);
+    console.log('  witnesses:', formData.witnesses);
+    console.log('  file:', formData.file ? formData.file.name : 'No file');
+
+    const response = await api.post('/incident-reports', submitData, {
+      headers: { 
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    if (response.data?.status === 'success') {
+      setSuccess(true);
+      setTimeout(() => {
+        navigate('/incident-reports');
+      }, 1500);
+    } else {
+      setError(response.data?.message || 'Failed to create incident report');
+    }
+  } catch (err) {
+    console.error('❌ Error creating incident:', err);
+    console.error('❌ Error response:', err.response);
+    console.error('❌ Error status:', err.response?.status);
+    console.error('❌ Error headers:', err.response?.headers);
+    
+    // Log validation errors specifically
+    if (err.response?.data?.errors) {
+      console.error('❌ Validation Errors:', err.response.data.errors);
+      const errors = err.response.data.errors;
+      let errorMessage = 'Validation Errors:\n';
+      Object.keys(errors).forEach(key => {
+        errorMessage += `- ${key}: ${errors[key].join(', ')}\n`;
+      });
+      setError(errorMessage);
+      alert(errorMessage);
+    } else if (err.response?.data?.message) {
+      console.error('❌ Error message:', err.response.data.message);
+      setError(err.response.data.message);
+      alert(err.response.data.message);
+    } else {
+      setError('Failed to create incident report');
+      alert('Failed to create incident report');
+    }
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <Box>

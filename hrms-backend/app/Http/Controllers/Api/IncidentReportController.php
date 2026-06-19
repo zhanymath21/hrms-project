@@ -97,10 +97,16 @@ class IncidentReportController extends Controller
         }
     }
 
-    // ============ CREATE INCIDENT ============
     public function store(Request $request)
     {
         try {
+            // Log incoming data for debugging
+            Log::info('Incident Report Store Request:', [
+                'all' => $request->all(),
+                'files' => $request->hasFile('file') ? 'has file' : 'no file',
+                'witnesses' => $request->witnesses,
+            ]);
+
             $validator = Validator::make($request->all(), [
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
@@ -110,13 +116,16 @@ class IncidentReportController extends Controller
                 'category' => 'required|in:safety,security,health,property_damage,environmental,harassment,discrimination,fraud,theft,data_breach,policy_violation,workplace_violence,accident,near_miss,other',
                 'severity' => 'required|in:low,medium,high,critical',
                 'assigned_to' => 'nullable|exists:employees,id',
-                'witnesses' => 'nullable|array',
-                'witnesses.*.name' => 'required|string',
-                'witnesses.*.contact' => 'nullable|string',
+                'witnesses' => 'nullable|json',
                 'file' => 'nullable|file|max:10240',
             ]);
 
             if ($validator->fails()) {
+                Log::warning('Incident Report Validation Failed:', [
+                    'errors' => $validator->errors(),
+                    'input' => $request->all(),
+                ]);
+
                 return response()->json([
                     'status' => 'error',
                     'errors' => $validator->errors(),
@@ -138,15 +147,19 @@ class IncidentReportController extends Controller
                 $data['file_name'] = $file->getClientOriginalName();
             }
 
-            // Handle witnesses - ensure it's an array
+            // Handle witnesses
             if ($request->has('witnesses')) {
                 $witnesses = $request->witnesses;
-                // If it's a string, try to decode it
+                // If it's a JSON string, use it directly
                 if (is_string($witnesses)) {
-                    $witnesses = json_decode($witnesses, true);
-                }
-                // Ensure it's an array
-                if (is_array($witnesses)) {
+                    // Validate it's valid JSON
+                    $decoded = json_decode($witnesses, true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $data['witnesses'] = $witnesses;
+                    } else {
+                        $data['witnesses'] = json_encode([]);
+                    }
+                } elseif (is_array($witnesses)) {
                     $data['witnesses'] = json_encode($witnesses);
                 } else {
                     $data['witnesses'] = json_encode([]);
@@ -157,6 +170,8 @@ class IncidentReportController extends Controller
 
             $incident = IncidentReport::create($data);
 
+            Log::info('Incident Report Created:', ['id' => $incident->id]);
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Incident report created successfully',
@@ -164,6 +179,7 @@ class IncidentReportController extends Controller
             ], 201);
         } catch (\Exception $e) {
             Log::error('Error creating incident: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to create incident: ' . $e->getMessage(),
