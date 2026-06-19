@@ -331,17 +331,22 @@ class IncidentReport extends Model
         ]);
     }
 
+    // In app/Models/IncidentReport.php
     public function updateApprovalStatus()
     {
         if (!$this->approval_flow) {
-            $this->approval_status = self::APPROVAL_APPROVED;
+            $this->approval_status = 'approved';
             $this->save();
             return;
         }
 
-        $flow = json_decode($this->approval_flow, true);
+        $flow = $this->approval_flow;
+        if (is_string($flow)) {
+            $flow = json_decode($flow, true);
+        }
+
         if (!is_array($flow) || empty($flow)) {
-            $this->approval_status = self::APPROVAL_APPROVED;
+            $this->approval_status = 'approved';
             $this->save();
             return;
         }
@@ -350,8 +355,9 @@ class IncidentReport extends Model
         $approved = 0;
         $rejected = 0;
 
-        foreach ($flow as $index => $manager) {
-            $statusField = 'manager' . ($index + 1) . '_status';
+        foreach ($flow as $index => $managerId) {
+            $level = $index + 1;
+            $statusField = 'manager' . $level . '_status';
             if ($this->$statusField === 'approved') {
                 $approved++;
             } elseif ($this->$statusField === 'rejected') {
@@ -360,13 +366,13 @@ class IncidentReport extends Model
         }
 
         if ($rejected > 0) {
-            $this->approval_status = self::APPROVAL_REJECTED;
+            $this->approval_status = 'rejected';
         } elseif ($approved === $total) {
-            $this->approval_status = self::APPROVAL_APPROVED;
+            $this->approval_status = 'approved';
         } elseif ($approved > 0 && $approved < $total) {
-            $this->approval_status = self::APPROVAL_PARTIALLY_APPROVED;
+            $this->approval_status = 'partially_approved';
         } else {
-            $this->approval_status = self::APPROVAL_IN_PROGRESS;
+            $this->approval_status = 'in_progress';
         }
 
         $this->save();
