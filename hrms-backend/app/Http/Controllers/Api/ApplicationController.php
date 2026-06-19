@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Http\Controllers\Controller;  // ← IMPORTANT: This is the base controller
 use App\Models\Application;
 use App\Models\ApplicationStatusHistory;
 use Illuminate\Http\Request;
