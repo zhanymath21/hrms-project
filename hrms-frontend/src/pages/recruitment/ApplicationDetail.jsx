@@ -20,6 +20,9 @@ import {
   TableCell,
   TableContainer,
   TableRow,
+  Dialog,
+  DialogTitle,
+  DialogContent,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -38,6 +41,7 @@ import {
   Cancel as CancelIcon,
   History as HistoryIcon,
   Download as DownloadIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
@@ -54,6 +58,8 @@ const STATUS_CONFIG = {
   hired: { label: 'Hired', bgColor: '#10b981', textColor: '#ffffff', icon: <CheckCircleIcon /> },
   rejected: { label: 'Rejected', bgColor: '#ef4444', textColor: '#ffffff', icon: <CancelIcon /> },
   withdrawn: { label: 'Withdrawn', bgColor: '#6b7280', textColor: '#ffffff', icon: <CancelIcon /> },
+  pending: { label: 'Pending', bgColor: '#f59e0b', textColor: '#ffffff', icon: <PendingIcon /> },
+  accepted: { label: 'Accepted', bgColor: '#10b981', textColor: '#ffffff', icon: <CheckCircleIcon /> },
 };
 
 const ApplicationDetail = () => {
@@ -63,6 +69,14 @@ const ApplicationDetail = () => {
   const [error, setError] = useState(null);
   const [application, setApplication] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  
+  // History Dialog State
+  const [historyDialog, setHistoryDialog] = useState({
+    open: false,
+    applicationId: null,
+  });
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     fetchApplication();
@@ -85,6 +99,33 @@ const ApplicationDetail = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fetch Status History
+  const fetchStatusHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      const response = await api.get(`/applications/${id}/history`);
+      if (response.data?.status === 'success') {
+        setStatusHistory(response.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Handle Open History Dialog
+  const handleOpenHistory = async () => {
+    setHistoryDialog({ open: true, applicationId: id });
+    await fetchStatusHistory();
+  };
+
+  // Handle Close History Dialog
+  const handleCloseHistory = () => {
+    setHistoryDialog({ open: false, applicationId: null });
+    setStatusHistory([]);
   };
 
   const handleDelete = async () => {
@@ -139,6 +180,119 @@ const ApplicationDetail = () => {
     );
   };
 
+  // Render History Content
+  const renderHistoryContent = () => {
+    if (loadingHistory) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (statusHistory.length === 0) {
+      return (
+        <Box p={3} textAlign="center">
+          <HistoryIcon sx={{ fontSize: 48, color: '#d1d5db', mb: 2 }} />
+          <Typography color="textSecondary">
+            No status history found for this application
+          </Typography>
+        </Box>
+      );
+    }
+
+    return (
+      <Box sx={{ p: 2 }}>
+        {statusHistory.map((item, index) => {
+          const isFirst = index === 0;
+          const config = STATUS_CONFIG[item.new_status];
+
+          return (
+            <Paper
+              key={item.id || index}
+              elevation={0}
+              sx={{
+                p: 2,
+                mb: 2,
+                backgroundColor: isFirst ? '#f0fdf4' : '#f9fafb',
+                border: isFirst ? '1px solid #86efac' : '1px solid #e5e7eb',
+                borderRadius: 2,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                },
+              }}
+            >
+              <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                <Box flex={1}>
+                  {/* Status Change */}
+                  <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" mb={1}>
+                    <Typography variant="body2" fontWeight="bold" color="textSecondary">
+                      Status changed
+                    </Typography>
+                    {item.old_status ? (
+                      <Chip 
+                        label={STATUS_CONFIG[item.old_status]?.label || item.old_status}
+                        size="small"
+                        sx={{
+                          backgroundColor: STATUS_CONFIG[item.old_status]?.bgColor || '#6b7280',
+                          color: '#ffffff',
+                          fontWeight: 500,
+                        }}
+                      />
+                    ) : (
+                      <Chip 
+                        label="New" 
+                        size="small" 
+                        sx={{ backgroundColor: '#9ca3af', color: '#ffffff', fontWeight: 500 }}
+                      />
+                    )}
+                    <Typography variant="body2" fontWeight="bold" color="textSecondary">
+                      →
+                    </Typography>
+                    {renderStatusChip(item.new_status)}
+                    {isFirst && (
+                      <Chip
+                        label="Latest"
+                        size="small"
+                        color="success"
+                        sx={{ ml: 1, fontWeight: 600 }}
+                      />
+                    )}
+                  </Box>
+
+                  {/* Notes */}
+                  {item.notes && (
+                    <Box mb={1}>
+                      <Typography variant="caption" color="textSecondary">
+                        <strong>Note:</strong>
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                        {item.notes}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {/* Changed By & Date */}
+                  <Box display="flex" gap={3} flexWrap="wrap">
+                    <Typography variant="caption" color="textSecondary">
+                      <PersonIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                      {item.changed_by || 'System'}
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      <CalendarIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                      {formatDate(item.created_at, 'dd/MM/yyyy HH:mm')}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            </Paper>
+          );
+        })}
+      </Box>
+    );
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -176,6 +330,22 @@ const ApplicationDetail = () => {
         </Box>
 
         <Box display="flex" gap={1}>
+          <Button
+            variant="outlined"
+            startIcon={<HistoryIcon />}
+            onClick={handleOpenHistory}
+            sx={{ 
+              color: '#6366f1', 
+              borderColor: '#6366f1',
+              '&:hover': {
+                backgroundColor: '#6366f1',
+                color: '#ffffff',
+                borderColor: '#6366f1',
+              }
+            }}
+          >
+            History
+          </Button>
           <Button
             variant="outlined"
             startIcon={<EditIcon />}
@@ -251,6 +421,18 @@ const ApplicationDetail = () => {
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   {application.notes}
+                </Typography>
+              </>
+            )}
+
+            {application.interview_notes && (
+              <>
+                <Divider sx={{ my: 3 }} />
+                <Typography variant="caption" color="textSecondary">
+                  Interview Notes
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  {application.interview_notes}
                 </Typography>
               </>
             )}
@@ -453,6 +635,52 @@ const ApplicationDetail = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* ============ HISTORY DIALOG ============ */}
+      <Dialog
+        open={historyDialog.open}
+        onClose={handleCloseHistory}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            maxHeight: '80vh',
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid #e5e7eb',
+            pb: 2,
+            pt: 2,
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <HistoryIcon sx={{ color: '#6366f1' }} />
+            <Typography variant="h6" fontWeight="bold">
+              Status History
+            </Typography>
+            <Chip 
+              label={`#${application?.id}`}
+              size="small"
+              sx={{ ml: 1, backgroundColor: '#f3f4f6' }}
+            />
+            <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
+              {candidate.first_name} {candidate.last_name}
+            </Typography>
+          </Box>
+          <IconButton onClick={handleCloseHistory} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {renderHistoryContent()}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

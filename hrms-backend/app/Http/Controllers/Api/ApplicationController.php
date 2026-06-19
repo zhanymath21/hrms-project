@@ -195,14 +195,17 @@ class ApplicationController extends Controller
         $oldStatus = $application->status;
         $newStatus = $request->status;
 
-        // Update the status
+        // Update the status - let Laravel handle timestamps
         $application->status = $newStatus;
 
-        if ($request->has('notes')) {
+        if ($request->has('notes') && $request->notes) {
             $application->notes = $request->notes;
         }
 
-        $application->save();
+        // DON'T manually set updated_at, let Laravel handle it
+        // $application->updated_at = now(); // <- REMOVE THIS IF PRESENT
+
+        $application->save(); // Laravel will automatically update updated_at
 
         // Add note to latest history if provided
         if ($request->has('notes') && $request->notes) {
@@ -213,7 +216,7 @@ class ApplicationController extends Controller
 
             if ($latestHistory) {
                 $latestHistory->notes = $request->notes;
-                $latestHistory->save();
+                $latestHistory->save(); // Let Laravel handle timestamp
             }
         }
 
@@ -337,12 +340,39 @@ class ApplicationController extends Controller
     // ============ GET STATUS HISTORY ============
     public function getStatusHistory($id)
     {
-        $application = Application::findOrFail($id);
+        try {
+            $application = Application::findOrFail($id);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $application->statusHistoryWithUsers,
-        ]);
+            $history = $application->statusHistories()
+                ->with('updatedBy')
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'old_status' => $item->old_status,
+                        'new_status' => $item->new_status,
+                        'notes' => $item->notes,
+                        'changed_by' => $item->updatedBy ?
+                            $item->updatedBy->first_name . ' ' . $item->updatedBy->last_name :
+                            'System',
+                        'changed_by_id' => $item->updated_by,
+                        'created_at' => $item->created_at,
+                    ];
+                });
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $history,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching status history: ' . $e->getMessage());
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch status history',
+            ], 500);
+        }
     }
 
     // ============ GET APPLICATION SUMMARY ============

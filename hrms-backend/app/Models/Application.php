@@ -23,6 +23,7 @@ class Application extends Model
         'interview_date' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     // ============ RELATIONSHIPS ============
