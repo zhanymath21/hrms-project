@@ -5,6 +5,8 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Candidate;
+use App\Models\CandidateStatusHistory;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -47,11 +49,18 @@ class CandidateController extends Controller
     }
 
     /**
-     * Get single candidate
+     * Get single candidate with history
      */
     public function show($id)
     {
-        $candidate = Candidate::with(['applications', 'onboarding'])->find($id);
+        $candidate = Candidate::with([
+            'applications',
+            'onboarding',
+            'statusHistories' => function ($query) {
+                $query->orderBy('created_at', 'desc')->limit(10);
+            },
+            'statusHistories.updatedBy'
+        ])->find($id);
 
         if (!$candidate) {
             return response()->json([
@@ -71,7 +80,6 @@ class CandidateController extends Controller
      */
     public function store(Request $request)
     {
-        // 🔥 PERBAIKAN: Log dengan array
         \Log::info('=== STORE CANDIDATE ===');
         \Log::info('Has file cv:', ['value' => $request->hasFile('cv')]);
         \Log::info('Files:', $request->allFiles());
@@ -101,6 +109,9 @@ class CandidateController extends Controller
         // Create candidate tanpa file
         $candidate = Candidate::create($request->except('cv'));
 
+        // 🔥 TAMBAHKAN: Log status awal
+        $this->logStatusChange($candidate, null, $candidate->status, 'Candidate created');
+
         // Handle CV upload
         if ($request->hasFile('cv')) {
             \Log::info('CV file detected, uploading...');
@@ -126,7 +137,6 @@ class CandidateController extends Controller
      */
     public function update(Request $request, $id)
     {
-        // 🔥 PERBAIKAN: Log dengan array
         \Log::info('=== UPDATE CANDIDATE ===');
         \Log::info('Has file cv:', ['value' => $request->hasFile('cv')]);
 
@@ -205,6 +215,9 @@ class CandidateController extends Controller
             Storage::disk('public')->delete($candidate->cv_file_path);
         }
 
+        // Delete status histories
+        CandidateStatusHistory::where('candidate_id', $id)->delete();
+
         $candidate->delete();
 
         return response()->json([
@@ -225,7 +238,6 @@ class CandidateController extends Controller
             // Store file
             $path = $file->storeAs('candidates', $fileName, 'public');
 
-            // 🔥 PERBAIKAN: Log dengan array
             \Log::info('CV file stored:', [
                 'path' => $path,
                 'original_name' => $file->getClientOriginalName(),
@@ -243,7 +255,6 @@ class CandidateController extends Controller
 
             return true;
         } catch (\Exception $e) {
-            // 🔥 PERBAIKAN: Log dengan array
             \Log::error('CV upload failed:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -301,8 +312,45 @@ class CandidateController extends Controller
         ]);
     }
 
+    // ============================================================
+    // 🔥 STATUS HISTORY METHODS
+    // ============================================================
+
     /**
-     * Update candidate status
+     * Log status change to history
+     */
+    private function logStatusChange($candidate, $oldStatus, $newStatus, $notes = null)
+    {
+        // Cari employee dari user yang login
+        $employee = null;
+        if (auth()->check()) {
+            // Coba cari employee berdasarkan user_id
+            $employee = Employee::where('user_id', auth()->id())->first();
+
+            // Jika tidak ditemukan, coba berdasarkan email
+            if (!$employee && auth()->user()->email) {
+                $employee = Employee::where('email', auth()->user()->email)->first();
+            }
+        }
+
+        CandidateStatusHistory::create([
+            'candidate_id' => $candidate->id,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'notes' => $notes,
+            'updated_by' => $employee ? $employee->id : null,
+        ]);
+
+        \Log::info('Status history logged:', [
+            'candidate_id' => $candidate->id,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'updated_by' => $employee ? $employee->id : null,
+        ]);
+    }
+
+    /**
+     * Update candidate status with history
      */
     public function updateStatus(Request $request, $id)
     {
@@ -316,7 +364,8 @@ class CandidateController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'status' => 'required|in:new,screening,interview,technical_test,hr_interview,offer,hired,rejected,withdrawn'
+            'status' => 'required|in:new,screening,interview,technical_test,hr_interview,offer,hired,rejected,withdrawn',
+            'notes' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -326,12 +375,63 @@ class CandidateController extends Controller
             ], 422);
         }
 
-        $candidate->update(['status' => $request->status]);
+        $oldStatus = $candidate->status;
+        $newStatus = $request->status;
+
+        // 🔥 PERBAIKAN: Update status
+        $candidate->update(['status' => $newStatus]);
+
+        // 🔥 PERBAIKAN: Catat history
+        $this->logStatusChange($candidate, $oldStatus, $newStatus, $request->notes);
 
         return response()->json([
             'status' => 'success',
             'message' => 'Candidate status updated successfully',
-            'data' => $candidate
+            'data' => $candidate,
+            'history' => $candidate->statusHistories()->with('updatedBy')->limit(5)->get(),
+        ]);
+    }
+
+    /**
+     * Get status history for a candidate
+     */
+    public function getHistory($id)
+    {
+        $candidate = Candidate::find($id);
+
+        if (!$candidate) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Candidate not found'
+            ], 404);
+        }
+
+        $histories = $candidate->statusHistories()
+            ->with('updatedBy')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Format data untuk frontend
+        $formattedHistories = $histories->map(function ($history) {
+            return [
+                'id' => $history->id,
+                'candidate_id' => $history->candidate_id,
+                'old_status' => $history->old_status,
+                'new_status' => $history->new_status,
+                'notes' => $history->notes,
+                'updated_by' => $history->updatedBy ? [
+                    'id' => $history->updatedBy->id,
+                    'name' => $history->updatedBy->first_name . ' ' . $history->updatedBy->last_name,
+                    'email' => $history->updatedBy->email,
+                ] : null,
+                'created_at' => $history->created_at,
+                'formatted_date' => $history->created_at ? $history->created_at->format('d/m/Y H:i') : null,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $formattedHistories
         ]);
     }
 

@@ -213,6 +213,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/candidates/{id}/cv', [CandidateController::class, 'uploadCV']);
     Route::put('/candidates/{id}/status', [CandidateController::class, 'updateStatus']);
     Route::get('/candidates/{id}/applications', [CandidateController::class, 'getApplications']);
+    Route::get('/candidates/{id}/history', [CandidateController::class, 'getHistory']);
 
     // Vacancies
     Route::get('/vacancies', [VacancyController::class, 'index']);
