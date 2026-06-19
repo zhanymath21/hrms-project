@@ -256,4 +256,9 @@ class Employee extends Authenticatable
     {
         return $this->calculateAnnualLeave($this);
     }
+
+    public function statusHistories()
+    {
+        return $this->hasMany(CandidateStatusHistory::class, 'updated_by');
+    }
 }

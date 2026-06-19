@@ -9,6 +9,8 @@ class CandidateStatusHistory extends Model
 {
     use HasFactory;
 
+    protected $table = 'candidate_status_histories';
+
     protected $fillable = [
         'candidate_id',
         'old_status',
@@ -21,19 +23,27 @@ class CandidateStatusHistory extends Model
         'created_at' => 'datetime',
     ];
 
-    // 🔥 Relasi ke Candidate
     public function candidate()
     {
         return $this->belongsTo(Candidate::class);
     }
 
-    // 🔥 PERBAIKAN: Relasi ke Employee (bukan User)
+
+    // 🔥 PERBAIKAN: Relasi ke Employee dengan foreign key 'updated_by'
     public function updatedBy()
     {
         return $this->belongsTo(Employee::class, 'updated_by');
     }
 
-    // Accessor untuk label status
+    // 🔥 PERBAIKAN: Accessor untuk nama employee
+    public function getUpdatedByNameAttribute()
+    {
+        if ($this->updatedBy) {
+            return $this->updatedBy->first_name . ' ' . $this->updatedBy->last_name;
+        }
+        return 'System';
+    }
+
     public function getOldStatusLabelAttribute()
     {
         return $this->getStatusLabel($this->old_status);
@@ -58,14 +68,5 @@ class CandidateStatusHistory extends Model
             'withdrawn' => 'Withdrawn',
         ];
         return $labels[$status] ?? $status;
-    }
-
-    // 🔥 Accessor untuk nama employee
-    public function getUpdatedByNameAttribute()
-    {
-        if ($this->updatedBy) {
-            return $this->updatedBy->first_name . ' ' . $this->updatedBy->last_name;
-        }
-        return 'System';
     }
 }

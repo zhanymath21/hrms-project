@@ -319,33 +319,38 @@ class CandidateController extends Controller
     /**
      * Log status change to history
      */
+   // app/Http/Controllers/API/CandidateController.php
+
+    /**
+     * Log status change to history
+     */
+
     private function logStatusChange($candidate, $oldStatus, $newStatus, $notes = null)
     {
-        // Cari employee dari user yang login
-        $employee = null;
-        if (auth()->check()) {
-            // Coba cari employee berdasarkan user_id
-            $employee = Employee::where('user_id', auth()->id())->first();
+        // 🔥 PERBAIKAN: auth()->user() adalah Employee
+        $employeeId = null;
 
-            // Jika tidak ditemukan, coba berdasarkan email
-            if (!$employee && auth()->user()->email) {
-                $employee = Employee::where('email', auth()->user()->email)->first();
+        if (auth()->check()) {
+            $employee = auth()->user(); // Ini adalah Employee
+            if ($employee) {
+                $employeeId = $employee->id;
             }
         }
+
+        \Log::info('Logging status change:', [
+            'candidate_id' => $candidate->id,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'updated_by' => $employeeId,
+            'employee_email' => auth()->user()->email ?? null,
+        ]);
 
         CandidateStatusHistory::create([
             'candidate_id' => $candidate->id,
             'old_status' => $oldStatus,
             'new_status' => $newStatus,
             'notes' => $notes,
-            'updated_by' => $employee ? $employee->id : null,
-        ]);
-
-        \Log::info('Status history logged:', [
-            'candidate_id' => $candidate->id,
-            'old_status' => $oldStatus,
-            'new_status' => $newStatus,
-            'updated_by' => $employee ? $employee->id : null,
+            'updated_by' => $employeeId,
         ]);
     }
 
