@@ -24,7 +24,6 @@ import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   Add as AddIcon,
-  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/axios';
@@ -200,9 +199,16 @@ const LostTimeInjuryCreate = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box>
-      {/* Header */}
       <Box display="flex" alignItems="center" mb={3} gap={2}>
         <IconButton onClick={() => navigate('/lost-time-injuries')}>
           <ArrowBackIcon />
@@ -212,7 +218,6 @@ const LostTimeInjuryCreate = () => {
         </Typography>
       </Box>
 
-      {/* Alerts */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
@@ -225,7 +230,6 @@ const LostTimeInjuryCreate = () => {
         </Alert>
       )}
 
-      {/* Form */}
       <Paper sx={{ p: 3 }}>
         <form onSubmit={handleSubmit}>
           <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">
@@ -234,7 +238,6 @@ const LostTimeInjuryCreate = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            {/* Employee */}
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Employee *</InputLabel>
@@ -256,7 +259,6 @@ const LostTimeInjuryCreate = () => {
               </FormControl>
             </Grid>
 
-            {/* Title */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -270,7 +272,6 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* Description */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -286,7 +287,6 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* Location */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -299,7 +299,6 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* Injury Date */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -314,7 +313,6 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* Injury Time */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -328,7 +326,6 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* Body Part */}
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Body Part Affected</InputLabel>
@@ -349,7 +346,6 @@ const LostTimeInjuryCreate = () => {
               </FormControl>
             </Grid>
 
-            {/* Injury Type */}
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Injury Type</InputLabel>
@@ -370,7 +366,6 @@ const LostTimeInjuryCreate = () => {
               </FormControl>
             </Grid>
 
-            {/* Severity */}
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Severity *</InputLabel>
@@ -392,7 +387,6 @@ const LostTimeInjuryCreate = () => {
               </FormControl>
             </Grid>
 
-            {/* Days Lost */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -407,7 +401,6 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* Medical Treatment */}
             <Grid item xs={12} md={6}>
               <FormControlLabel
                 control={
@@ -422,7 +415,6 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* Return to Work Date */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -436,7 +428,6 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* Medical Notes */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -451,19 +442,10 @@ const LostTimeInjuryCreate = () => {
               />
             </Grid>
 
-            {/* File Upload */}
             <Grid item xs={12}>
-              <Button
-                variant="outlined"
-                component="label"
-                disabled={saving}
-              >
+              <Button variant="outlined" component="label" disabled={saving}>
                 Upload Attachment
-                <input
-                  type="file"
-                  hidden
-                  onChange={handleFileChange}
-                />
+                <input type="file" hidden onChange={handleFileChange} />
               </Button>
               {formData.file && (
                 <Typography variant="caption" sx={{ ml: 2 }}>
@@ -472,7 +454,6 @@ const LostTimeInjuryCreate = () => {
               )}
             </Grid>
 
-            {/* Witnesses */}
             <Grid item xs={12}>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                 Witnesses
@@ -528,13 +509,8 @@ const LostTimeInjuryCreate = () => {
             </Grid>
           </Grid>
 
-          {/* Actions */}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4 }}>
-            <Button
-              variant="outlined"
-              onClick={() => navigate('/lost-time-injuries')}
-              disabled={saving}
-            >
+            <Button variant="outlined" onClick={() => navigate('/lost-time-injuries')} disabled={saving}>
               Cancel
             </Button>
             <Button

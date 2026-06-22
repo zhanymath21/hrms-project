@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 class LostTimeInjuryController extends Controller
 {
-    // ============ LIST ALL LOST TIME INJURIES ============
+    // ============ LIST ALL ============
     public function index(Request $request)
     {
         try {
@@ -34,7 +34,6 @@ class LostTimeInjuryController extends Controller
             if ($request->has('date_to')) {
                 $query->whereDate('injury_date', '<=', $request->date_to);
             }
-
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
@@ -59,7 +58,7 @@ class LostTimeInjuryController extends Controller
         }
     }
 
-    // ============ GET SINGLE LOST TIME INJURY ============
+    // ============ GET SINGLE ============
     public function show($id)
     {
         try {
@@ -87,7 +86,7 @@ class LostTimeInjuryController extends Controller
         }
     }
 
-    // ============ CREATE LOST TIME INJURY ============
+    // ============ CREATE ============
     public function store(Request $request)
     {
         try {
@@ -161,6 +160,12 @@ class LostTimeInjuryController extends Controller
 
             $lti = LostTimeInjury::create($data);
 
+            Log::info('Lost Time Injury created:', [
+                'id' => $lti->id,
+                'employee_id' => $lti->employee_id,
+                'created_by' => $user->id,
+            ]);
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Lost Time Injury created successfully',
@@ -175,7 +180,7 @@ class LostTimeInjuryController extends Controller
         }
     }
 
-    // ============ UPDATE LOST TIME INJURY - ONLY REPORTER OR ADMIN ============
+    // ============ UPDATE - Only Reporter or Admin ============
     public function update(Request $request, $id)
     {
         try {
@@ -189,9 +194,10 @@ class LostTimeInjuryController extends Controller
                 ], 401);
             }
 
-            // ✅ RULE 1: Only Reporter or Admin can edit
+            // Only Reporter or Admin can edit
             $isReporter = $lti->reported_by === $user->id;
-            $isAdmin = in_array($user->role ?? '', ['admin', 'hr', 'manager']);
+            $userRole = $user->role ?? '';
+            $isAdmin = in_array($userRole, ['admin', 'hr', 'super_admin']);
 
             if (!$isReporter && !$isAdmin) {
                 return response()->json([
@@ -200,12 +206,12 @@ class LostTimeInjuryController extends Controller
                 ], 403);
             }
 
-            // ✅ RULE 3: Cannot edit if status is final (resolved, closed, rejected)
+            // Cannot edit if status is final
             $finalStatuses = ['resolved', 'closed', 'rejected'];
             if (in_array($lti->status, $finalStatuses)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Cannot edit this record. Status is already ' . $lti->status,
+                    'message' => 'Cannot edit this record. Status is already ' . $lti->status_label,
                 ], 400);
             }
 
@@ -283,7 +289,7 @@ class LostTimeInjuryController extends Controller
         }
     }
 
-    // ============ UPDATE STATUS - WITH APPROVAL CHECK ============
+    // ============ UPDATE STATUS ============
     public function updateStatus(Request $request, $id)
     {
         try {
@@ -312,29 +318,21 @@ class LostTimeInjuryController extends Controller
             $oldStatus = $lti->status;
             $newStatus = $request->status;
 
-            // ✅ RULE 2: Cannot change to closed or rejected if not approved
+            // Cannot change if status is final
+            $finalStatuses = ['resolved', 'closed', 'rejected'];
+            if (in_array($oldStatus, $finalStatuses)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot change status. Record is already ' . $lti->status_label,
+                ], 400);
+            }
+
+            // Cannot change to closed or rejected if not approved
             $requiresApproval = ['closed', 'rejected'];
             if (in_array($newStatus, $requiresApproval) && $lti->approval_status !== 'approved') {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Cannot set status to ' . $newStatus . '. Record must be approved first.',
-                ], 400);
-            }
-
-            // ✅ RULE 3: Cannot change if status is final
-            $finalStatuses = ['resolved', 'closed', 'rejected'];
-            if (in_array($oldStatus, $finalStatuses)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Cannot change status. Record is already ' . $oldStatus,
-                ], 400);
-            }
-
-            // ✅ RULE 4: Cannot revert from resolved/closed/rejected
-            if (in_array($oldStatus, $finalStatuses) && !in_array($newStatus, $finalStatuses)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Cannot revert from ' . $oldStatus . ' to ' . $newStatus,
                 ], 400);
             }
 
@@ -350,7 +348,6 @@ class LostTimeInjuryController extends Controller
 
             $lti->save();
 
-            // Create history
             LostTimeInjuryHistory::create([
                 'lost_time_injury_id' => $lti->id,
                 'old_status' => $oldStatus,
@@ -387,9 +384,10 @@ class LostTimeInjuryController extends Controller
                 ], 401);
             }
 
-            // Only reporter can set approval flow
+            // Only reporter or admin can set approval flow
             $isReporter = $lti->reported_by === $user->id;
-            $isAdmin = in_array($user->role ?? '', ['admin', 'hr']);
+            $userRole = $user->role ?? '';
+            $isAdmin = in_array($userRole, ['admin', 'hr', 'super_admin']);
 
             if (!$isReporter && !$isAdmin) {
                 return response()->json([
@@ -398,19 +396,19 @@ class LostTimeInjuryController extends Controller
                 ], 403);
             }
 
-            // ✅ Cannot set approval flow if status is final
+            // Cannot set approval flow if status is final
             $finalStatuses = ['resolved', 'closed', 'rejected'];
             if (in_array($lti->status, $finalStatuses)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Cannot set approval flow. Record is already ' . $lti->status,
+                    'message' => 'Cannot set approval flow. Record is already ' . $lti->status_label,
                 ], 400);
             }
 
             if (in_array($lti->approval_status, ['approved', 'rejected'])) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Cannot update approval flow. Already ' . $lti->approval_status,
+                    'message' => 'Cannot update approval flow. Already ' . $lti->approval_status_label,
                 ], 400);
             }
 
@@ -508,12 +506,11 @@ class LostTimeInjuryController extends Controller
                 ], 400);
             }
 
-            // ✅ Cannot approve if status is final
             $finalStatuses = ['resolved', 'closed', 'rejected'];
             if (in_array($lti->status, $finalStatuses)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Cannot approve. Record is already ' . $lti->status,
+                    'message' => 'Cannot approve. Record is already ' . $lti->status_label,
                 ], 400);
             }
 
@@ -550,7 +547,6 @@ class LostTimeInjuryController extends Controller
             $oldStatus = $lti->status;
             $oldApprovalStatus = $lti->approval_status;
 
-            // Update manager status
             $lti->$statusField = $request->status;
             $lti->{'manager' . $managerLevel . '_notes'} = $request->notes ?? null;
             $lti->{'manager' . $managerLevel . '_approved_at'} = now();
@@ -575,13 +571,11 @@ class LostTimeInjuryController extends Controller
 
                     if ($rejected > 0) {
                         $lti->approval_status = 'rejected';
-                        // ✅ If rejected, status automatically becomes rejected
                         if (!in_array($lti->status, $finalStatuses)) {
                             $lti->status = 'rejected';
                         }
                     } elseif ($approved === $total) {
                         $lti->approval_status = 'approved';
-                        // ✅ If fully approved and status is still reported/investigation, move to in_review
                         if (in_array($lti->status, ['reported', 'under_investigation'])) {
                             $lti->status = 'in_review';
                         }
@@ -595,7 +589,6 @@ class LostTimeInjuryController extends Controller
 
             $lti->save();
 
-            // Create history
             LostTimeInjuryHistory::create([
                 'lost_time_injury_id' => $lti->id,
                 'old_status' => $oldStatus,
@@ -660,7 +653,7 @@ class LostTimeInjuryController extends Controller
         }
     }
 
-    // ============ DELETE LOST TIME INJURY ============
+    // ============ DELETE - Only Admin/HR ============
     public function destroy($id)
     {
         try {
@@ -674,28 +667,34 @@ class LostTimeInjuryController extends Controller
                 ], 401);
             }
 
-            // Only reporter or admin can delete
-            $isReporter = $lti->reported_by === $user->id;
-            $isAdmin = in_array($user->role ?? '', ['admin', 'hr']);
+            // Only Admin or HR can delete
+            $userRole = $user->role ?? '';
+            $isAdmin = in_array($userRole, ['admin', 'hr', 'super_admin']);
 
-            if (!$isReporter && !$isAdmin) {
+            if (!$isAdmin) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Only the reporter or admin can delete this record',
+                    'message' => 'Only Admin or HR can delete this record',
                 ], 403);
             }
 
-            // ✅ Cannot delete if status is final
+            // Cannot delete if status is final
             $finalStatuses = ['resolved', 'closed', 'rejected'];
             if (in_array($lti->status, $finalStatuses)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Cannot delete. Record is already ' . $lti->status,
+                    'message' => 'Cannot delete. Record is already ' . $lti->status_label,
                 ], 400);
             }
 
             $lti->statusHistories()->delete();
             $lti->delete();
+
+            Log::info('Lost Time Injury deleted:', [
+                'id' => $lti->id,
+                'title' => $lti->title,
+                'deleted_by' => $user->id,
+            ]);
 
             return response()->json([
                 'status' => 'success',

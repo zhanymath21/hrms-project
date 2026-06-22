@@ -1,3 +1,4 @@
+// src/pages/safety/LostTimeInjuryList.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -43,7 +44,6 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/axios';
 import { formatDate } from '../../utils/dateFormat';
 
-// Status Configuration
 const STATUS_CONFIG = {
   reported: { label: 'Reported', bgColor: '#f59e0b', textColor: '#ffffff' },
   under_investigation: { label: 'Under Investigation', bgColor: '#3b82f6', textColor: '#ffffff' },
@@ -75,6 +75,11 @@ const LostTimeInjuryList = () => {
     search: '',
   });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, title: '' });
+  
+  // Get current user role
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const userRole = currentUser?.role || '';
+  const isAdmin = ['admin', 'hr', 'super_admin'].includes(userRole);
 
   useEffect(() => {
     fetchLtis();
@@ -179,33 +184,12 @@ const LostTimeInjuryList = () => {
     );
   };
 
-  const getBodyPartLabel = (bodyPart) => {
-    const labels = {
-      head: 'Head',
-      neck: 'Neck',
-      shoulder: 'Shoulder',
-      arm: 'Arm',
-      elbow: 'Elbow',
-      wrist: 'Wrist',
-      hand: 'Hand',
-      finger: 'Finger',
-      chest: 'Chest',
-      back: 'Back',
-      spine: 'Spine',
-      hip: 'Hip',
-      leg: 'Leg',
-      knee: 'Knee',
-      ankle: 'Ankle',
-      foot: 'Foot',
-      toe: 'Toe',
-      multiple: 'Multiple',
-    };
-    return labels[bodyPart] || bodyPart || '-';
+  const isFinalStatus = (status) => {
+    return ['resolved', 'closed', 'rejected'].includes(status);
   };
 
   return (
     <Box>
-      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
           <Typography variant="h4" component="h1" fontWeight="bold">
@@ -229,7 +213,6 @@ const LostTimeInjuryList = () => {
         </Box>
       </Box>
 
-      {/* Stats Cards */}
       {stats && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={3}>
@@ -273,7 +256,6 @@ const LostTimeInjuryList = () => {
         </Grid>
       )}
 
-      {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={4}>
@@ -317,20 +299,10 @@ const LostTimeInjuryList = () => {
           </Grid>
           <Grid item xs={12} sm={4}>
             <Box display="flex" gap={1}>
-              <Button
-                variant="contained"
-                onClick={handleSearch}
-                startIcon={<SearchIcon />}
-                fullWidth
-              >
+              <Button variant="contained" onClick={handleSearch} startIcon={<SearchIcon />} fullWidth>
                 Search
               </Button>
-              <Button
-                variant="outlined"
-                onClick={handleClearFilters}
-                startIcon={<ClearIcon />}
-                fullWidth
-              >
+              <Button variant="outlined" onClick={handleClearFilters} startIcon={<ClearIcon />} fullWidth>
                 Clear
               </Button>
             </Box>
@@ -338,10 +310,8 @@ const LostTimeInjuryList = () => {
         </Grid>
       </Paper>
 
-      {/* Error */}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Table */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -349,7 +319,6 @@ const LostTimeInjuryList = () => {
               <TableCell>ID</TableCell>
               <TableCell>Employee</TableCell>
               <TableCell>Title</TableCell>
-              <TableCell>Body Part</TableCell>
               <TableCell>Severity</TableCell>
               <TableCell>Days Lost</TableCell>
               <TableCell>Date</TableCell>
@@ -360,13 +329,11 @@ const LostTimeInjuryList = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} align="center">
-                  <CircularProgress />
-                </TableCell>
+                <TableCell colSpan={8} align="center"><CircularProgress /></TableCell>
               </TableRow>
             ) : ltis.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} align="center">
+                <TableCell colSpan={8} align="center">
                   <Typography color="textSecondary">No lost time injury records found</Typography>
                 </TableCell>
               </TableRow>
@@ -384,7 +351,6 @@ const LostTimeInjuryList = () => {
                       {item.title}
                     </Typography>
                   </TableCell>
-                  <TableCell>{getBodyPartLabel(item.body_part)}</TableCell>
                   <TableCell>{renderSeverityChip(item.severity)}</TableCell>
                   <TableCell>
                     <Chip
@@ -398,33 +364,42 @@ const LostTimeInjuryList = () => {
                   <TableCell>{renderStatusChip(item.status)}</TableCell>
                   <TableCell align="center">
                     <Tooltip title="View Details">
-                      <IconButton
-                        size="small"
-                        onClick={() => navigate(`/lost-time-injuries/${item.id}`)}
-                      >
+                      <IconButton size="small" onClick={() => navigate(`/lost-time-injuries/${item.id}`)}>
                         <VisibilityIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Edit">
-                      <IconButton
-                        size="small"
-                        onClick={() => navigate(`/lost-time-injuries/${item.id}/edit`)}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
+                    <Tooltip title={isFinalStatus(item.status) ? 'Cannot edit - Record is ' + item.status : 'Edit'}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={() => navigate(`/lost-time-injuries/${item.id}/edit`)}
+                          disabled={isFinalStatus(item.status)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </span>
                     </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => setDeleteDialog({
-                          open: true,
-                          id: item.id,
-                          title: item.title
-                        })}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                    <Tooltip title={!isAdmin ? 'Only Admin/HR can delete' : isFinalStatus(item.status) ? 'Cannot delete - Record is ' + item.status : 'Delete'}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => {
+                            if (!isAdmin) {
+                              alert('Only Admin or HR can delete this record.');
+                              return;
+                            }
+                            if (isFinalStatus(item.status)) {
+                              alert('Cannot delete this record. Status is already ' + item.status);
+                              return;
+                            }
+                            setDeleteDialog({ open: true, id: item.id, title: item.title });
+                          }}
+                          disabled={!isAdmin || isFinalStatus(item.status)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </span>
                     </Tooltip>
                   </TableCell>
                 </TableRow>
@@ -434,7 +409,6 @@ const LostTimeInjuryList = () => {
         </Table>
       </TableContainer>
 
-      {/* Delete Dialog */}
       <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, id: null, title: '' })}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>

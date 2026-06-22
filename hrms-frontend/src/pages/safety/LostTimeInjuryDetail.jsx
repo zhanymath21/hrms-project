@@ -43,14 +43,30 @@ import {
   Assignment as AssignmentIcon,
   Healing as HealingIcon,
   MedicalInformation as MedicalIcon,
-  Work as WorkIcon,
   AccessTime as AccessTimeIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
 import { formatDate } from '../../utils/dateFormat';
 
-// ============ CONFIGURATIONS ============
+// ✅ Daftar Role Admin/HR/Manager
+const ADMIN_ROLES = [
+  'admin',
+  'hr',
+  'hr-manager',
+  'super_admin',
+  'HR Manager',
+  'HR Officer',
+  'HR Assistant',
+  'System Admin',
+  'IT Manager',
+  'Finance Manager',
+  'Marketing Manager',
+  'Sales Manager',
+  'Operations Manager',
+  'Manager',
+];
+
 const STATUS_CONFIG = {
   reported: { label: 'Reported', bgColor: '#f59e0b', textColor: '#ffffff', icon: <PendingIcon /> },
   under_investigation: { label: 'Under Investigation', bgColor: '#3b82f6', textColor: '#ffffff', icon: <PendingIcon /> },
@@ -76,6 +92,21 @@ const APPROVAL_STATUS_CONFIG = {
 };
 
 // ============ HELPER FUNCTIONS ============
+const parseWitnesses = (witnesses) => {
+  if (!witnesses) return [];
+  if (Array.isArray(witnesses)) return witnesses;
+  if (typeof witnesses === 'string') {
+    try {
+      const parsed = JSON.parse(witnesses);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Error parsing witnesses:', e);
+      return [];
+    }
+  }
+  return [];
+};
+
 const getBodyPartLabel = (bodyPart) => {
   const labels = {
     head: 'Head',
@@ -116,69 +147,12 @@ const getInjuryTypeLabel = (injuryType) => {
   return labels[injuryType] || injuryType || '-';
 };
 
-// ============ FIXED: PARSE WITNESSES ============
-const parseWitnesses = (witnesses) => {
-  console.log('=== PARSING WITNESSES ===');
-  console.log('Raw witnesses input:', witnesses);
-  console.log('Type of witnesses:', typeof witnesses);
-  
-  if (!witnesses) {
-    console.log('Witnesses is null/undefined, returning empty array');
-    return [];
-  }
-  
-  if (Array.isArray(witnesses)) {
-    console.log('Witnesses is already an array:', witnesses);
-    return witnesses;
-  }
-  
-  if (typeof witnesses === 'string') {
-    try {
-      const parsed = JSON.parse(witnesses);
-      console.log('Parsed witnesses from string:', parsed);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.error('Error parsing witnesses:', e);
-      return [];
-    }
-  }
-  
-  console.log('Witnesses is not a string or array, returning empty array');
-  return [];
-};
-
-// ============ FIXED: FORMAT TIME ============
 const formatTime = (timeString) => {
   if (!timeString) return 'Not recorded';
-  
   if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}/)) {
     return timeString.substring(0, 5);
   }
-  
-  try {
-    const date = new Date(timeString);
-    if (!isNaN(date.getTime())) {
-      return date.toLocaleTimeString('en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-    }
-    
-    const fallbackDate = new Date(`1970-01-01T${timeString}`);
-    if (!isNaN(fallbackDate.getTime())) {
-      return fallbackDate.toLocaleTimeString('en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-    }
-    
-    return timeString;
-  } catch (e) {
-    console.error('Error formatting time:', e);
-    return 'Invalid time';
-  }
+  return timeString;
 };
 
 // ============ MAIN COMPONENT ============
@@ -190,24 +164,23 @@ const LostTimeInjuryDetail = () => {
   const [lti, setLti] = useState(null);
   const [updating, setUpdating] = useState(false);
   
-  // History Dialog
   const [historyDialog, setHistoryDialog] = useState(false);
   const [statusHistory, setStatusHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
-  // Status Update Dialog
   const [statusDialog, setStatusDialog] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [statusNotes, setStatusNotes] = useState('');
 
-  // Approval Dialog
   const [approvalDialog, setApprovalDialog] = useState(false);
   const [approvalFlow, setApprovalFlow] = useState([]);
   const [selectedManagers, setSelectedManagers] = useState([]);
   const [employees, setEmployees] = useState([]);
 
-  // Get current user
+  // ✅ Get current user
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const userRole = currentUser?.role || '';
+  const isAdmin = ADMIN_ROLES.includes(userRole);
 
   // ============ FETCH DATA ============
   useEffect(() => {
@@ -221,25 +194,10 @@ const LostTimeInjuryDetail = () => {
       setError(null);
       const response = await api.get(`/lost-time-injuries/${id}`);
 
-      console.log('=== API RESPONSE ===');
-      console.log('Full response:', response.data);
-      
       if (response.data?.status === 'success') {
         const data = response.data.data;
-        console.log('Data from API:', data);
-        console.log('Witnesses from API (raw):', data.witnesses);
-        console.log('Witnesses type:', typeof data.witnesses);
-        
-        // ✅ PARSE WITNESSES
         const witnessesData = parseWitnesses(data.witnesses);
-        console.log('Parsed witnesses:', witnessesData);
-        console.log('Parsed witnesses count:', witnessesData.length);
-        
-        // ✅ Set LTI with parsed witnesses
-        setLti({
-          ...data,
-          witnesses: witnessesData
-        });
+        setLti({ ...data, witnesses: witnessesData });
         
         if (data.approval_flow) {
           const flow = typeof data.approval_flow === 'string' 
@@ -296,7 +254,18 @@ const LostTimeInjuryDetail = () => {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this record?')) return;
+    if (!isAdmin) {
+      alert('Only Admin, HR, or Manager can delete this record.');
+      return;
+    }
+
+    const finalStatuses = ['resolved', 'closed', 'rejected'];
+    if (finalStatuses.includes(lti.status)) {
+      alert(`Cannot delete this record. Status is already ${lti.status}.`);
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this record? This action cannot be undone.')) return;
     
     try {
       await api.delete(`/lost-time-injuries/${id}`);
@@ -307,19 +276,41 @@ const LostTimeInjuryDetail = () => {
   };
 
   const handleStatusUpdate = async () => {
+    if (!newStatus) {
+      alert('Please select a status');
+      return;
+    }
+
     try {
       setUpdating(true);
-      await api.put(`/lost-time-injuries/${id}/status`, {
+      
+      const payload = {
         status: newStatus,
-        notes: statusNotes,
-      });
+        notes: statusNotes || '',
+      };
+      
+      console.log('📤 Updating status:', payload);
+      
+      const response = await api.put(`/lost-time-injuries/${id}/status`, payload);
+      
+      console.log('✅ Status updated:', response.data);
+      
       setStatusDialog(false);
       setNewStatus('');
       setStatusNotes('');
       await fetchLti();
     } catch (err) {
-      console.error('Error updating status:', err);
-      alert('Failed to update status');
+      console.error('❌ Error updating status:', err);
+      console.error('❌ Error response:', err.response?.data);
+      
+      let errorMessage = 'Failed to update status';
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.errors) {
+        const errors = Object.values(err.response.data.errors).flat().join('\n');
+        errorMessage = errors;
+      }
+      alert(errorMessage);
     } finally {
       setUpdating(false);
     }
@@ -450,14 +441,6 @@ const LostTimeInjuryDetail = () => {
                 {index === 0 && <Chip label="Latest" size="small" color="success" />}
               </Box>
 
-              {item.old_approval_status && item.new_approval_status && (
-                <Box display="flex" alignItems="center" gap={1} mb={1}>
-                  <Typography variant="caption" color="textSecondary">
-                    Approval: {item.old_approval_status} → {item.new_approval_status}
-                  </Typography>
-                </Box>
-              )}
-
               {item.old_days_lost !== undefined && item.new_days_lost !== undefined && (
                 <Box display="flex" alignItems="center" gap={1} mb={1}>
                   <Typography variant="caption" color="textSecondary">
@@ -512,12 +495,10 @@ const LostTimeInjuryDetail = () => {
   // ============ AUTHORIZATION ============
   const isReporter = lti?.reported_by?.id === currentUser?.id;
   const isManagerInFlow = approvalFlow.includes(currentUser?.id);
-  const canManageApprovalFlow = isReporter;
-
-  // ✅ Get witnesses data - ensure it's an array
+  const finalStatuses = ['resolved', 'closed', 'rejected'];
+  const isFinal = finalStatuses.includes(lti.status);
   const witnessesData = Array.isArray(lti.witnesses) ? lti.witnesses : [];
 
-  // ============ RENDER ============
   return (
     <Box>
       {/* ===== HEADER ===== */}
@@ -530,48 +511,39 @@ const LostTimeInjuryDetail = () => {
             Lost Time Injury #{lti.id}
           </Typography>
           {renderStatusChip(lti.status)}
-          {isReporter && (
-            <Chip 
-              label="📢 Reporter" 
-              size="small" 
-              color="primary" 
-              sx={{ fontWeight: 600 }}
-            />
-          )}
-          {isManagerInFlow && !isReporter && (
-            <Chip 
-              label="📋 Manager" 
-              size="small" 
-              color="secondary" 
-              sx={{ fontWeight: 600 }}
-            />
-          )}
+          {isReporter && <Chip label="📢 Reporter" size="small" color="primary" sx={{ fontWeight: 600 }} />}
+          {isManagerInFlow && !isReporter && <Chip label="📋 Manager" size="small" color="secondary" sx={{ fontWeight: 600 }} />}
         </Box>
 
         <Box display="flex" gap={1} flexWrap="wrap">
-          <Button
-            variant="outlined"
-            startIcon={<HistoryIcon />}
-            onClick={handleOpenHistory}
-            sx={{ color: '#6366f1', borderColor: '#6366f1' }}
-          >
+          <Button variant="outlined" startIcon={<HistoryIcon />} onClick={handleOpenHistory} sx={{ color: '#6366f1', borderColor: '#6366f1' }}>
             History
           </Button>
-          <Button
-            variant="outlined"
-            startIcon={<EditIcon />}
-            onClick={() => navigate(`/lost-time-injuries/${id}/edit`)}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={handleDelete}
-          >
-            Delete
-          </Button>
+          <Tooltip title={isFinal ? 'Cannot edit - Record is ' + lti.status : 'Edit'}>
+            <span>
+              <Button
+                variant="outlined"
+                startIcon={<EditIcon />}
+                onClick={() => navigate(`/lost-time-injuries/${id}/edit`)}
+                disabled={isFinal}
+              >
+                Edit
+              </Button>
+            </span>
+          </Tooltip>
+          <Tooltip title={!isAdmin ? 'Only Admin/HR/Manager can delete' : isFinal ? 'Cannot delete - Record is ' + lti.status : 'Delete'}>
+            <span>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={handleDelete}
+                disabled={!isAdmin || isFinal}
+              >
+                Delete
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
       </Box>
 
@@ -579,7 +551,6 @@ const LostTimeInjuryDetail = () => {
       <Grid container spacing={3}>
         {/* ===== LEFT COLUMN ===== */}
         <Grid item xs={12} md={8}>
-          {/* Injury Details */}
           <Paper sx={{ p: 3, mb: 3 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
               Injury Details
@@ -604,12 +575,9 @@ const LostTimeInjuryDetail = () => {
                   <Typography variant="caption" color="textSecondary">Employee</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
                     <PersonIcon fontSize="small" color="action" />
-                    <Typography>
-                      {lti.employee?.first_name} {lti.employee?.last_name}
-                    </Typography>
+                    <Typography>{lti.employee?.first_name} {lti.employee?.last_name}</Typography>
                   </Box>
                 </Grid>
-                
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Location</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -617,7 +585,6 @@ const LostTimeInjuryDetail = () => {
                     <Typography>{lti.location || 'Not specified'}</Typography>
                   </Box>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Injury Date</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -625,7 +592,6 @@ const LostTimeInjuryDetail = () => {
                     <Typography>{formatDate(lti.injury_date)}</Typography>
                   </Box>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Injury Time</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -633,12 +599,10 @@ const LostTimeInjuryDetail = () => {
                     <Typography>{formatTime(lti.injury_time)}</Typography>
                   </Box>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Severity</Typography>
                   <Box>{renderSeverityChip(lti.severity)}</Box>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Body Part</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -646,7 +610,6 @@ const LostTimeInjuryDetail = () => {
                     <Typography>{getBodyPartLabel(lti.body_part)}</Typography>
                   </Box>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Injury Type</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -654,7 +617,6 @@ const LostTimeInjuryDetail = () => {
                     <Typography>{getInjuryTypeLabel(lti.injury_type)}</Typography>
                   </Box>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Days Lost</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -662,16 +624,10 @@ const LostTimeInjuryDetail = () => {
                     <Typography fontWeight="bold">{lti.days_lost || 0} days</Typography>
                   </Box>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Medical Treatment</Typography>
-                  <Chip
-                    label={lti.medical_treatment ? 'Yes' : 'No'}
-                    color={lti.medical_treatment ? 'success' : 'default'}
-                    size="small"
-                  />
+                  <Chip label={lti.medical_treatment ? 'Yes' : 'No'} color={lti.medical_treatment ? 'success' : 'default'} size="small" />
                 </Grid>
-
                 {lti.return_to_work_date && (
                   <Grid item xs={12} sm={6}>
                     <Typography variant="caption" color="textSecondary">Return to Work Date</Typography>
@@ -683,9 +639,7 @@ const LostTimeInjuryDetail = () => {
               {lti.medical_notes && (
                 <Box>
                   <Typography variant="caption" color="textSecondary">Medical Notes</Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {lti.medical_notes}
-                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>{lti.medical_notes}</Typography>
                 </Box>
               )}
 
@@ -700,7 +654,7 @@ const LostTimeInjuryDetail = () => {
             </Stack>
           </Paper>
 
-          {/* ===== WITNESSES SECTION - FIXED ===== */}
+          {/* ===== WITNESSES ===== */}
           <Paper sx={{ p: 3, mb: 3 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
               Witnesses ({witnessesData.length})
@@ -708,37 +662,16 @@ const LostTimeInjuryDetail = () => {
             <Divider sx={{ mb: 2 }} />
             
             {witnessesData.length === 0 ? (
-              <Typography variant="body2" color="textSecondary">
-                No witnesses recorded for this incident.
-              </Typography>
+              <Typography variant="body2" color="textSecondary">No witnesses recorded for this incident.</Typography>
             ) : (
               <Grid container spacing={2}>
                 {witnessesData.map((witness, index) => (
                   <Grid item xs={12} sm={6} key={index}>
-                    <Card variant="outlined" sx={{ bgcolor: '#f8fafc', '&:hover': { boxShadow: 2 } }}>
+                    <Card variant="outlined" sx={{ bgcolor: '#f8fafc' }}>
                       <CardContent>
-                        <Box display="flex" alignItems="center" gap={1} mb={1}>
-                          <PersonIcon color="primary" fontSize="small" />
-                          <Typography variant="body1" fontWeight="medium">
-                            {witness.name || 'Unnamed Witness'}
-                          </Typography>
-                          <Chip 
-                            label={`#${index + 1}`} 
-                            size="small" 
-                            sx={{ ml: 'auto', bgcolor: '#e5e7eb', fontSize: '0.65rem' }}
-                          />
-                        </Box>
-                        {witness.contact ? (
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <Typography variant="caption" color="textSecondary">📞</Typography>
-                            <Typography variant="body2" color="textSecondary">
-                              {witness.contact}
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <Typography variant="caption" color="textSecondary">
-                            No contact provided
-                          </Typography>
+                        <Typography variant="body1" fontWeight="medium">{witness.name}</Typography>
+                        {witness.contact && (
+                          <Typography variant="caption" color="textSecondary">📞 {witness.contact}</Typography>
                         )}
                       </CardContent>
                     </Card>
@@ -748,19 +681,12 @@ const LostTimeInjuryDetail = () => {
             )}
           </Paper>
 
-          {/* Attachments */}
+          {/* ===== ATTACHMENTS ===== */}
           {lti.file_path && (
             <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom fontWeight="bold">
-                Attachments
-              </Typography>
+              <Typography variant="h6" gutterBottom fontWeight="bold">Attachments</Typography>
               <Divider sx={{ mb: 2 }} />
-              <Button
-                variant="outlined"
-                startIcon={<DownloadIcon />}
-                href={lti.file_path}
-                download={lti.file_name}
-              >
+              <Button variant="outlined" startIcon={<DownloadIcon />} href={lti.file_path} download={lti.file_name}>
                 {lti.file_name || 'Download Attachment'}
               </Button>
             </Paper>
@@ -769,17 +695,14 @@ const LostTimeInjuryDetail = () => {
 
         {/* ===== RIGHT COLUMN ===== */}
         <Grid item xs={12} md={4}>
-          {/* Reported By */}
+          {/* ===== REPORTED BY ===== */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Reported By
-              </Typography>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Reported By</Typography>
               <Divider sx={{ mb: 2 }} />
               <Box display="flex" alignItems="center" gap={2}>
                 <Avatar sx={{ bgcolor: '#6366f1' }}>
-                  {lti.reported_by?.first_name?.[0]}
-                  {lti.reported_by?.last_name?.[0]}
+                  {lti.reported_by?.first_name?.[0]}{lti.reported_by?.last_name?.[0]}
                 </Avatar>
                 <Box>
                   <Typography variant="body1" fontWeight="medium">
@@ -788,31 +711,21 @@ const LostTimeInjuryDetail = () => {
                   <Typography variant="caption" color="textSecondary">
                     {formatDate(lti.created_at, 'dd/MM/yyyy HH:mm')}
                   </Typography>
-                  {isReporter && (
-                    <Chip 
-                      label="Reporter" 
-                      size="small" 
-                      color="primary" 
-                      sx={{ mt: 0.5, fontWeight: 600 }}
-                    />
-                  )}
                 </Box>
               </Box>
             </CardContent>
           </Card>
 
-          {/* Manager Approvals */}
+          {/* ===== MANAGER APPROVALS ===== */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Manager Approvals
-              </Typography>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Manager Approvals</Typography>
               <Divider sx={{ mb: 2 }} />
               
               {approvalFlow.length === 0 ? (
                 <Typography variant="body2" color="textSecondary">
-                  No approval flow configured. 
-                  {isReporter ? ' Click below to set up approval flow.' : ' Only the reporter can set approval flow.'}
+                  No approval flow configured.
+                  {isReporter && !isFinal && ' Click below to set up approval flow.'}
                 </Typography>
               ) : (
                 <Stack spacing={2}>
@@ -828,15 +741,15 @@ const LostTimeInjuryDetail = () => {
                     
                     return (
                       <Box key={managerId} sx={{ 
-                        p: 2, 
+                        p: 1.5, 
                         borderRadius: 1, 
-                        bgcolor: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#f9fafb',
-                        border: '1px solid',
-                        borderColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#e5e7eb',
+                        bgcolor: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#f9fafb', 
+                        border: '1px solid', 
+                        borderColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#e5e7eb' 
                       }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
                           <Box display="flex" alignItems="center" gap={1}>
-                            <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1' }}>
+                            <Avatar sx={{ width: 28, height: 28, bgcolor: '#6366f1' }}>
                               {manager?.first_name?.[0]}{manager?.last_name?.[0]}
                             </Avatar>
                             <Box>
@@ -844,51 +757,41 @@ const LostTimeInjuryDetail = () => {
                                 Manager {level}: {manager?.first_name} {manager?.last_name}
                               </Typography>
                               <Typography variant="caption" color="textSecondary">
-                                {isApproved ? `✅ Approved at ${formatDate(lti[`manager${level}_approved_at`], 'dd/MM/yyyy HH:mm')}` :
-                                 isRejected ? '❌ Rejected' :
-                                 isCurrentUserManager ? '📌 Action Required' :
-                                 '⏳ Pending approval'}
+                                {isApproved ? `✅ Approved` : isRejected ? '❌ Rejected' : isCurrentUserManager ? '📌 Action Required' : '⏳ Pending'}
                               </Typography>
                             </Box>
                           </Box>
-                          <Box display="flex" gap={1} flexWrap="wrap">
-                            {isPending && isCurrentUserManager && (
-                              <>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  color="success"
-                                  onClick={() => handleManagerApprove(level, 'approved')}
-                                  disabled={updating}
-                                  startIcon={<CheckCircleIcon />}
-                                >
-                                  Approve
-                                </Button>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  color="error"
-                                  onClick={() => handleManagerApprove(level, 'rejected')}
-                                  disabled={updating}
-                                  startIcon={<CancelIcon />}
-                                >
-                                  Reject
-                                </Button>
-                              </>
-                            )}
-                            {isApproved && (
-                              <Chip label="Approved" size="small" color="success" icon={<CheckCircleIcon />} />
-                            )}
-                            {isRejected && (
-                              <Chip label="Rejected" size="small" color="error" icon={<CancelIcon />} />
-                            )}
-                            {isPending && !isCurrentUserManager && (
-                              <Chip label="Waiting" size="small" color="warning" icon={<PendingIcon />} />
-                            )}
-                            {isPending && isCurrentUserManager && (
-                              <Chip label="Action Required" size="small" color="info" sx={{ fontWeight: 600 }} />
-                            )}
-                          </Box>
+                          {isPending && isCurrentUserManager && !isFinal && (
+                            <Box display="flex" gap={0.5}>
+                              <Button 
+                                size="small" 
+                                color="success" 
+                                onClick={() => handleManagerApprove(level, 'approved')} 
+                                startIcon={<CheckCircleIcon />}
+                                disabled={updating}
+                              >
+                                Approve
+                              </Button>
+                              <Button 
+                                size="small" 
+                                color="error" 
+                                onClick={() => handleManagerApprove(level, 'rejected')} 
+                                startIcon={<CancelIcon />}
+                                disabled={updating}
+                              >
+                                Reject
+                              </Button>
+                            </Box>
+                          )}
+                          {isApproved && (
+                            <Chip label="Approved" size="small" color="success" />
+                          )}
+                          {isRejected && (
+                            <Chip label="Rejected" size="small" color="error" />
+                          )}
+                          {isPending && !isCurrentUserManager && (
+                            <Chip label="Waiting" size="small" color="warning" />
+                          )}
                         </Box>
                         {lti[`manager${level}_notes`] && (
                           <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
@@ -903,94 +806,67 @@ const LostTimeInjuryDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Approval Status */}
+          {/* ===== APPROVAL STATUS ===== */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Approval Status
-              </Typography>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Approval Status</Typography>
               <Divider sx={{ mb: 2 }} />
               
               <Box mb={2}>
                 <Chip
                   label={APPROVAL_STATUS_CONFIG[lti.approval_status]?.label || lti.approval_status}
-                  sx={{
-                    backgroundColor: APPROVAL_STATUS_CONFIG[lti.approval_status]?.color || '#6b7280',
-                    color: '#ffffff',
-                    fontWeight: 600,
-                    textTransform: 'capitalize',
+                  sx={{ 
+                    backgroundColor: APPROVAL_STATUS_CONFIG[lti.approval_status]?.color || '#6b7280', 
+                    color: '#ffffff', 
+                    fontWeight: 600 
                   }}
                 />
               </Box>
               
               {approvalFlow.length > 0 && (
                 <Box>
-                  <Typography variant="caption" color="textSecondary">
-                    Approval Progress
-                  </Typography>
                   <LinearProgress 
                     variant="determinate" 
-                    value={lti.approval_progress || 0}
-                    sx={{ height: 8, borderRadius: 4, mt: 1 }}
+                    value={lti.approval_progress || 0} 
+                    sx={{ height: 8, borderRadius: 4 }} 
                   />
                   <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
                     {lti.approval_progress || 0}% complete
                   </Typography>
                 </Box>
               )}
-
-              {!isReporter && approvalFlow.length === 0 && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  Only the reporter of this injury can set the approval flow.
-                </Alert>
-              )}
-
-              {!isReporter && approvalFlow.length > 0 && !isManagerInFlow && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  This record is waiting for manager approval. You are not in the approval flow.
-                </Alert>
-              )}
-
-              {isManagerInFlow && !isReporter && (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  You are assigned as a manager in this approval flow. Please review and approve/reject.
-                </Alert>
-              )}
-
+              
               <Button
                 variant="outlined"
                 fullWidth
                 sx={{ mt: 2 }}
                 onClick={() => setApprovalDialog(true)}
-                disabled={
-                  !isReporter || 
-                  lti.approval_status === 'approved' || 
-                  lti.approval_status === 'rejected'
-                }
+                disabled={!isReporter || isFinal || lti.approval_status === 'approved' || lti.approval_status === 'rejected'}
               >
-                {isReporter ? (
-                  approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'
-                ) : (
-                  'View Only (Reporter Only)'
-                )}
+                {isReporter ? (approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow') : 'View Only'}
               </Button>
             </CardContent>
           </Card>
 
-          {/* Update Status */}
+          {/* ===== UPDATE STATUS ===== */}
           <Card>
             <CardContent>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Update Status
-              </Typography>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Update Status</Typography>
+              
+              {isFinal && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  This record is already <strong>{STATUS_CONFIG[lti.status]?.label}</strong>. Status cannot be changed.
+                </Alert>
+              )}
+              
               <Button
                 variant="contained"
                 fullWidth
                 onClick={() => setStatusDialog(true)}
-                disabled={updating}
+                disabled={isFinal || updating}
                 startIcon={updating ? <CircularProgress size={20} /> : null}
               >
-                Change Status
+                {updating ? 'Updating...' : 'Change Status'}
               </Button>
             </CardContent>
           </Card>
@@ -1002,37 +878,64 @@ const LostTimeInjuryDetail = () => {
         <DialogTitle>Update Status</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
+            <Alert severity="info">
+              Current Status: <strong>{STATUS_CONFIG[lti.status]?.label || lti.status}</strong>
+              {lti.approval_status === 'approved' && <Chip label="Approved" size="small" color="success" sx={{ ml: 1 }} />}
+            </Alert>
+            
+            {lti.approval_status !== 'approved' && (
+              <Alert severity="warning">
+                <strong>Note:</strong> Status can only be changed to <strong>Closed</strong> or <strong>Rejected</strong> after approval.
+              </Alert>
+            )}
+            
             <FormControl fullWidth>
               <InputLabel>New Status</InputLabel>
-              <Select
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
+              <Select 
+                value={newStatus} 
+                onChange={(e) => setNewStatus(e.target.value)} 
                 label="New Status"
               >
-                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                  <MenuItem key={key} value={key}>{config.label}</MenuItem>
-                ))}
+                {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+                  // Check if this status is allowed
+                  const isClosedOrRejected = key === 'closed' || key === 'rejected';
+                  const requiresApproval = isClosedOrRejected && lti.approval_status !== 'approved';
+                  const isCurrent = key === lti.status;
+                  
+                  return (
+                    <MenuItem 
+                      key={key} 
+                      value={key} 
+                      disabled={isCurrent || requiresApproval}
+                    >
+                      {config.label}
+                      {requiresApproval && ' (requires approval)'}
+                      {isCurrent && ' (current)'}
+                    </MenuItem>
+                  );
+                })}
               </Select>
             </FormControl>
-            <TextField
-              fullWidth
-              label="Notes (Optional)"
-              multiline
-              rows={3}
-              value={statusNotes}
-              onChange={(e) => setStatusNotes(e.target.value)}
-              placeholder="Add notes about this status change..."
+            
+            <TextField 
+              fullWidth 
+              label="Notes" 
+              multiline 
+              rows={3} 
+              value={statusNotes} 
+              onChange={(e) => setStatusNotes(e.target.value)} 
+              placeholder="Add notes about this status change..." 
             />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setStatusDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleStatusUpdate}
+          <Button 
+            variant="contained" 
+            onClick={handleStatusUpdate} 
             disabled={!newStatus || updating}
           >
-            Update
+            Update Status
           </Button>
         </DialogActions>
       </Dialog>
@@ -1044,14 +947,16 @@ const LostTimeInjuryDetail = () => {
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
-            {!isReporter && (
-              <Alert severity="warning">
-                Only the reporter of this injury can set or update the approval flow.
-              </Alert>
-            )}
             <Typography variant="body2" color="textSecondary">
               Select up to 4 managers who need to approve this record.
             </Typography>
+            
+            {!isReporter && (
+              <Alert severity="warning">
+                Only the reporter can set or update the approval flow.
+              </Alert>
+            )}
+            
             <FormControl fullWidth>
               <InputLabel>Select Managers</InputLabel>
               <Select
@@ -1082,6 +987,7 @@ const LostTimeInjuryDetail = () => {
                 ))}
               </Select>
             </FormControl>
+            
             {selectedManagers.length > 0 && (
               <Typography variant="caption" color="textSecondary">
                 Selected {selectedManagers.length} manager(s)
@@ -1091,9 +997,9 @@ const LostTimeInjuryDetail = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setApprovalDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSetApprovalFlow}
+          <Button 
+            variant="contained" 
+            onClick={handleSetApprovalFlow} 
             disabled={selectedManagers.length === 0 || updating || !isReporter}
           >
             Save Approval Flow
@@ -1102,21 +1008,23 @@ const LostTimeInjuryDetail = () => {
       </Dialog>
 
       {/* ===== HISTORY DIALOG ===== */}
-      <Dialog
-        open={historyDialog}
-        onClose={() => setHistoryDialog(false)}
-        maxWidth="md"
+      <Dialog 
+        open={historyDialog} 
+        onClose={() => setHistoryDialog(false)} 
+        maxWidth="md" 
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2, maxHeight: '80vh' } }}
+        PaperProps={{ sx: { maxHeight: '80vh' } }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', pb: 2 }}>
-          <Box display="flex" alignItems="center" gap={1}>
-            <HistoryIcon sx={{ color: '#6366f1' }} />
-            <Typography variant="h6" fontWeight="bold">Status History</Typography>
+        <DialogTitle sx={{ borderBottom: '1px solid #e5e7eb', pb: 2 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Box display="flex" alignItems="center" gap={1}>
+              <HistoryIcon sx={{ color: '#6366f1' }} />
+              <Typography variant="h6" fontWeight="bold">Status History</Typography>
+            </Box>
+            <IconButton onClick={() => setHistoryDialog(false)}>
+              <CloseIcon />
+            </IconButton>
           </Box>
-          <IconButton onClick={() => setHistoryDialog(false)} size="small">
-            <CloseIcon />
-          </IconButton>
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
           {renderHistoryContent()}

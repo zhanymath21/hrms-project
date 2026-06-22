@@ -124,6 +124,11 @@ class LostTimeInjury extends Model
         return $query->where('employee_id', $employeeId);
     }
 
+    public function scopeBySeverity($query, $severity)
+    {
+        return $query->where('severity', $severity);
+    }
+
     // ============ ACCESSORS ============
 
     public function getStatusLabelAttribute()
@@ -196,6 +201,11 @@ class LostTimeInjury extends Model
             'critical' => '#ef4444',
         ];
         return $colors[$this->severity] ?? '#6b7280';
+    }
+
+    public function getIsFinalStatusAttribute()
+    {
+        return in_array($this->status, ['resolved', 'closed', 'rejected']);
     }
 
     public function getApprovalProgressAttribute()
@@ -282,7 +292,6 @@ class LostTimeInjury extends Model
                 $historyData['new_days_lost'] = $lti->days_lost;
             }
 
-            // Always add notes if not set
             if (!isset($historyData['notes'])) {
                 $historyData['notes'] = 'Record updated';
             }
