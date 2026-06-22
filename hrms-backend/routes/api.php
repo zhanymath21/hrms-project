@@ -304,12 +304,12 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'update']);
     Route::delete('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'destroy']);
 
-    Route::get('/tax-setting', [TaxSettingController::class, 'index']);
-    Route::get('/tax-setting/active', [TaxSettingController::class, 'active']);
-    Route::post('/tax-setting/calculate', [TaxSettingController::class, 'calculate']);
-    Route::post('/tax-setting', [TaxSettingController::class, 'store']);
-    Route::get('/tax-setting/{id}', [TaxSettingController::class, 'show']);
-    Route::put('/tax-setting/{id}', [TaxSettingController::class, 'update']);
-    Route::delete('/tax-setting/{id}', [TaxSettingController::class, 'destroy']);
-    Route::post('/tax-setting/{id}/activate', [TaxSettingController::class, 'activate']);
+    Route::get('/tax-settings', [TaxSettingController::class, 'index']);
+    Route::get('/tax-settings/active', [TaxSettingController::class, 'active']);
+    Route::post('/tax-settings/calculate', [TaxSettingController::class, 'calculate']);
+    Route::post('/tax-settings', [TaxSettingController::class, 'store']);
+    Route::get('/tax-settings/{id}', [TaxSettingController::class, 'show']);
+    Route::put('/tax-settings/{id}', [TaxSettingController::class, 'update']);
+    Route::delete('/tax-settings/{id}', [TaxSettingController::class, 'destroy']);
+    Route::post('/tax-settings/{id}/activate', [TaxSettingController::class, 'activate']);
 });
