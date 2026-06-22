@@ -325,6 +325,26 @@ class IncidentReportController extends Controller
         try {
             $incident = IncidentReport::findOrFail($id);
 
+            // Check if user is authorized (only creator or admin can set approval flow)
+            $user = auth()->user();
+            $isCreator = $incident->created_by === $user->id;
+            $isAdmin = $user->hasRole('admin') || $user->hasRole('hr'); // Adjust roles as needed
+
+            if (!$isCreator && !$isAdmin) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You are not authorized to set approval flow. Only the creator of this incident or admin can set approval flow.',
+                ], 403);
+            }
+
+            // Check if approval is already completed
+            if (in_array($incident->approval_status, ['approved', 'rejected'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot update approval flow. This incident has already been ' . $incident->approval_status,
+                ], 400);
+            }
+
             $validator = Validator::make($request->all(), [
                 'approval_flow' => 'required|array',
                 'approval_flow.*' => 'exists:employees,id',
@@ -338,6 +358,23 @@ class IncidentReportController extends Controller
             }
 
             $flow = $request->approval_flow;
+
+            // Limit to 4 managers
+            if (count($flow) > 4) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Maximum 4 managers allowed in approval flow',
+                ], 400);
+            }
+
+            // Check if the same manager is selected multiple times
+            if (count($flow) !== count(array_unique($flow))) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot select the same manager multiple times',
+                ], 400);
+            }
+
             $data = [
                 'approval_flow' => json_encode($flow),
                 'approval_status' => 'pending',
@@ -360,6 +397,17 @@ class IncidentReportController extends Controller
             }
 
             $incident->update($data);
+
+            // Create history record
+            IncidentStatusHistory::create([
+                'incident_report_id' => $incident->id,
+                'old_status' => $incident->status,
+                'new_status' => $incident->status,
+                'old_approval_status' => null,
+                'new_approval_status' => 'pending',
+                'notes' => 'Approval flow set by ' . $user->first_name . ' ' . $user->last_name . ' with ' . count($flow) . ' managers',
+                'updated_by' => $user->id,
+            ]);
 
             return response()->json([
                 'status' => 'success',

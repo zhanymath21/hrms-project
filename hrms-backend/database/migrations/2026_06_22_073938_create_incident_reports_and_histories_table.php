@@ -8,23 +8,27 @@ return new class extends Migration
 {
     public function up()
     {
-        // ============ INCIDENT REPORTS TABLE ============
+        // ============================================
+        // 1. INCIDENT REPORTS TABLE
+        // ============================================
         Schema::create('incident_reports', function (Blueprint $table) {
             $table->id();
 
-            // Foreign Keys
+            // ===== Foreign Keys =====
             $table->foreignId('reported_by')->constrained('employees')->onDelete('cascade');
             $table->foreignId('assigned_to')->nullable()->constrained('employees')->onDelete('set null');
-            $table->foreignId('created_by')->nullable()->constrained('employees')->onDelete('set null');
 
-            // Basic Information
+            // 🔥 PERBAIKAN: created_by dijadikan NOT NULL dengan default
+            $table->foreignId('created_by')->nullable(false)->constrained('employees')->onDelete('cascade');
+
+            // ===== Basic Information =====
             $table->string('title');
             $table->text('description');
             $table->string('location')->nullable();
             $table->date('incident_date');
             $table->time('incident_time')->nullable();
 
-            // Category
+            // ===== Category =====
             $table->enum('category', [
                 'safety',
                 'security',
@@ -43,7 +47,7 @@ return new class extends Migration
                 'other'
             ])->default('other');
 
-            // Severity
+            // ===== Severity =====
             $table->enum('severity', [
                 'low',
                 'medium',
@@ -51,7 +55,7 @@ return new class extends Migration
                 'critical'
             ])->default('low');
 
-            // Status
+            // ===== Status =====
             $table->enum('status', [
                 'reported',
                 'under_investigation',
@@ -61,45 +65,45 @@ return new class extends Migration
                 'rejected'
             ])->default('reported');
 
-            // Resolution
+            // ===== Resolution =====
             $table->text('resolution_notes')->nullable();
             $table->date('resolved_date')->nullable();
 
-            // Files
+            // ===== Files =====
             $table->string('file_path')->nullable();
             $table->string('file_name')->nullable();
 
-            // Witnesses (JSON)
+            // ===== Witnesses (JSON) =====
             $table->json('witnesses')->nullable();
 
-            // Approval Flow
+            // ===== Approval Flow =====
             $table->json('approval_flow')->nullable();
 
-            // Manager 1
+            // ===== Manager 1 =====
             $table->foreignId('manager1_id')->nullable()->constrained('employees')->onDelete('set null');
             $table->enum('manager1_status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->timestamp('manager1_approved_at')->nullable();
             $table->text('manager1_notes')->nullable();
 
-            // Manager 2
+            // ===== Manager 2 =====
             $table->foreignId('manager2_id')->nullable()->constrained('employees')->onDelete('set null');
             $table->enum('manager2_status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->timestamp('manager2_approved_at')->nullable();
             $table->text('manager2_notes')->nullable();
 
-            // Manager 3
+            // ===== Manager 3 =====
             $table->foreignId('manager3_id')->nullable()->constrained('employees')->onDelete('set null');
             $table->enum('manager3_status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->timestamp('manager3_approved_at')->nullable();
             $table->text('manager3_notes')->nullable();
 
-            // Manager 4
+            // ===== Manager 4 =====
             $table->foreignId('manager4_id')->nullable()->constrained('employees')->onDelete('set null');
             $table->enum('manager4_status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->timestamp('manager4_approved_at')->nullable();
             $table->text('manager4_notes')->nullable();
 
-            // Overall Approval Status
+            // ===== Overall Approval Status =====
             $table->enum('approval_status', [
                 'pending',
                 'in_progress',
@@ -108,11 +112,11 @@ return new class extends Migration
                 'partially_approved'
             ])->default('pending');
 
-            // Timestamps
+            // ===== Timestamps =====
             $table->timestamps();
             $table->softDeletes();
 
-            // Indexes
+            // ===== Indexes =====
             $table->index('category');
             $table->index('status');
             $table->index('approval_status');
@@ -126,26 +130,37 @@ return new class extends Migration
             $table->index('manager4_id');
         });
 
-        // ============ INCIDENT STATUS HISTORIES TABLE ============
+        // ============================================
+        // 2. INCIDENT STATUS HISTORIES TABLE
+        // ============================================
         Schema::create('incident_status_histories', function (Blueprint $table) {
             $table->id();
 
             // Foreign Key
-            $table->foreignId('incident_report_id')->constrained('incident_reports')->onDelete('cascade');
+            $table->foreignId('incident_report_id')
+                ->constrained('incident_reports')
+                ->onDelete('cascade');
 
             // Status Changes
             $table->string('old_status')->nullable();
-            $table->string('new_status');
+            $table->string('new_status')->nullable(false);
 
             // Approval Status Changes
             $table->string('old_approval_status')->nullable();
             $table->string('new_approval_status')->nullable();
 
+            // Progress Changes (optional)
+            $table->integer('old_progress')->nullable();
+            $table->integer('new_progress')->nullable();
+
             // Notes
             $table->text('notes')->nullable();
 
             // Who made the change
-            $table->foreignId('updated_by')->nullable()->constrained('employees')->onDelete('set null');
+            $table->foreignId('updated_by')
+                ->nullable()
+                ->constrained('employees')
+                ->onDelete('set null');
 
             // Timestamps
             $table->timestamps();

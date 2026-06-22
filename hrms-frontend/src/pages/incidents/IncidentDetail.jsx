@@ -47,6 +47,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
 import { formatDate } from '../../utils/dateFormat';
 
+// ============ CONFIGURATIONS ============
 const STATUS_CONFIG = {
   reported: { label: 'Reported', bgColor: '#f59e0b', textColor: '#ffffff', icon: <PendingIcon /> },
   under_investigation: { label: 'Under Investigation', bgColor: '#3b82f6', textColor: '#ffffff', icon: <PendingIcon /> },
@@ -71,7 +72,7 @@ const APPROVAL_STATUS_CONFIG = {
   partially_approved: { label: 'Partially Approved', color: '#8b5cf6' },
 };
 
-// ============ HELPER FUNCTION ============
+// ============ HELPER FUNCTIONS ============
 const parseWitnesses = (witnesses) => {
   if (!witnesses) return [];
   if (Array.isArray(witnesses)) return witnesses;
@@ -87,6 +88,28 @@ const parseWitnesses = (witnesses) => {
   return [];
 };
 
+const getCategoryLabel = (category) => {
+  const labels = {
+    safety: 'Safety',
+    security: 'Security',
+    health: 'Health',
+    property_damage: 'Property Damage',
+    environmental: 'Environmental',
+    harassment: 'Harassment',
+    discrimination: 'Discrimination',
+    fraud: 'Fraud',
+    theft: 'Theft',
+    data_breach: 'Data Breach',
+    policy_violation: 'Policy Violation',
+    workplace_violence: 'Workplace Violence',
+    accident: 'Accident',
+    near_miss: 'Near Miss',
+    other: 'Other',
+  };
+  return labels[category] || category;
+};
+
+// ============ MAIN COMPONENT ============
 const IncidentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -114,6 +137,7 @@ const IncidentDetail = () => {
   // Get current user from localStorage
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
+  // ============ FETCH DATA ============
   useEffect(() => {
     fetchIncident();
     fetchEmployees();
@@ -176,6 +200,7 @@ const IncidentDetail = () => {
     }
   };
 
+  // ============ HANDLERS ============
   const handleOpenHistory = async () => {
     setHistoryDialog(true);
     await fetchStatusHistory();
@@ -228,7 +253,6 @@ const IncidentDetail = () => {
     }
   };
 
-  // ============ MANAGER APPROVAL HANDLER ============
   const handleManagerApprove = async (managerLevel, action) => {
     const notes = window.prompt(`Enter notes for ${action} (optional):`);
     
@@ -247,6 +271,7 @@ const IncidentDetail = () => {
     }
   };
 
+  // ============ RENDER FUNCTIONS ============
   const renderStatusChip = (status) => {
     const config = STATUS_CONFIG[status];
     if (!config) return <Chip label={status || 'Unknown'} size="medium" />;
@@ -279,27 +304,6 @@ const IncidentDetail = () => {
         }}
       />
     );
-  };
-
-  const getCategoryLabel = (category) => {
-    const labels = {
-      safety: 'Safety',
-      security: 'Security',
-      health: 'Health',
-      property_damage: 'Property Damage',
-      environmental: 'Environmental',
-      harassment: 'Harassment',
-      discrimination: 'Discrimination',
-      fraud: 'Fraud',
-      theft: 'Theft',
-      data_breach: 'Data Breach',
-      policy_violation: 'Policy Violation',
-      workplace_violence: 'Workplace Violence',
-      accident: 'Accident',
-      near_miss: 'Near Miss',
-      other: 'Other',
-    };
-    return labels[category] || category;
   };
 
   const renderHistoryContent = () => {
@@ -388,6 +392,7 @@ const IncidentDetail = () => {
     );
   };
 
+  // ============ LOADING & ERROR STATES ============
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -407,14 +412,20 @@ const IncidentDetail = () => {
     );
   }
 
+  // ============ AUTHORIZATION ============
+  const isCreator = incident?.created_by === currentUser?.id;
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'hr';
+  const canManageApprovalFlow = isCreator || isAdmin;
+
   // Parse witnesses
   const witnessesData = parseWitnesses(incident.witnesses);
 
+  // ============ RENDER ============
   return (
     <Box>
-      {/* Header */}
+      {/* ===== HEADER ===== */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
-        <Box display="flex" alignItems="center" gap={2}>
+        <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
           <IconButton onClick={() => navigate('/incident-reports')}>
             <ArrowBackIcon />
           </IconButton>
@@ -422,9 +433,12 @@ const IncidentDetail = () => {
             Incident #{incident.id}
           </Typography>
           {renderStatusChip(incident.status)}
+          {isCreator && (
+            <Chip label="Creator" size="small" color="primary" />
+          )}
         </Box>
 
-        <Box display="flex" gap={1}>
+        <Box display="flex" gap={1} flexWrap="wrap">
           <Button
             variant="outlined"
             startIcon={<HistoryIcon />}
@@ -451,8 +465,9 @@ const IncidentDetail = () => {
         </Box>
       </Box>
 
+      {/* ===== MAIN CONTENT ===== */}
       <Grid container spacing={3}>
-        {/* Main Content */}
+        {/* ===== LEFT COLUMN ===== */}
         <Grid item xs={12} md={8}>
           {/* Incident Details */}
           <Paper sx={{ p: 3, mb: 3 }}>
@@ -563,7 +578,7 @@ const IncidentDetail = () => {
           )}
         </Grid>
 
-        {/* Sidebar */}
+        {/* ===== RIGHT COLUMN ===== */}
         <Grid item xs={12} md={4}>
           {/* Reported By */}
           <Card sx={{ mb: 3 }}>
@@ -612,7 +627,7 @@ const IncidentDetail = () => {
             </CardContent>
           </Card>
 
-          {/* ============ MANAGER APPROVALS ============ */}
+          {/* Manager Approvals */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
@@ -634,8 +649,6 @@ const IncidentDetail = () => {
                     const isApproved = status === 'approved';
                     const isRejected = status === 'rejected';
                     const isPending = status === 'pending';
-                    
-                    // Check if current user is this specific manager
                     const isCurrentUserManager = currentUser?.id === managerId;
                     
                     return (
@@ -664,7 +677,6 @@ const IncidentDetail = () => {
                             </Box>
                           </Box>
                           <Box display="flex" gap={1} flexWrap="wrap">
-                            {/* ONLY show Approve/Reject buttons for the current manager if status is pending */}
                             {isPending && isCurrentUserManager && (
                               <>
                                 <Button
@@ -689,44 +701,20 @@ const IncidentDetail = () => {
                                 </Button>
                               </>
                             )}
-                            
-                            {/* Show status for already processed or other managers */}
                             {isApproved && (
-                              <Chip 
-                                label="Approved" 
-                                size="small" 
-                                color="success" 
-                                icon={<CheckCircleIcon />}
-                              />
+                              <Chip label="Approved" size="small" color="success" icon={<CheckCircleIcon />} />
                             )}
                             {isRejected && (
-                              <Chip 
-                                label="Rejected" 
-                                size="small" 
-                                color="error" 
-                                icon={<CancelIcon />}
-                              />
+                              <Chip label="Rejected" size="small" color="error" icon={<CancelIcon />} />
                             )}
                             {isPending && !isCurrentUserManager && (
-                              <Chip 
-                                label={`Waiting`} 
-                                size="small" 
-                                color="warning"
-                                icon={<PendingIcon />}
-                              />
+                              <Chip label="Waiting" size="small" color="warning" icon={<PendingIcon />} />
                             )}
                             {isPending && isCurrentUserManager && (
-                              <Chip 
-                                label="Action Required" 
-                                size="small" 
-                                color="info"
-                                sx={{ fontWeight: 600 }}
-                              />
+                              <Chip label="Action Required" size="small" color="info" sx={{ fontWeight: 600 }} />
                             )}
                           </Box>
                         </Box>
-                        
-                        {/* Show notes if any */}
                         {incident[`manager${level}_notes`] && (
                           <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
                             📝 Note: {incident[`manager${level}_notes`]}
@@ -747,6 +735,7 @@ const IncidentDetail = () => {
                 Approval Status
               </Typography>
               <Divider sx={{ mb: 2 }} />
+              
               <Box mb={2}>
                 <Chip
                   label={APPROVAL_STATUS_CONFIG[incident.approval_status]?.label || incident.approval_status}
@@ -775,19 +764,33 @@ const IncidentDetail = () => {
                 </Box>
               )}
 
+              {!canManageApprovalFlow && approvalFlow.length === 0 && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  Only the creator of this incident can set the approval flow.
+                </Alert>
+              )}
+
               <Button
                 variant="outlined"
                 fullWidth
                 sx={{ mt: 2 }}
                 onClick={() => setApprovalDialog(true)}
-                disabled={incident.approval_status === 'approved' || incident.approval_status === 'rejected'}
+                disabled={
+                  !canManageApprovalFlow || 
+                  incident.approval_status === 'approved' || 
+                  incident.approval_status === 'rejected'
+                }
               >
-                {approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'}
+                {canManageApprovalFlow ? (
+                  approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'
+                ) : (
+                  'View Approval Flow (Creator Only)'
+                )}
               </Button>
             </CardContent>
           </Card>
 
-          {/* Update Status Button */}
+          {/* Update Status */}
           <Card>
             <CardContent>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
@@ -807,7 +810,7 @@ const IncidentDetail = () => {
         </Grid>
       </Grid>
 
-      {/* Status Update Dialog */}
+      {/* ===== STATUS UPDATE DIALOG ===== */}
       <Dialog open={statusDialog} onClose={() => setStatusDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Update Incident Status</DialogTitle>
         <DialogContent dividers>
@@ -847,13 +850,18 @@ const IncidentDetail = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Approval Flow Dialog */}
+      {/* ===== APPROVAL FLOW DIALOG ===== */}
       <Dialog open={approvalDialog} onClose={() => setApprovalDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           {approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'}
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
+            {!canManageApprovalFlow && (
+              <Alert severity="warning">
+                Only the creator of this incident can set or update the approval flow.
+              </Alert>
+            )}
             <Typography variant="body2" color="textSecondary">
               Select up to 4 managers who need to approve this incident report.
             </Typography>
@@ -864,6 +872,7 @@ const IncidentDetail = () => {
                 value={selectedManagers.length > 0 ? selectedManagers : approvalFlow}
                 onChange={(e) => setSelectedManagers(e.target.value)}
                 label="Select Managers"
+                disabled={!canManageApprovalFlow}
                 renderValue={(selected) => (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {selected.map((id) => {
@@ -886,6 +895,11 @@ const IncidentDetail = () => {
                 ))}
               </Select>
             </FormControl>
+            {selectedManagers.length > 0 && (
+              <Typography variant="caption" color="textSecondary">
+                Selected {selectedManagers.length} manager(s)
+              </Typography>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -893,14 +907,14 @@ const IncidentDetail = () => {
           <Button
             variant="contained"
             onClick={handleSetApprovalFlow}
-            disabled={selectedManagers.length === 0 || updating}
+            disabled={selectedManagers.length === 0 || updating || !canManageApprovalFlow}
           >
-            Save
+            Save Approval Flow
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* History Dialog */}
+      {/* ===== HISTORY DIALOG ===== */}
       <Dialog
         open={historyDialog}
         onClose={() => setHistoryDialog(false)}
