@@ -33,7 +33,6 @@ import {
   Person as PersonIcon,
   LocationOn as LocationOnIcon,
   CalendarToday as CalendarIcon,
-  Description as DescriptionIcon,
   History as HistoryIcon,
   Close as CloseIcon,
   CheckCircle as CheckCircleIcon,
@@ -151,7 +150,6 @@ const IncidentDetail = () => {
 
       if (response.data?.status === 'success') {
         setIncident(response.data.data);
-        // Set approval flow if exists
         if (response.data.data.approval_flow) {
           const flow = typeof response.data.data.approval_flow === 'string' 
             ? JSON.parse(response.data.data.approval_flow) 
@@ -414,7 +412,9 @@ const IncidentDetail = () => {
 
   // ============ AUTHORIZATION ============
   const isCreator = incident?.created_by === currentUser?.id;
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'hr';
+  const employeeTitle = currentUser?.position?.title || '';
+  const adminRoles = ['HR Manager', 'HR Officer', 'HR Assistant', 'Admin', 'System Admin', 'Manager'];
+  const isAdmin = adminRoles.includes(employeeTitle) || employeeTitle?.includes('Manager') || employeeTitle?.includes('HR');
   const canManageApprovalFlow = isCreator || isAdmin;
 
   // Parse witnesses
@@ -423,7 +423,7 @@ const IncidentDetail = () => {
   // ============ RENDER ============
   return (
     <Box>
-      {/* ===== HEADER ===== */}
+      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
         <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
           <IconButton onClick={() => navigate('/incident-reports')}>
@@ -433,41 +433,25 @@ const IncidentDetail = () => {
             Incident #{incident.id}
           </Typography>
           {renderStatusChip(incident.status)}
-          {isCreator && (
-            <Chip label="Creator" size="small" color="primary" />
-          )}
+          {isCreator && <Chip label="Creator" size="small" color="primary" />}
+          {isAdmin && <Chip label="Admin" size="small" color="secondary" />}
         </Box>
 
         <Box display="flex" gap={1} flexWrap="wrap">
-          <Button
-            variant="outlined"
-            startIcon={<HistoryIcon />}
-            onClick={handleOpenHistory}
-            sx={{ color: '#6366f1', borderColor: '#6366f1' }}
-          >
+          <Button variant="outlined" startIcon={<HistoryIcon />} onClick={handleOpenHistory} sx={{ color: '#6366f1', borderColor: '#6366f1' }}>
             History
           </Button>
-          <Button
-            variant="outlined"
-            startIcon={<EditIcon />}
-            onClick={() => navigate(`/incident-reports/${id}/edit`)}
-          >
+          <Button variant="outlined" startIcon={<EditIcon />} onClick={() => navigate(`/incident-reports/${id}/edit`)}>
             Edit
           </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={handleDelete}
-          >
+          <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={handleDelete}>
             Delete
           </Button>
         </Box>
       </Box>
 
-      {/* ===== MAIN CONTENT ===== */}
       <Grid container spacing={3}>
-        {/* ===== LEFT COLUMN ===== */}
+        {/* Left Column */}
         <Grid item xs={12} md={8}>
           {/* Incident Details */}
           <Paper sx={{ p: 3, mb: 3 }}>
@@ -566,19 +550,14 @@ const IncidentDetail = () => {
                 Attachments
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              <Button
-                variant="outlined"
-                startIcon={<DownloadIcon />}
-                href={incident.file_path}
-                download={incident.file_name}
-              >
+              <Button variant="outlined" startIcon={<DownloadIcon />} href={incident.file_path} download={incident.file_name}>
                 {incident.file_name || 'Download Attachment'}
               </Button>
             </Paper>
           )}
         </Grid>
 
-        {/* ===== RIGHT COLUMN ===== */}
+        {/* Right Column */}
         <Grid item xs={12} md={4}>
           {/* Reported By */}
           <Card sx={{ mb: 3 }}>
@@ -614,9 +593,7 @@ const IncidentDetail = () => {
               <Box display="flex" alignItems="center" gap={2}>
                 <AssignmentIcon color="action" />
                 <Box>
-                  <Typography variant="caption" color="textSecondary">
-                    Assigned To
-                  </Typography>
+                  <Typography variant="caption" color="textSecondary">Assigned To</Typography>
                   <Typography variant="body2" fontWeight="medium">
                     {incident.assigned_to ? 
                       `${incident.assigned_to.first_name} ${incident.assigned_to.last_name}` : 
@@ -679,40 +656,18 @@ const IncidentDetail = () => {
                           <Box display="flex" gap={1} flexWrap="wrap">
                             {isPending && isCurrentUserManager && (
                               <>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  color="success"
-                                  onClick={() => handleManagerApprove(level, 'approved')}
-                                  disabled={updating}
-                                  startIcon={<CheckCircleIcon />}
-                                >
+                                <Button size="small" variant="contained" color="success" onClick={() => handleManagerApprove(level, 'approved')} disabled={updating} startIcon={<CheckCircleIcon />}>
                                   Approve
                                 </Button>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  color="error"
-                                  onClick={() => handleManagerApprove(level, 'rejected')}
-                                  disabled={updating}
-                                  startIcon={<CancelIcon />}
-                                >
+                                <Button size="small" variant="contained" color="error" onClick={() => handleManagerApprove(level, 'rejected')} disabled={updating} startIcon={<CancelIcon />}>
                                   Reject
                                 </Button>
                               </>
                             )}
-                            {isApproved && (
-                              <Chip label="Approved" size="small" color="success" icon={<CheckCircleIcon />} />
-                            )}
-                            {isRejected && (
-                              <Chip label="Rejected" size="small" color="error" icon={<CancelIcon />} />
-                            )}
-                            {isPending && !isCurrentUserManager && (
-                              <Chip label="Waiting" size="small" color="warning" icon={<PendingIcon />} />
-                            )}
-                            {isPending && isCurrentUserManager && (
-                              <Chip label="Action Required" size="small" color="info" sx={{ fontWeight: 600 }} />
-                            )}
+                            {isApproved && <Chip label="Approved" size="small" color="success" icon={<CheckCircleIcon />} />}
+                            {isRejected && <Chip label="Rejected" size="small" color="error" icon={<CancelIcon />} />}
+                            {isPending && !isCurrentUserManager && <Chip label="Waiting" size="small" color="warning" icon={<PendingIcon />} />}
+                            {isPending && isCurrentUserManager && <Chip label="Action Required" size="small" color="info" sx={{ fontWeight: 600 }} />}
                           </Box>
                         </Box>
                         {incident[`manager${level}_notes`] && (
@@ -750,9 +705,7 @@ const IncidentDetail = () => {
               
               {approvalFlow.length > 0 && (
                 <Box>
-                  <Typography variant="caption" color="textSecondary">
-                    Approval Progress
-                  </Typography>
+                  <Typography variant="caption" color="textSecondary">Approval Progress</Typography>
                   <LinearProgress 
                     variant="determinate" 
                     value={incident.approval_progress || 0}
@@ -766,7 +719,7 @@ const IncidentDetail = () => {
 
               {!canManageApprovalFlow && approvalFlow.length === 0 && (
                 <Alert severity="info" sx={{ mt: 2 }}>
-                  Only the creator of this incident can set the approval flow.
+                  Only the creator of this incident or Admin/HR/Manager can set the approval flow.
                 </Alert>
               )}
 
@@ -775,16 +728,12 @@ const IncidentDetail = () => {
                 fullWidth
                 sx={{ mt: 2 }}
                 onClick={() => setApprovalDialog(true)}
-                disabled={
-                  !canManageApprovalFlow || 
-                  incident.approval_status === 'approved' || 
-                  incident.approval_status === 'rejected'
-                }
+                disabled={!canManageApprovalFlow || incident.approval_status === 'approved' || incident.approval_status === 'rejected'}
               >
                 {canManageApprovalFlow ? (
                   approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'
                 ) : (
-                  'View Approval Flow (Creator Only)'
+                  'View Approval Flow (Creator/Admin Only)'
                 )}
               </Button>
             </CardContent>
@@ -796,13 +745,7 @@ const IncidentDetail = () => {
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                 Update Status
               </Typography>
-              <Button
-                variant="contained"
-                fullWidth
-                onClick={() => setStatusDialog(true)}
-                disabled={updating}
-                startIcon={updating ? <CircularProgress size={20} /> : null}
-              >
+              <Button variant="contained" fullWidth onClick={() => setStatusDialog(true)} disabled={updating} startIcon={updating ? <CircularProgress size={20} /> : null}>
                 Change Status
               </Button>
             </CardContent>
@@ -810,47 +753,29 @@ const IncidentDetail = () => {
         </Grid>
       </Grid>
 
-      {/* ===== STATUS UPDATE DIALOG ===== */}
+      {/* Status Update Dialog */}
       <Dialog open={statusDialog} onClose={() => setStatusDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Update Incident Status</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
             <FormControl fullWidth>
               <InputLabel>New Status</InputLabel>
-              <Select
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
-                label="New Status"
-              >
+              <Select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} label="New Status">
                 {Object.entries(STATUS_CONFIG).map(([key, config]) => (
                   <MenuItem key={key} value={key}>{config.label}</MenuItem>
                 ))}
               </Select>
             </FormControl>
-            <TextField
-              fullWidth
-              label="Notes (Optional)"
-              multiline
-              rows={3}
-              value={statusNotes}
-              onChange={(e) => setStatusNotes(e.target.value)}
-              placeholder="Add notes about this status change..."
-            />
+            <TextField fullWidth label="Notes (Optional)" multiline rows={3} value={statusNotes} onChange={(e) => setStatusNotes(e.target.value)} placeholder="Add notes about this status change..." />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setStatusDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleStatusUpdate}
-            disabled={!newStatus || updating}
-          >
-            Update
-          </Button>
+          <Button variant="contained" onClick={handleStatusUpdate} disabled={!newStatus || updating}>Update</Button>
         </DialogActions>
       </Dialog>
 
-      {/* ===== APPROVAL FLOW DIALOG ===== */}
+      {/* Approval Flow Dialog */}
       <Dialog open={approvalDialog} onClose={() => setApprovalDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           {approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'}
@@ -859,7 +784,7 @@ const IncidentDetail = () => {
           <Stack spacing={2}>
             {!canManageApprovalFlow && (
               <Alert severity="warning">
-                Only the creator of this incident can set or update the approval flow.
+                Only the creator of this incident or Admin/HR/Manager can set or update the approval flow.
               </Alert>
             )}
             <Typography variant="body2" color="textSecondary">
@@ -877,63 +802,39 @@ const IncidentDetail = () => {
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {selected.map((id) => {
                       const emp = employees.find(e => e.id === id);
-                      return emp ? (
-                        <Chip 
-                          key={id} 
-                          label={`${emp.first_name} ${emp.last_name}`} 
-                          size="small" 
-                        />
-                      ) : null;
+                      return emp ? <Chip key={id} label={`${emp.first_name} ${emp.last_name}`} size="small" /> : null;
                     })}
                   </Box>
                 )}
               >
                 {employees.map(emp => (
-                  <MenuItem key={emp.id} value={emp.id}>
-                    {emp.first_name} {emp.last_name}
-                  </MenuItem>
+                  <MenuItem key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name}</MenuItem>
                 ))}
               </Select>
             </FormControl>
             {selectedManagers.length > 0 && (
-              <Typography variant="caption" color="textSecondary">
-                Selected {selectedManagers.length} manager(s)
-              </Typography>
+              <Typography variant="caption" color="textSecondary">Selected {selectedManagers.length} manager(s)</Typography>
             )}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setApprovalDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSetApprovalFlow}
-            disabled={selectedManagers.length === 0 || updating || !canManageApprovalFlow}
-          >
+          <Button variant="contained" onClick={handleSetApprovalFlow} disabled={selectedManagers.length === 0 || updating || !canManageApprovalFlow}>
             Save Approval Flow
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* ===== HISTORY DIALOG ===== */}
-      <Dialog
-        open={historyDialog}
-        onClose={() => setHistoryDialog(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 2, maxHeight: '80vh' } }}
-      >
+      {/* History Dialog */}
+      <Dialog open={historyDialog} onClose={() => setHistoryDialog(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 2, maxHeight: '80vh' } }}>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', pb: 2 }}>
           <Box display="flex" alignItems="center" gap={1}>
             <HistoryIcon sx={{ color: '#6366f1' }} />
             <Typography variant="h6" fontWeight="bold">Status History</Typography>
           </Box>
-          <IconButton onClick={() => setHistoryDialog(false)} size="small">
-            <CloseIcon />
-          </IconButton>
+          <IconButton onClick={() => setHistoryDialog(false)} size="small"><CloseIcon /></IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          {renderHistoryContent()}
-        </DialogContent>
+        <DialogContent sx={{ p: 0 }}>{renderHistoryContent()}</DialogContent>
       </Dialog>
     </Box>
   );

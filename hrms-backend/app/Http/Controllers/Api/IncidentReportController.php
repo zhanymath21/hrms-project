@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\IncidentReport;
 use App\Models\IncidentStatusHistory;
+use Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -325,8 +326,8 @@ class IncidentReportController extends Controller
         try {
             $incident = IncidentReport::findOrFail($id);
 
-            // Get authenticated employee
-            $user = auth('employee')->user();
+            // ✅ Use 'employee' guard
+            $user = Auth::guard('employee')->user();
 
             if (!$user) {
                 return response()->json([
@@ -335,14 +336,11 @@ class IncidentReportController extends Controller
                 ], 401);
             }
 
-            // Check if user is authorized (only creator or admin can set approval flow)
+            // Check if user is authorized
             $isCreator = $incident->created_by === $user->id;
-
-            // Check if user is admin or HR - using role field from employees table
-            $isAdmin = in_array($user->role, ['admin', 'hr', 'manager']);
-
-            // If you have a roles relationship, use this instead:
-            // $isAdmin = $user->hasRole('admin') || $user->hasRole('hr');
+            $employeeTitle = $user->position->title ?? '';
+            $adminRoles = ['HR Manager', 'HR Officer', 'HR Assistant', 'Admin', 'System Admin', 'Manager'];
+            $isAdmin = in_array($employeeTitle, $adminRoles) || str_contains($employeeTitle, 'Manager') || str_contains($employeeTitle, 'HR');
 
             if (!$isCreator && !$isAdmin) {
                 return response()->json([
@@ -373,7 +371,6 @@ class IncidentReportController extends Controller
 
             $flow = $request->approval_flow;
 
-            // Limit to 4 managers
             if (count($flow) > 4) {
                 return response()->json([
                     'status' => 'error',
@@ -381,7 +378,6 @@ class IncidentReportController extends Controller
                 ], 400);
             }
 
-            // Check if the same manager is selected multiple times
             if (count($flow) !== count(array_unique($flow))) {
                 return response()->json([
                     'status' => 'error',
@@ -439,14 +435,13 @@ class IncidentReportController extends Controller
         }
     }
 
-    // ============ APPROVE BY MANAGER ============
     public function managerApprove(Request $request, $id, $managerLevel)
     {
         try {
             $incident = IncidentReport::findOrFail($id);
 
-            // Get authenticated employee
-            $user = auth('employee')->user();
+            // ✅ Use 'employee' guard
+            $user = Auth::guard('employee')->user();
 
             if (!$user) {
                 return response()->json([
