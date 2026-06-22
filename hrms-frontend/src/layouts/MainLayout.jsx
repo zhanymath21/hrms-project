@@ -51,8 +51,9 @@ import {
   HowToReg as HowToRegIcon,
   ReportProblem as IncidentIcon, 
   Warning as WarningIcon, 
-   Healing as HealingIcon, 
-  WarningAmber as WarningAmberIcon, 
+  Healing as HealingIcon, 
+  WarningAmber as WarningAmberIcon,
+  AttachMoney as AttachMoneyIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from '../pages/components/NotificationBell';
@@ -73,6 +74,16 @@ const menuItems = [
       { text: '📊 Turnover', path: '/turnover', icon: <TrendingDownIcon /> },
     ]
   },
+  {
+  text: 'Payroll',
+  icon: <AttachMoneyIcon />,
+  color: '#10b981',
+  children: [
+    { text: 'Payroll List', path: '/payroll', icon: <AttachMoneyIcon /> },
+    { text: 'Employee Salary', path: '/employee-salary', icon: <PersonIcon /> },
+    { text: 'Tax Settings', path: '/tax-settings', icon: <SettingsIcon /> },
+  ]
+},
   { 
     text: 'Departments', 
     icon: <DepartmentIcon />, 

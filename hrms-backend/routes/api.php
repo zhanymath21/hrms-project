@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LostTimeInjuryController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\PayrollController;
 use App\Http\Controllers\Api\PPECategoryController;
 use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\ReportController;
@@ -286,4 +287,12 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/lost-time-injuries/{id}/history', [LostTimeInjuryController::class, 'getStatusHistory']);
     Route::post('/lost-time-injuries/{id}/approval-flow', [LostTimeInjuryController::class, 'setApprovalFlow']);
     Route::put('/lost-time-injuries/{id}/approve/{managerLevel}', [LostTimeInjuryController::class, 'managerApprove']);
+
+    Route::get('/payroll', [PayrollController::class, 'index']);
+    Route::get('/payroll/stats', [PayrollController::class, 'stats']);
+    Route::post('/payroll', [PayrollController::class, 'store']);
+    Route::get('/payroll/{id}', [PayrollController::class, 'show']);
+    Route::put('/payroll/{id}', [PayrollController::class, 'update']);
+    Route::put('/payroll/{id}/status', [PayrollController::class, 'updateStatus']);
+    Route::delete('/payroll/{id}', [PayrollController::class, 'destroy']);
 });

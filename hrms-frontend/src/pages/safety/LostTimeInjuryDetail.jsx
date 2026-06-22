@@ -107,6 +107,8 @@ const parseWitnesses = (witnesses) => {
   return [];
 };
 
+
+
 const getBodyPartLabel = (bodyPart) => {
   const labels = {
     head: 'Head',
@@ -147,12 +149,15 @@ const getInjuryTypeLabel = (injuryType) => {
   return labels[injuryType] || injuryType || '-';
 };
 
-const formatTime = (timeString) => {
-  if (!timeString) return 'Not recorded';
-  if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}/)) {
-    return timeString.substring(0, 5);
-  }
-  return timeString;
+const formatTime = (value) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${hours}:${minutes}`;
 };
 
 // ============ MAIN COMPONENT ============
