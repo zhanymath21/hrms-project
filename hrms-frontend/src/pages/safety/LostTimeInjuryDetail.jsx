@@ -1,0 +1,1020 @@
+// src/pages/safety/LostTimeInjuryDetail.jsx
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Paper,
+  Typography,
+  Grid,
+  Chip,
+  Button,
+  IconButton,
+  Divider,
+  Avatar,
+  Stack,
+  Alert,
+  CircularProgress,
+  Card,
+  CardContent,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  TextField,
+  DialogActions,
+  LinearProgress,
+  Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+} from '@mui/material';
+import {
+  ArrowBack as ArrowBackIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Person as PersonIcon,
+  LocationOn as LocationOnIcon,
+  CalendarToday as CalendarIcon,
+  History as HistoryIcon,
+  Close as CloseIcon,
+  CheckCircle as CheckCircleIcon,
+  Pending as PendingIcon,
+  Cancel as CancelIcon,
+  Download as DownloadIcon,
+  Assignment as AssignmentIcon,
+  Healing as HealingIcon,
+  MedicalInformation as MedicalIcon,
+  Work as WorkIcon,
+  AccessTime as AccessTimeIcon,
+} from '@mui/icons-material';
+import { useNavigate, useParams } from 'react-router-dom';
+import api from '../../services/axios';
+import { formatDate } from '../../utils/dateFormat';
+
+// Status Configuration
+const STATUS_CONFIG = {
+  reported: { label: 'Reported', bgColor: '#f59e0b', textColor: '#ffffff', icon: <PendingIcon /> },
+  under_investigation: { label: 'Under Investigation', bgColor: '#3b82f6', textColor: '#ffffff', icon: <PendingIcon /> },
+  in_review: { label: 'In Review', bgColor: '#8b5cf6', textColor: '#ffffff', icon: <PendingIcon /> },
+  resolved: { label: 'Resolved', bgColor: '#10b981', textColor: '#ffffff', icon: <CheckCircleIcon /> },
+  closed: { label: 'Closed', bgColor: '#6b7280', textColor: '#ffffff', icon: <CheckCircleIcon /> },
+  rejected: { label: 'Rejected', bgColor: '#ef4444', textColor: '#ffffff', icon: <CancelIcon /> },
+};
+
+const SEVERITY_CONFIG = {
+  minor: { label: 'Minor', color: '#10b981' },
+  moderate: { label: 'Moderate', color: '#f59e0b' },
+  severe: { label: 'Severe', color: '#f97316' },
+  critical: { label: 'Critical', color: '#ef4444' },
+};
+
+const APPROVAL_STATUS_CONFIG = {
+  pending: { label: 'Pending', color: '#f59e0b' },
+  in_progress: { label: 'In Progress', color: '#3b82f6' },
+  approved: { label: 'Approved', color: '#10b981' },
+  rejected: { label: 'Rejected', color: '#ef4444' },
+  partially_approved: { label: 'Partially Approved', color: '#8b5cf6' },
+};
+
+// Helper Functions
+const parseWitnesses = (witnesses) => {
+  if (!witnesses) return [];
+  if (Array.isArray(witnesses)) return witnesses;
+  if (typeof witnesses === 'string') {
+    try {
+      const parsed = JSON.parse(witnesses);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Error parsing witnesses:', e);
+      return [];
+    }
+  }
+  return [];
+};
+
+const getBodyPartLabel = (bodyPart) => {
+  const labels = {
+    head: 'Head',
+    neck: 'Neck',
+    shoulder: 'Shoulder',
+    arm: 'Arm',
+    elbow: 'Elbow',
+    wrist: 'Wrist',
+    hand: 'Hand',
+    finger: 'Finger',
+    chest: 'Chest',
+    back: 'Back',
+    spine: 'Spine',
+    hip: 'Hip',
+    leg: 'Leg',
+    knee: 'Knee',
+    ankle: 'Ankle',
+    foot: 'Foot',
+    toe: 'Toe',
+    multiple: 'Multiple',
+  };
+  return labels[bodyPart] || bodyPart || '-';
+};
+
+const getInjuryTypeLabel = (injuryType) => {
+  const labels = {
+    fracture: 'Fracture',
+    sprain: 'Sprain',
+    strain: 'Strain',
+    cut: 'Cut/Laceration',
+    burn: 'Burn',
+    bruise: 'Bruise/Contusion',
+    amputation: 'Amputation',
+    crush: 'Crush Injury',
+    concussion: 'Concussion',
+    other: 'Other',
+  };
+  return labels[injuryType] || injuryType || '-';
+};
+
+const LostTimeInjuryDetail = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lti, setLti] = useState(null);
+  const [updating, setUpdating] = useState(false);
+  
+  // History Dialog
+  const [historyDialog, setHistoryDialog] = useState(false);
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  
+  // Status Update Dialog
+  const [statusDialog, setStatusDialog] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+  const [statusNotes, setStatusNotes] = useState('');
+
+  // Approval Dialog
+  const [approvalDialog, setApprovalDialog] = useState(false);
+  const [approvalFlow, setApprovalFlow] = useState([]);
+  const [selectedManagers, setSelectedManagers] = useState([]);
+  const [employees, setEmployees] = useState([]);
+
+  // Get current user
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+
+  useEffect(() => {
+    fetchLti();
+    fetchEmployees();
+  }, [id]);
+
+  const fetchLti = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get(`/lost-time-injuries/${id}`);
+
+      if (response.data?.status === 'success') {
+        setLti(response.data.data);
+        if (response.data.data.approval_flow) {
+          const flow = typeof response.data.data.approval_flow === 'string' 
+            ? JSON.parse(response.data.data.approval_flow) 
+            : response.data.data.approval_flow;
+          setApprovalFlow(Array.isArray(flow) ? flow : []);
+        }
+      } else {
+        setError('Record not found');
+      }
+    } catch (err) {
+      console.error('Error fetching:', err);
+      setError(err.response?.data?.message || 'Failed to fetch data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await api.get('/employees', { params: { per_page: 100 } });
+      let data = [];
+      if (response.data?.status === 'success') {
+        if (response.data.data?.data && Array.isArray(response.data.data.data)) {
+          data = response.data.data.data;
+        } else if (Array.isArray(response.data.data)) {
+          data = response.data.data;
+        }
+      }
+      setEmployees(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching employees:', err);
+    }
+  };
+
+  const fetchStatusHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      const response = await api.get(`/lost-time-injuries/${id}/history`);
+      if (response.data?.status === 'success') {
+        setStatusHistory(response.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleOpenHistory = async () => {
+    setHistoryDialog(true);
+    await fetchStatusHistory();
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this record?')) return;
+    
+    try {
+      await api.delete(`/lost-time-injuries/${id}`);
+      navigate('/lost-time-injuries');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete');
+    }
+  };
+
+  const handleStatusUpdate = async () => {
+    try {
+      setUpdating(true);
+      await api.put(`/lost-time-injuries/${id}/status`, {
+        status: newStatus,
+        notes: statusNotes,
+      });
+      setStatusDialog(false);
+      setNewStatus('');
+      setStatusNotes('');
+      await fetchLti();
+    } catch (err) {
+      console.error('Error updating status:', err);
+      alert('Failed to update status');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleSetApprovalFlow = async () => {
+    try {
+      setUpdating(true);
+      await api.post(`/lost-time-injuries/${id}/approval-flow`, {
+        approval_flow: selectedManagers,
+      });
+      setApprovalDialog(false);
+      setSelectedManagers([]);
+      await fetchLti();
+    } catch (err) {
+      console.error('Error setting approval flow:', err);
+      alert('Failed to set approval flow');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleManagerApprove = async (managerLevel, action) => {
+    const notes = window.prompt(`Enter notes for ${action} (optional):`);
+    
+    try {
+      setUpdating(true);
+      await api.put(`/lost-time-injuries/${id}/approve/${managerLevel}`, {
+        status: action,
+        notes: notes || '',
+      });
+      await fetchLti();
+    } catch (err) {
+      console.error('Error in manager approval:', err);
+      alert('Failed to process approval. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const renderStatusChip = (status) => {
+    const config = STATUS_CONFIG[status];
+    if (!config) return <Chip label={status || 'Unknown'} size="medium" />;
+    return (
+      <Chip
+        label={config.label}
+        size="medium"
+        icon={config.icon}
+        sx={{
+          backgroundColor: config.bgColor,
+          color: config.textColor,
+          fontWeight: 600,
+          '& .MuiChip-icon': { color: config.textColor },
+        }}
+      />
+    );
+  };
+
+  const renderSeverityChip = (severity) => {
+    const config = SEVERITY_CONFIG[severity];
+    if (!config) return <Chip label={severity || 'Unknown'} size="small" />;
+    return (
+      <Chip
+        label={config.label}
+        size="small"
+        sx={{
+          backgroundColor: config.color,
+          color: '#ffffff',
+          fontWeight: 600,
+        }}
+      />
+    );
+  };
+
+  const renderHistoryContent = () => {
+    if (loadingHistory) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (statusHistory.length === 0) {
+      return (
+        <Box p={3} textAlign="center">
+          <HistoryIcon sx={{ fontSize: 48, color: '#d1d5db', mb: 2 }} />
+          <Typography color="textSecondary">No history found</Typography>
+        </Box>
+      );
+    }
+
+    return (
+      <Box sx={{ p: 2 }}>
+        {statusHistory.map((item, index) => (
+          <Paper
+            key={item.id || index}
+            elevation={0}
+            sx={{
+              p: 2,
+              mb: 2,
+              backgroundColor: index === 0 ? '#f0fdf4' : '#f9fafb',
+              border: index === 0 ? '1px solid #86efac' : '1px solid #e5e7eb',
+              borderRadius: 2,
+            }}
+          >
+            <Box>
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" mb={1}>
+                <Typography variant="body2" fontWeight="bold" color="textSecondary">
+                  Status changed
+                </Typography>
+                {item.old_status ? (
+                  <Chip 
+                    label={STATUS_CONFIG[item.old_status]?.label || item.old_status}
+                    size="small"
+                    sx={{
+                      backgroundColor: STATUS_CONFIG[item.old_status]?.bgColor || '#6b7280',
+                      color: '#ffffff',
+                      fontWeight: 500,
+                    }}
+                  />
+                ) : (
+                  <Chip label="New" size="small" sx={{ backgroundColor: '#9ca3af', color: '#ffffff' }} />
+                )}
+                <Typography variant="body2" fontWeight="bold" color="textSecondary">→</Typography>
+                {renderStatusChip(item.new_status)}
+                {index === 0 && <Chip label="Latest" size="small" color="success" />}
+              </Box>
+
+              {item.old_approval_status && item.new_approval_status && (
+                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                  <Typography variant="caption" color="textSecondary">
+                    Approval: {item.old_approval_status} → {item.new_approval_status}
+                  </Typography>
+                </Box>
+              )}
+
+              {item.old_days_lost !== undefined && item.new_days_lost !== undefined && (
+                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                  <Typography variant="caption" color="textSecondary">
+                    Days Lost: {item.old_days_lost || 0} → {item.new_days_lost || 0}
+                  </Typography>
+                </Box>
+              )}
+
+              {item.notes && (
+                <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                  <strong>Note:</strong> {item.notes}
+                </Typography>
+              )}
+
+              <Box mt={1} display="flex" gap={2} flexWrap="wrap">
+                <Typography variant="caption" color="textSecondary">
+                  <PersonIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                  {item.changed_by || 'System'}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  <CalendarIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                  {formatDate(item.created_at, 'dd/MM/yyyy HH:mm')}
+                </Typography>
+              </Box>
+            </Box>
+          </Paper>
+        ))}
+      </Box>
+    );
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || !lti) {
+    return (
+      <Box>
+        <Alert severity="error" sx={{ mb: 2 }}>{error || 'Record not found'}</Alert>
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/lost-time-injuries')}>
+          Back to List
+        </Button>
+      </Box>
+    );
+  }
+
+  // Authorization
+  const isReporter = lti?.reported_by?.id === currentUser?.id;
+  const isManagerInFlow = approvalFlow.includes(currentUser?.id);
+  const canManageApprovalFlow = isReporter;
+
+  const witnessesData = parseWitnesses(lti.witnesses);
+
+  return (
+    <Box>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
+        <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+          <IconButton onClick={() => navigate('/lost-time-injuries')}>
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h4" component="h1" fontWeight="bold">
+            Lost Time Injury #{lti.id}
+          </Typography>
+          {renderStatusChip(lti.status)}
+          {isReporter && (
+            <Chip 
+              label="📢 Reporter" 
+              size="small" 
+              color="primary" 
+              sx={{ fontWeight: 600 }}
+            />
+          )}
+          {isManagerInFlow && !isReporter && (
+            <Chip 
+              label="📋 Manager" 
+              size="small" 
+              color="secondary" 
+              sx={{ fontWeight: 600 }}
+            />
+          )}
+        </Box>
+
+        <Box display="flex" gap={1} flexWrap="wrap">
+          <Button
+            variant="outlined"
+            startIcon={<HistoryIcon />}
+            onClick={handleOpenHistory}
+            sx={{ color: '#6366f1', borderColor: '#6366f1' }}
+          >
+            History
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<EditIcon />}
+            onClick={() => navigate(`/lost-time-injuries/${id}/edit`)}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteIcon />}
+            onClick={handleDelete}
+          >
+            Delete
+          </Button>
+        </Box>
+      </Box>
+
+      <Grid container spacing={3}>
+        {/* Left Column */}
+        <Grid item xs={12} md={8}>
+          {/* Injury Details */}
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" gutterBottom fontWeight="bold">
+              Injury Details
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
+
+            <Stack spacing={3}>
+              <Box>
+                <Typography variant="caption" color="textSecondary">Title</Typography>
+                <Typography variant="h6">{lti.title}</Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" color="textSecondary">Description</Typography>
+                <Typography variant="body2" sx={{ mt: 1, whiteSpace: 'pre-wrap' }}>
+                  {lti.description}
+                </Typography>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Employee</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <PersonIcon fontSize="small" color="action" />
+                    <Typography>
+                      {lti.employee?.first_name} {lti.employee?.last_name}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Location</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <LocationOnIcon fontSize="small" color="action" />
+                    <Typography>{lti.location || 'Not specified'}</Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Injury Date</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <CalendarIcon fontSize="small" color="action" />
+                    <Typography>
+                      {formatDate(lti.injury_date)}
+                      {lti.injury_time && ` at ${lti.injury_time.substring(0, 5)}`}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Severity</Typography>
+                  <Box>{renderSeverityChip(lti.severity)}</Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Body Part</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <HealingIcon fontSize="small" color="action" />
+                    <Typography>{getBodyPartLabel(lti.body_part)}</Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Injury Type</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <MedicalIcon fontSize="small" color="action" />
+                    <Typography>{getInjuryTypeLabel(lti.injury_type)}</Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Days Lost</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <AccessTimeIcon fontSize="small" color="action" />
+                    <Typography fontWeight="bold">{lti.days_lost || 0} days</Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Medical Treatment</Typography>
+                  <Chip
+                    label={lti.medical_treatment ? 'Yes' : 'No'}
+                    color={lti.medical_treatment ? 'success' : 'default'}
+                    size="small"
+                  />
+                </Grid>
+                {lti.return_to_work_date && (
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" color="textSecondary">Return to Work Date</Typography>
+                    <Typography>{formatDate(lti.return_to_work_date)}</Typography>
+                  </Grid>
+                )}
+              </Grid>
+
+              {lti.medical_notes && (
+                <Box>
+                  <Typography variant="caption" color="textSecondary">Medical Notes</Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {lti.medical_notes}
+                  </Typography>
+                </Box>
+              )}
+
+              {lti.resolution_notes && (
+                <Box>
+                  <Typography variant="caption" color="textSecondary">Resolution Notes</Typography>
+                  <Typography variant="body2" sx={{ mt: 1, whiteSpace: 'pre-wrap' }}>
+                    {lti.resolution_notes}
+                  </Typography>
+                </Box>
+              )}
+            </Stack>
+          </Paper>
+
+          {/* Witnesses */}
+          {witnessesData.length > 0 && (
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Typography variant="h6" gutterBottom fontWeight="bold">
+                Witnesses ({witnessesData.length})
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              <Grid container spacing={2}>
+                {witnessesData.map((witness, index) => (
+                  <Grid item xs={12} sm={6} key={index}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="body1" fontWeight="medium">
+                          {witness.name}
+                        </Typography>
+                        {witness.contact && (
+                          <Typography variant="caption" color="textSecondary">
+                            Contact: {witness.contact}
+                          </Typography>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </Paper>
+          )}
+
+          {/* Attachments */}
+          {lti.file_path && (
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom fontWeight="bold">
+                Attachments
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                href={lti.file_path}
+                download={lti.file_name}
+              >
+                {lti.file_name || 'Download Attachment'}
+              </Button>
+            </Paper>
+          )}
+        </Grid>
+
+        {/* Right Column */}
+        <Grid item xs={12} md={4}>
+          {/* Reported By */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Reported By
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              <Box display="flex" alignItems="center" gap={2}>
+                <Avatar sx={{ bgcolor: '#6366f1' }}>
+                  {lti.reported_by?.first_name?.[0]}
+                  {lti.reported_by?.last_name?.[0]}
+                </Avatar>
+                <Box>
+                  <Typography variant="body1" fontWeight="medium">
+                    {lti.reported_by?.first_name} {lti.reported_by?.last_name}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {formatDate(lti.created_at, 'dd/MM/yyyy HH:mm')}
+                  </Typography>
+                  {isReporter && (
+                    <Chip 
+                      label="Reporter" 
+                      size="small" 
+                      color="primary" 
+                      sx={{ mt: 0.5, fontWeight: 600 }}
+                    />
+                  )}
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Manager Approvals */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Manager Approvals
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              {approvalFlow.length === 0 ? (
+                <Typography variant="body2" color="textSecondary">
+                  No approval flow configured. 
+                  {isReporter ? ' Click below to set up approval flow.' : ' Only the reporter can set approval flow.'}
+                </Typography>
+              ) : (
+                <Stack spacing={2}>
+                  {approvalFlow.map((managerId, index) => {
+                    const manager = employees.find(e => e.id === managerId);
+                    const level = index + 1;
+                    const statusField = `manager${level}_status`;
+                    const status = lti[statusField] || 'pending';
+                    const isApproved = status === 'approved';
+                    const isRejected = status === 'rejected';
+                    const isPending = status === 'pending';
+                    const isCurrentUserManager = currentUser?.id === managerId;
+                    
+                    return (
+                      <Box key={managerId} sx={{ 
+                        p: 2, 
+                        borderRadius: 1, 
+                        bgcolor: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#f9fafb',
+                        border: '1px solid',
+                        borderColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#e5e7eb',
+                      }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1' }}>
+                              {manager?.first_name?.[0]}{manager?.last_name?.[0]}
+                            </Avatar>
+                            <Box>
+                              <Typography variant="body2" fontWeight="medium">
+                                Manager {level}: {manager?.first_name} {manager?.last_name}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary">
+                                {isApproved ? `✅ Approved at ${formatDate(lti[`manager${level}_approved_at`], 'dd/MM/yyyy HH:mm')}` :
+                                 isRejected ? '❌ Rejected' :
+                                 isCurrentUserManager ? '📌 Action Required' :
+                                 '⏳ Pending approval'}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Box display="flex" gap={1} flexWrap="wrap">
+                            {isPending && isCurrentUserManager && (
+                              <>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="success"
+                                  onClick={() => handleManagerApprove(level, 'approved')}
+                                  disabled={updating}
+                                  startIcon={<CheckCircleIcon />}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="error"
+                                  onClick={() => handleManagerApprove(level, 'rejected')}
+                                  disabled={updating}
+                                  startIcon={<CancelIcon />}
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                            {isApproved && (
+                              <Chip label="Approved" size="small" color="success" icon={<CheckCircleIcon />} />
+                            )}
+                            {isRejected && (
+                              <Chip label="Rejected" size="small" color="error" icon={<CancelIcon />} />
+                            )}
+                            {isPending && !isCurrentUserManager && (
+                              <Chip label="Waiting" size="small" color="warning" icon={<PendingIcon />} />
+                            )}
+                            {isPending && isCurrentUserManager && (
+                              <Chip label="Action Required" size="small" color="info" sx={{ fontWeight: 600 }} />
+                            )}
+                          </Box>
+                        </Box>
+                        {lti[`manager${level}_notes`] && (
+                          <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                            📝 Note: {lti[`manager${level}_notes`]}
+                          </Typography>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Approval Status */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Approval Status
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              <Box mb={2}>
+                <Chip
+                  label={APPROVAL_STATUS_CONFIG[lti.approval_status]?.label || lti.approval_status}
+                  sx={{
+                    backgroundColor: APPROVAL_STATUS_CONFIG[lti.approval_status]?.color || '#6b7280',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                    textTransform: 'capitalize',
+                  }}
+                />
+              </Box>
+              
+              {approvalFlow.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="textSecondary">
+                    Approval Progress
+                  </Typography>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={lti.approval_progress || 0}
+                    sx={{ height: 8, borderRadius: 4, mt: 1 }}
+                  />
+                  <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                    {lti.approval_progress || 0}% complete
+                  </Typography>
+                </Box>
+              )}
+
+              {!isReporter && approvalFlow.length === 0 && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  Only the reporter of this injury can set the approval flow.
+                </Alert>
+              )}
+
+              {!isReporter && approvalFlow.length > 0 && !isManagerInFlow && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  This record is waiting for manager approval. You are not in the approval flow.
+                </Alert>
+              )}
+
+              {isManagerInFlow && !isReporter && (
+                <Alert severity="success" sx={{ mt: 2 }}>
+                  You are assigned as a manager in this approval flow. Please review and approve/reject.
+                </Alert>
+              )}
+
+              <Button
+                variant="outlined"
+                fullWidth
+                sx={{ mt: 2 }}
+                onClick={() => setApprovalDialog(true)}
+                disabled={
+                  !isReporter || 
+                  lti.approval_status === 'approved' || 
+                  lti.approval_status === 'rejected'
+                }
+              >
+                {isReporter ? (
+                  approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'
+                ) : (
+                  'View Only (Reporter Only)'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Update Status */}
+          <Card>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Update Status
+              </Typography>
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={() => setStatusDialog(true)}
+                disabled={updating}
+                startIcon={updating ? <CircularProgress size={20} /> : null}
+              >
+                Change Status
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Status Update Dialog */}
+      <Dialog open={statusDialog} onClose={() => setStatusDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Update Status</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <FormControl fullWidth>
+              <InputLabel>New Status</InputLabel>
+              <Select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                label="New Status"
+              >
+                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                  <MenuItem key={key} value={key}>{config.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Notes (Optional)"
+              multiline
+              rows={3}
+              value={statusNotes}
+              onChange={(e) => setStatusNotes(e.target.value)}
+              placeholder="Add notes about this status change..."
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStatusDialog(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleStatusUpdate}
+            disabled={!newStatus || updating}
+          >
+            Update
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Approval Flow Dialog */}
+      <Dialog open={approvalDialog} onClose={() => setApprovalDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            {!isReporter && (
+              <Alert severity="warning">
+                Only the reporter of this injury can set or update the approval flow.
+              </Alert>
+            )}
+            <Typography variant="body2" color="textSecondary">
+              Select up to 4 managers who need to approve this record.
+            </Typography>
+            <FormControl fullWidth>
+              <InputLabel>Select Managers</InputLabel>
+              <Select
+                multiple
+                value={selectedManagers.length > 0 ? selectedManagers : approvalFlow}
+                onChange={(e) => setSelectedManagers(e.target.value)}
+                label="Select Managers"
+                disabled={!isReporter}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((id) => {
+                      const emp = employees.find(e => e.id === id);
+                      return emp ? (
+                        <Chip 
+                          key={id} 
+                          label={`${emp.first_name} ${emp.last_name}`} 
+                          size="small" 
+                        />
+                      ) : null;
+                    })}
+                  </Box>
+                )}
+              >
+                {employees.map(emp => (
+                  <MenuItem key={emp.id} value={emp.id}>
+                    {emp.first_name} {emp.last_name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {selectedManagers.length > 0 && (
+              <Typography variant="caption" color="textSecondary">
+                Selected {selectedManagers.length} manager(s)
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setApprovalDialog(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSetApprovalFlow}
+            disabled={selectedManagers.length === 0 || updating || !isReporter}
+          >
+            Save Approval Flow
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog
+        open={historyDialog}
+        onClose={() => setHistoryDialog(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, maxHeight: '80vh' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', pb: 2 }}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <HistoryIcon sx={{ color: '#6366f1' }} />
+            <Typography variant="h6" fontWeight="bold">Status History</Typography>
+          </Box>
+          <IconButton onClick={() => setHistoryDialog(false)} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {renderHistoryContent()}
+        </DialogContent>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default LostTimeInjuryDetail;

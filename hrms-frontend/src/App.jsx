@@ -51,6 +51,12 @@ import IncidentCreate from './pages/incidents/IncidentCreate';
 import IncidentDetail from './pages/incidents/IncidentDetail';
 import IncidentEdit from './pages/incidents/IncidentEdit';
 
+// ✅ Lost Time Injury Pages (NEW)
+import LostTimeInjuryList from './pages/safety/LostTimeInjuryList';
+import LostTimeInjuryCreate from './pages/safety/LostTimeInjuryCreate';
+import LostTimeInjuryDetail from './pages/safety/LostTimeInjuryDetail';
+import LostTimeInjuryEdit from './pages/safety/LostTimeInjuryEdit';
+
 
 import MainLayout from './layouts/MainLayout';
 
@@ -527,6 +533,39 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <IncidentEdit />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* ============ LOST TIME INJURY (NEW) ============ */}
+      <Route path="/lost-time-injuries" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LostTimeInjuryList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/lost-time-injuries/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LostTimeInjuryCreate />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/lost-time-injuries/:id" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LostTimeInjuryDetail />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/lost-time-injuries/:id/edit" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LostTimeInjuryEdit />
           </MainLayout>
         </ProtectedRoute>
       } />
