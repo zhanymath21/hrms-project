@@ -334,16 +334,16 @@ class IncidentReportController extends Controller
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Unauthenticated. Please login again.',
-                ], 401);
+                ], 403);
             }
 
-            // ✅ ONLY CHECK: User must be the creator (created_by)
-            $isCreator = $incident->created_by === $user->id;
+            // ✅ ONLY CHECK: User must be the reporter (reported_by)
+            $isReporter = $incident->reported_by === $user->id;
 
-            if (!$isCreator) {
+            if (!$isReporter) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'You are not authorized to set approval flow. Only the creator of this incident can set approval flow.',
+                    'message' => 'You are not authorized to set approval flow. Only the reporter of this incident can set approval flow.',
                 ], 403);
             }
 
