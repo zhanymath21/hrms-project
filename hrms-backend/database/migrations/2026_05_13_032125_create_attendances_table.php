@@ -119,44 +119,11 @@ return new class extends Migration
                 $table->unique(['date', 'is_recurring']);
             });
         }
-        // 9. Document Categories
-        if (!Schema::hasTable('document_categories')) {
-            Schema::create('document_categories', function (Blueprint $table) {
-                $table->id();
-                $table->string('name');
-                $table->string('code')->unique();
-                $table->text('description')->nullable();
-                $table->timestamps();
-            });
-        }
-
-        // 10. Employee Documents
-        if (!Schema::hasTable('employee_documents')) {
-            Schema::create('employee_documents', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
-                $table->foreignId('category_id')->constrained('document_categories')->onDelete('cascade');
-                $table->string('title');
-                $table->text('description')->nullable();
-                $table->string('file_path');
-                $table->string('file_name');
-                $table->string('file_type');
-                $table->bigInteger('file_size');
-                $table->date('expiry_date')->nullable();
-                $table->boolean('is_verified')->default(false);
-                $table->foreignId('uploaded_by')->constrained('employees')->onDelete('cascade');
-                $table->timestamps();
-                $table->softDeletes();
-            });
-        }
     }
 
     public function down()
     {
         Schema::disableForeignKeyConstraints();
-
-        Schema::dropIfExists('employee_documents');
-        Schema::dropIfExists('document_categories');
         Schema::dropIfExists('attendance_sessions');
         Schema::dropIfExists('holidays');
         Schema::dropIfExists('attendances');
