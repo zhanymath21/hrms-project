@@ -1,4 +1,4 @@
-// src/pages/payroll/PayrollCreate.jsx - Add payroll type selection
+// src/pages/payroll/PayrollCreate.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -15,8 +15,6 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Stack,
-  Chip,
   Card,
   CardContent,
 } from '@mui/material';
@@ -24,7 +22,7 @@ import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   Person as PersonIcon,
-  AttachMoney as MoneyIcon,
+  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/axios';
@@ -49,7 +47,10 @@ const PayrollCreate = () => {
 
   useEffect(() => {
     fetchEmployees();
-    // Auto-generate name when dates change
+  }, []);
+
+  // Auto-generate name when dates change
+  useEffect(() => {
     if (formData.start_date && formData.end_date) {
       generatePayrollName();
     }
@@ -57,6 +58,7 @@ const PayrollCreate = () => {
 
   const fetchEmployees = async () => {
     try {
+      setLoading(true);
       const response = await api.get('/employees', { params: { per_page: 100 } });
       let data = [];
       if (response.data?.status === 'success') {
@@ -69,6 +71,8 @@ const PayrollCreate = () => {
       setEmployees(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching employees:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -141,6 +145,14 @@ const PayrollCreate = () => {
       setSelectedEmployees(employees.map(e => e.id));
     }
   };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>

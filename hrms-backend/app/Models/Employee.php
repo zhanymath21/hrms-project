@@ -111,6 +111,11 @@ class Employee extends Authenticatable
         return $this->hasMany(EmployeeDocument::class);
     }
 
+    public function salarySetting()
+    {
+        return $this->hasOne(EmployeeSalarySetting::class);
+    }
+
     public function schedules()
     {
         return $this->hasMany(EmployeeSchedule::class);
