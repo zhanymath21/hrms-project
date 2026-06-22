@@ -326,21 +326,34 @@ class IncidentReportController extends Controller
         try {
             $incident = IncidentReport::findOrFail($id);
 
-            // ✅ Use 'employee' guard
-            $user = Auth::guard('employee')->user();
+            // ✅ Use 'api' guard (since it's configured for employees)
+            $user = Auth::guard('api')->user();
 
             if (!$user) {
+                Log::error('No authenticated user found');
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthenticated',
+                    'message' => 'Unauthenticated. Please login again.',
                 ], 401);
             }
 
+            // Log user info for debugging
+            Log::info('User authenticated:', [
+                'user_id' => $user->id,
+                'user_type' => get_class($user),
+                'user_email' => $user->email,
+                'incident_created_by' => $incident->created_by,
+            ]);
+
             // Check if user is authorized
             $isCreator = $incident->created_by === $user->id;
+
+            // Check if user is admin/HR/Manager based on position
             $employeeTitle = $user->position->title ?? '';
             $adminRoles = ['HR Manager', 'HR Officer', 'HR Assistant', 'Admin', 'System Admin', 'Manager'];
-            $isAdmin = in_array($employeeTitle, $adminRoles) || str_contains($employeeTitle, 'Manager') || str_contains($employeeTitle, 'HR');
+            $isAdmin = in_array($employeeTitle, $adminRoles) ||
+                str_contains($employeeTitle, 'Manager') ||
+                str_contains($employeeTitle, 'HR');
 
             if (!$isCreator && !$isAdmin) {
                 return response()->json([
@@ -440,8 +453,8 @@ class IncidentReportController extends Controller
         try {
             $incident = IncidentReport::findOrFail($id);
 
-            // ✅ Use 'employee' guard
-            $user = Auth::guard('employee')->user();
+            // ✅ Use 'api' guard
+            $user = Auth::guard('api')->user();
 
             if (!$user) {
                 return response()->json([
