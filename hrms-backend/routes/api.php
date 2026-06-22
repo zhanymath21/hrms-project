@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\PayrollController;
 use App\Http\Controllers\Api\PPECategoryController;
 use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\TaxSettingController;
 use App\Http\Controllers\Api\TurnoverReportController;
 use App\Http\Controllers\Api\VacancyController;
 
