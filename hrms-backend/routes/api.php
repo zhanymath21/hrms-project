@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\DailyReportController;
 use App\Http\Controllers\Api\EmployeeAssetController;
 use App\Http\Controllers\Api\EmployeeDocumentController;
 use App\Http\Controllers\Api\EmployeeOfficeController;
+use App\Http\Controllers\Api\EmployeeSalarySettingController;
 use App\Http\Controllers\Api\IncidentReportController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
@@ -295,4 +296,10 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/payroll/{id}', [PayrollController::class, 'update']);
     Route::put('/payroll/{id}/status', [PayrollController::class, 'updateStatus']);
     Route::delete('/payroll/{id}', [PayrollController::class, 'destroy']);
+
+    Route::get('/employee-salary-settings', [EmployeeSalarySettingController::class, 'index']);
+    Route::get('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'show']);
+    Route::post('/employee-salary-settings', [EmployeeSalarySettingController::class, 'store']);
+    Route::put('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'update']);
+    Route::delete('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'destroy']);
 });
