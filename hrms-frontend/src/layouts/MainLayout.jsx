@@ -51,6 +51,8 @@ import {
   HowToReg as HowToRegIcon,
   ReportProblem as IncidentIcon, 
   Warning as WarningIcon, 
+   Healing as HealingIcon, 
+  WarningAmber as WarningAmberIcon, 
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from '../pages/components/NotificationBell';
@@ -116,13 +118,13 @@ const menuItems = [
     ]
   },
     { 
-    text: 'Incident Reports', 
-    icon: <IncidentIcon />, 
-    path: '/incident-reports', 
+    text: 'Safety',
+    icon: <HealingIcon />,
     color: '#ef4444',
     children: [
       { text: 'All Incidents', path: '/incident-reports', icon: <WarningIcon /> },
       { text: 'Report Incident', path: '/incident-reports/create', icon: <AddIcon /> },
+      { text: 'Lost Time Injury', path: '/lost-time-injuries', icon: <HealingIcon /> },
     ]
   },
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },

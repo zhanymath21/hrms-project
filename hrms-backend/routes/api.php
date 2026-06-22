@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\EmployeeOfficeController;
 use App\Http\Controllers\Api\IncidentReportController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
+use App\Http\Controllers\Api\LostTimeInjuryController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PPECategoryController;
@@ -273,4 +274,16 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/recruitment/metrics', [CandidateController::class, 'metrics']);
     Route::get('/recruitment/status-options', [CandidateController::class, 'statusOptions']);
     Route::get('/recruitment/document-types', [CandidateController::class, 'documentTypes']);
+
+    Route::get('/lost-time-injuries', [LostTimeInjuryController::class, 'index']);
+    Route::get('/lost-time-injuries/stats', [LostTimeInjuryController::class, 'stats']);
+    Route::post('/lost-time-injuries', [LostTimeInjuryController::class, 'store']);
+    Route::get('/lost-time-injuries/{id}', [LostTimeInjuryController::class, 'show']);
+    Route::put('/lost-time-injuries/{id}', [LostTimeInjuryController::class, 'update']);
+    Route::delete('/lost-time-injuries/{id}', [LostTimeInjuryController::class, 'destroy']);
+
+    Route::put('/lost-time-injuries/{id}/status', [LostTimeInjuryController::class, 'updateStatus']);
+    Route::get('/lost-time-injuries/{id}/history', [LostTimeInjuryController::class, 'getStatusHistory']);
+    Route::post('/lost-time-injuries/{id}/approval-flow', [LostTimeInjuryController::class, 'setApprovalFlow']);
+    Route::put('/lost-time-injuries/{id}/approve/{managerLevel}', [LostTimeInjuryController::class, 'managerApprove']);
 });

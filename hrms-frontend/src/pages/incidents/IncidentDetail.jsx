@@ -411,20 +411,14 @@ const IncidentDetail = () => {
   }
 
   // ============ AUTHORIZATION ============
-  // Check if user is creator
-  const isCreator = incident?.created_by === currentUser?.id;
+  // ✅ ONLY CHECK IF USER IS REPORTER (reported_by)
+  const isReporter = incident?.reported_by?.id === currentUser?.id;
   
   // Check if user is a manager in the approval flow
   const isManagerInFlow = approvalFlow.includes(currentUser?.id);
   
-  // Check if user is the specific manager for a level
-  const isAssignedManager = (level) => {
-    const managerField = `manager${level}_id`;
-    return incident?.[managerField] === currentUser?.id;
-  };
-
-  // Can manage approval flow (only creator)
-  const canManageApprovalFlow = isCreator;
+  // Can manage approval flow ONLY if reporter
+  const canManageApprovalFlow = isReporter;
 
   // Parse witnesses
   const witnessesData = parseWitnesses(incident.witnesses);
@@ -442,15 +436,15 @@ const IncidentDetail = () => {
             Incident #{incident.id}
           </Typography>
           {renderStatusChip(incident.status)}
-          {isCreator && (
+          {isReporter && (
             <Chip 
-              label="👑 Creator" 
+              label="📢 Reporter" 
               size="small" 
               color="primary" 
               sx={{ fontWeight: 600 }}
             />
           )}
-          {isManagerInFlow && !isCreator && (
+          {isManagerInFlow && !isReporter && (
             <Chip 
               label="📋 Manager" 
               size="small" 
@@ -621,6 +615,14 @@ const IncidentDetail = () => {
                   <Typography variant="caption" color="textSecondary">
                     {formatDate(incident.created_at, 'dd/MM/yyyy HH:mm')}
                   </Typography>
+                  {isReporter && (
+                    <Chip 
+                      label="Reporter" 
+                      size="small" 
+                      color="primary" 
+                      sx={{ mt: 0.5, fontWeight: 600 }}
+                    />
+                  )}
                 </Box>
               </Box>
             </CardContent>
@@ -660,7 +662,7 @@ const IncidentDetail = () => {
               {approvalFlow.length === 0 ? (
                 <Typography variant="body2" color="textSecondary">
                   No approval flow configured. 
-                  {isCreator ? ' Click below to set up approval flow.' : ' Only the creator can set approval flow.'}
+                  {isReporter ? ' Click below to set up approval flow.' : ' Only the reporter can set approval flow.'}
                 </Typography>
               ) : (
                 <Stack spacing={2}>
@@ -791,40 +793,40 @@ const IncidentDetail = () => {
               )}
 
               {/* Info messages for different user roles */}
-              {!isCreator && approvalFlow.length === 0 && (
+              {!isReporter && approvalFlow.length === 0 && (
                 <Alert severity="info" sx={{ mt: 2 }}>
-                  Only the creator of this incident can set the approval flow.
+                  Only the reporter of this incident can set the approval flow.
                 </Alert>
               )}
 
-              {!isCreator && approvalFlow.length > 0 && !isManagerInFlow && (
+              {!isReporter && approvalFlow.length > 0 && !isManagerInFlow && (
                 <Alert severity="info" sx={{ mt: 2 }}>
                   This incident is waiting for manager approval. You are not in the approval flow.
                 </Alert>
               )}
 
-              {isManagerInFlow && !isCreator && (
+              {isManagerInFlow && !isReporter && (
                 <Alert severity="success" sx={{ mt: 2 }}>
                   You are assigned as a manager in this approval flow. Please review and approve/reject.
                 </Alert>
               )}
 
-              {/* Set/Update Approval Flow button - ONLY for creator */}
+              {/* Set/Update Approval Flow button - ONLY for reporter */}
               <Button
                 variant="outlined"
                 fullWidth
                 sx={{ mt: 2 }}
                 onClick={() => setApprovalDialog(true)}
                 disabled={
-                  !isCreator || 
+                  !isReporter || 
                   incident.approval_status === 'approved' || 
                   incident.approval_status === 'rejected'
                 }
               >
-                {isCreator ? (
+                {isReporter ? (
                   approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'
                 ) : (
-                  'View Only (Creator Only)'
+                  'View Only (Reporter Only)'
                 )}
               </Button>
             </CardContent>
@@ -897,9 +899,9 @@ const IncidentDetail = () => {
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
-            {!isCreator && (
+            {!isReporter && (
               <Alert severity="warning">
-                Only the creator of this incident can set or update the approval flow.
+                Only the reporter of this incident can set or update the approval flow.
               </Alert>
             )}
             <Typography variant="body2" color="textSecondary">
@@ -912,7 +914,7 @@ const IncidentDetail = () => {
                 value={selectedManagers.length > 0 ? selectedManagers : approvalFlow}
                 onChange={(e) => setSelectedManagers(e.target.value)}
                 label="Select Managers"
-                disabled={!isCreator}
+                disabled={!isReporter}
                 renderValue={(selected) => (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {selected.map((id) => {
@@ -947,7 +949,7 @@ const IncidentDetail = () => {
           <Button
             variant="contained"
             onClick={handleSetApprovalFlow}
-            disabled={selectedManagers.length === 0 || updating || !isCreator}
+            disabled={selectedManagers.length === 0 || updating || !isReporter}
           >
             Save Approval Flow
           </Button>
