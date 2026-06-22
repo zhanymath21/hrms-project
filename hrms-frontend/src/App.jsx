@@ -61,6 +61,7 @@ import PayrollCreate from './pages/payroll/PayrollCreate';
 import PayrollDetail from './pages/payroll/PayrollDetail';
 import PayrollEdit from './pages/payroll/PayrollEdit';
 import EmployeeSalarySettings from './pages/payroll/EmployeeSalarySettings';
+import TaxSettings from './pages/payroll/TaxSettings';
 
 import MainLayout from './layouts/MainLayout';
 
@@ -574,6 +575,13 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <EmployeeSalarySettings />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/tax-settings" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <TaxSettings />
           </MainLayout>
         </ProtectedRoute>
       } />

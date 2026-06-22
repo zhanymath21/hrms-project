@@ -302,4 +302,13 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/employee-salary-settings', [EmployeeSalarySettingController::class, 'store']);
     Route::put('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'update']);
     Route::delete('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'destroy']);
+
+    Route::get('/tax-setting', [TaxSettingController::class, 'index']);
+    Route::get('/tax-setting/active', [TaxSettingController::class, 'active']);
+    Route::post('/tax-setting/calculate', [TaxSettingController::class, 'calculate']);
+    Route::post('/tax-setting', [TaxSettingController::class, 'store']);
+    Route::get('/tax-setting/{id}', [TaxSettingController::class, 'show']);
+    Route::put('/tax-setting/{id}', [TaxSettingController::class, 'update']);
+    Route::delete('/tax-setting/{id}', [TaxSettingController::class, 'destroy']);
+    Route::post('/tax-setting/{id}/activate', [TaxSettingController::class, 'activate']);
 });

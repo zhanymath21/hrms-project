@@ -17,7 +17,9 @@ class TaxSetting extends Model
         'nssf_employee_rate',
         'nssf_employer_rate',
         'social_security_brackets',
+        'minimum_wage',
         'is_active',
+        'notes',
     ];
 
     protected $casts = [
@@ -27,6 +29,8 @@ class TaxSetting extends Model
         'dependent_relief' => 'decimal:2',
         'nssf_employee_rate' => 'decimal:2',
         'nssf_employer_rate' => 'decimal:2',
+        'minimum_wage' => 'decimal:2',
+        'is_active' => 'boolean',
     ];
 
     // Get active tax settings for current year
@@ -40,6 +44,10 @@ class TaxSetting extends Model
     // Calculate tax based on Cambodia tax brackets
     public function calculateTax($monthlyIncome, $dependents = 0)
     {
+        if (!$this->tax_brackets) {
+            return 0;
+        }
+
         $taxBrackets = $this->tax_brackets;
         $personalRelief = $this->personal_relief;
         $dependentRelief = $this->dependent_relief * $dependents;
@@ -85,6 +93,47 @@ class TaxSetting extends Model
             'employee' => round($baseSalary * $employeeRate, 2),
             'employer' => round($baseSalary * $employerRate, 2),
             'total' => round($baseSalary * ($employeeRate + $employerRate), 2),
+            'base_salary' => $baseSalary,
+            'max_salary' => $maxSalary,
         ];
+    }
+
+    // Get tax summary
+    public function getTaxSummary($monthlyIncome, $dependents = 0)
+    {
+        $tax = $this->calculateTax($monthlyIncome, $dependents);
+        $nssf = $this->calculateNSSF($monthlyIncome);
+        $personalRelief = $this->personal_relief;
+        $dependentRelief = $this->dependent_relief * $dependents;
+
+        return [
+            'gross_income' => $monthlyIncome,
+            'personal_relief' => $personalRelief,
+            'dependent_relief' => $dependentRelief,
+            'total_relief' => $personalRelief + $dependentRelief,
+            'taxable_income' => max(0, $monthlyIncome - $personalRelief - $dependentRelief),
+            'tax' => $tax,
+            'nssf_employee' => $nssf['employee'],
+            'nssf_employer' => $nssf['employer'],
+            'total_deductions' => $tax + $nssf['employee'],
+            'take_home_pay' => $monthlyIncome - $tax - $nssf['employee'],
+        ];
+    }
+
+    // Get tax brackets as array
+    public function getTaxBracketsFormatted()
+    {
+        $brackets = $this->tax_brackets;
+        $formatted = [];
+
+        foreach ($brackets as $bracket) {
+            $formatted[] = [
+                'threshold' => $bracket['threshold'] ? number_format($bracket['threshold']) : '>',
+                'rate' => $bracket['rate'] . '%',
+                'description' => $bracket['description'] ?? '',
+            ];
+        }
+
+        return $formatted;
     }
 }
