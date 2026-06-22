@@ -12,7 +12,21 @@ return new class extends Migration
             $table->id();
             $table->foreignId('candidate_id')->constrained()->onDelete('cascade');
             $table->foreignId('vacancy_id')->constrained()->onDelete('cascade');
-            $table->enum('status', ['new', 'screening', 'interview', 'technical_test', 'hr_interview', 'offer', 'hired', 'rejected', 'withdrawn'])->default('pending');
+
+            // ✅ FIX: Add 'pending' to the ENUM list or change default to 'new'
+            $table->enum('status', [
+                'new',
+                'screening',
+                'interview',
+                'technical_test',
+                'hr_interview',
+                'offer',
+                'hired',
+                'rejected',
+                'withdrawn',
+                'pending' // ✅ Add 'pending' to the list
+            ])->default('pending');
+
             $table->text('notes')->nullable();
             $table->date('interview_date')->nullable();
             $table->text('interview_notes')->nullable();
