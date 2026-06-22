@@ -535,6 +535,7 @@ const IncidentDetail = () => {
                   </Box>
                 </Grid>
               </Grid>
+              
 
               {incident.resolution_notes && (
                 <Box>

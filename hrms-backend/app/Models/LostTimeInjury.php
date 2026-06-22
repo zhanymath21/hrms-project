@@ -198,53 +198,11 @@ class LostTimeInjury extends Model
         return $colors[$this->severity] ?? '#6b7280';
     }
 
-    public function getBodyPartLabelAttribute()
-    {
-        $labels = [
-            'head' => 'Head',
-            'neck' => 'Neck',
-            'shoulder' => 'Shoulder',
-            'arm' => 'Arm',
-            'elbow' => 'Elbow',
-            'wrist' => 'Wrist',
-            'hand' => 'Hand',
-            'finger' => 'Finger',
-            'chest' => 'Chest',
-            'back' => 'Back',
-            'spine' => 'Spine',
-            'hip' => 'Hip',
-            'leg' => 'Leg',
-            'knee' => 'Knee',
-            'ankle' => 'Ankle',
-            'foot' => 'Foot',
-            'toe' => 'Toe',
-            'multiple' => 'Multiple',
-        ];
-        return $labels[$this->body_part] ?? $this->body_part;
-    }
-
-    public function getInjuryTypeLabelAttribute()
-    {
-        $labels = [
-            'fracture' => 'Fracture',
-            'sprain' => 'Sprain',
-            'strain' => 'Strain',
-            'cut' => 'Cut/Laceration',
-            'burn' => 'Burn',
-            'bruise' => 'Bruise/Contusion',
-            'amputation' => 'Amputation',
-            'crush' => 'Crush Injury',
-            'concussion' => 'Concussion',
-            'other' => 'Other',
-        ];
-        return $labels[$this->injury_type] ?? $this->injury_type;
-    }
-
     public function getApprovalProgressAttribute()
     {
         if (!$this->approval_flow) return 0;
 
-        $flow = json_decode($this->approval_flow, true);
+        $flow = is_string($this->approval_flow) ? json_decode($this->approval_flow, true) : $this->approval_flow;
         if (!is_array($flow)) return 0;
 
         $total = count($flow);
@@ -290,7 +248,7 @@ class LostTimeInjury extends Model
         parent::boot();
 
         static::created(function ($lti) {
-            \App\Models\LostTimeInjuryHistory::create([
+            LostTimeInjuryHistory::create([
                 'lost_time_injury_id' => $lti->id,
                 'old_status' => null,
                 'new_status' => $lti->status ?? 'reported',
@@ -324,8 +282,13 @@ class LostTimeInjury extends Model
                 $historyData['new_days_lost'] = $lti->days_lost;
             }
 
+            // Always add notes if not set
+            if (!isset($historyData['notes'])) {
+                $historyData['notes'] = 'Record updated';
+            }
+
             if (isset($historyData['old_status']) || isset($historyData['old_approval_status']) || isset($historyData['old_days_lost'])) {
-                \App\Models\LostTimeInjuryHistory::create($historyData);
+                LostTimeInjuryHistory::create($historyData);
             }
         });
     }

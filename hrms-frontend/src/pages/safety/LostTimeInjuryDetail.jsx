@@ -50,7 +50,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
 import { formatDate } from '../../utils/dateFormat';
 
-// Status Configuration
+// ============ CONFIGURATIONS ============
 const STATUS_CONFIG = {
   reported: { label: 'Reported', bgColor: '#f59e0b', textColor: '#ffffff', icon: <PendingIcon /> },
   under_investigation: { label: 'Under Investigation', bgColor: '#3b82f6', textColor: '#ffffff', icon: <PendingIcon /> },
@@ -75,22 +75,7 @@ const APPROVAL_STATUS_CONFIG = {
   partially_approved: { label: 'Partially Approved', color: '#8b5cf6' },
 };
 
-// Helper Functions
-const parseWitnesses = (witnesses) => {
-  if (!witnesses) return [];
-  if (Array.isArray(witnesses)) return witnesses;
-  if (typeof witnesses === 'string') {
-    try {
-      const parsed = JSON.parse(witnesses);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.error('Error parsing witnesses:', e);
-      return [];
-    }
-  }
-  return [];
-};
-
+// ============ HELPER FUNCTIONS ============
 const getBodyPartLabel = (bodyPart) => {
   const labels = {
     head: 'Head',
@@ -131,6 +116,72 @@ const getInjuryTypeLabel = (injuryType) => {
   return labels[injuryType] || injuryType || '-';
 };
 
+// ============ FIXED: PARSE WITNESSES ============
+const parseWitnesses = (witnesses) => {
+  console.log('=== PARSING WITNESSES ===');
+  console.log('Raw witnesses input:', witnesses);
+  console.log('Type of witnesses:', typeof witnesses);
+  
+  if (!witnesses) {
+    console.log('Witnesses is null/undefined, returning empty array');
+    return [];
+  }
+  
+  if (Array.isArray(witnesses)) {
+    console.log('Witnesses is already an array:', witnesses);
+    return witnesses;
+  }
+  
+  if (typeof witnesses === 'string') {
+    try {
+      const parsed = JSON.parse(witnesses);
+      console.log('Parsed witnesses from string:', parsed);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Error parsing witnesses:', e);
+      return [];
+    }
+  }
+  
+  console.log('Witnesses is not a string or array, returning empty array');
+  return [];
+};
+
+// ============ FIXED: FORMAT TIME ============
+const formatTime = (timeString) => {
+  if (!timeString) return 'Not recorded';
+  
+  if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}/)) {
+    return timeString.substring(0, 5);
+  }
+  
+  try {
+    const date = new Date(timeString);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    }
+    
+    const fallbackDate = new Date(`1970-01-01T${timeString}`);
+    if (!isNaN(fallbackDate.getTime())) {
+      return fallbackDate.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    }
+    
+    return timeString;
+  } catch (e) {
+    console.error('Error formatting time:', e);
+    return 'Invalid time';
+  }
+};
+
+// ============ MAIN COMPONENT ============
 const LostTimeInjuryDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -158,6 +209,7 @@ const LostTimeInjuryDetail = () => {
   // Get current user
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
+  // ============ FETCH DATA ============
   useEffect(() => {
     fetchLti();
     fetchEmployees();
@@ -169,12 +221,30 @@ const LostTimeInjuryDetail = () => {
       setError(null);
       const response = await api.get(`/lost-time-injuries/${id}`);
 
+      console.log('=== API RESPONSE ===');
+      console.log('Full response:', response.data);
+      
       if (response.data?.status === 'success') {
-        setLti(response.data.data);
-        if (response.data.data.approval_flow) {
-          const flow = typeof response.data.data.approval_flow === 'string' 
-            ? JSON.parse(response.data.data.approval_flow) 
-            : response.data.data.approval_flow;
+        const data = response.data.data;
+        console.log('Data from API:', data);
+        console.log('Witnesses from API (raw):', data.witnesses);
+        console.log('Witnesses type:', typeof data.witnesses);
+        
+        // ✅ PARSE WITNESSES
+        const witnessesData = parseWitnesses(data.witnesses);
+        console.log('Parsed witnesses:', witnessesData);
+        console.log('Parsed witnesses count:', witnessesData.length);
+        
+        // ✅ Set LTI with parsed witnesses
+        setLti({
+          ...data,
+          witnesses: witnessesData
+        });
+        
+        if (data.approval_flow) {
+          const flow = typeof data.approval_flow === 'string' 
+            ? JSON.parse(data.approval_flow) 
+            : data.approval_flow;
           setApprovalFlow(Array.isArray(flow) ? flow : []);
         }
       } else {
@@ -219,6 +289,7 @@ const LostTimeInjuryDetail = () => {
     }
   };
 
+  // ============ HANDLERS ============
   const handleOpenHistory = async () => {
     setHistoryDialog(true);
     await fetchStatusHistory();
@@ -289,6 +360,7 @@ const LostTimeInjuryDetail = () => {
     }
   };
 
+  // ============ RENDER FUNCTIONS ============
   const renderStatusChip = (status) => {
     const config = STATUS_CONFIG[status];
     if (!config) return <Chip label={status || 'Unknown'} size="medium" />;
@@ -417,6 +489,7 @@ const LostTimeInjuryDetail = () => {
     );
   };
 
+  // ============ LOADING & ERROR STATES ============
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -436,16 +509,18 @@ const LostTimeInjuryDetail = () => {
     );
   }
 
-  // Authorization
+  // ============ AUTHORIZATION ============
   const isReporter = lti?.reported_by?.id === currentUser?.id;
   const isManagerInFlow = approvalFlow.includes(currentUser?.id);
   const canManageApprovalFlow = isReporter;
 
-  const witnessesData = parseWitnesses(lti.witnesses);
+  // ✅ Get witnesses data - ensure it's an array
+  const witnessesData = Array.isArray(lti.witnesses) ? lti.witnesses : [];
 
+  // ============ RENDER ============
   return (
     <Box>
-      {/* Header */}
+      {/* ===== HEADER ===== */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
         <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
           <IconButton onClick={() => navigate('/lost-time-injuries')}>
@@ -500,8 +575,9 @@ const LostTimeInjuryDetail = () => {
         </Box>
       </Box>
 
+      {/* ===== MAIN CONTENT ===== */}
       <Grid container spacing={3}>
-        {/* Left Column */}
+        {/* ===== LEFT COLUMN ===== */}
         <Grid item xs={12} md={8}>
           {/* Injury Details */}
           <Paper sx={{ p: 3, mb: 3 }}>
@@ -533,6 +609,7 @@ const LostTimeInjuryDetail = () => {
                     </Typography>
                   </Box>
                 </Grid>
+                
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Location</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -540,20 +617,28 @@ const LostTimeInjuryDetail = () => {
                     <Typography>{lti.location || 'Not specified'}</Typography>
                   </Box>
                 </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Injury Date</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
                     <CalendarIcon fontSize="small" color="action" />
-                    <Typography>
-                      {formatDate(lti.injury_date)}
-                      {lti.injury_time && ` at ${lti.injury_time.substring(0, 5)}`}
-                    </Typography>
+                    <Typography>{formatDate(lti.injury_date)}</Typography>
                   </Box>
                 </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="textSecondary">Injury Time</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <AccessTimeIcon fontSize="small" color="action" />
+                    <Typography>{formatTime(lti.injury_time)}</Typography>
+                  </Box>
+                </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Severity</Typography>
                   <Box>{renderSeverityChip(lti.severity)}</Box>
                 </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Body Part</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -561,6 +646,7 @@ const LostTimeInjuryDetail = () => {
                     <Typography>{getBodyPartLabel(lti.body_part)}</Typography>
                   </Box>
                 </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Injury Type</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -568,6 +654,7 @@ const LostTimeInjuryDetail = () => {
                     <Typography>{getInjuryTypeLabel(lti.injury_type)}</Typography>
                   </Box>
                 </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Days Lost</Typography>
                   <Box display="flex" alignItems="center" gap={1}>
@@ -575,6 +662,7 @@ const LostTimeInjuryDetail = () => {
                     <Typography fontWeight="bold">{lti.days_lost || 0} days</Typography>
                   </Box>
                 </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="textSecondary">Medical Treatment</Typography>
                   <Chip
@@ -583,6 +671,7 @@ const LostTimeInjuryDetail = () => {
                     size="small"
                   />
                 </Grid>
+
                 {lti.return_to_work_date && (
                   <Grid item xs={12} sm={6}>
                     <Typography variant="caption" color="textSecondary">Return to Work Date</Typography>
@@ -611,24 +700,44 @@ const LostTimeInjuryDetail = () => {
             </Stack>
           </Paper>
 
-          {/* Witnesses */}
-          {witnessesData.length > 0 && (
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Typography variant="h6" gutterBottom fontWeight="bold">
-                Witnesses ({witnessesData.length})
+          {/* ===== WITNESSES SECTION - FIXED ===== */}
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" gutterBottom fontWeight="bold">
+              Witnesses ({witnessesData.length})
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            
+            {witnessesData.length === 0 ? (
+              <Typography variant="body2" color="textSecondary">
+                No witnesses recorded for this incident.
               </Typography>
-              <Divider sx={{ mb: 2 }} />
+            ) : (
               <Grid container spacing={2}>
                 {witnessesData.map((witness, index) => (
                   <Grid item xs={12} sm={6} key={index}>
-                    <Card variant="outlined">
+                    <Card variant="outlined" sx={{ bgcolor: '#f8fafc', '&:hover': { boxShadow: 2 } }}>
                       <CardContent>
-                        <Typography variant="body1" fontWeight="medium">
-                          {witness.name}
-                        </Typography>
-                        {witness.contact && (
+                        <Box display="flex" alignItems="center" gap={1} mb={1}>
+                          <PersonIcon color="primary" fontSize="small" />
+                          <Typography variant="body1" fontWeight="medium">
+                            {witness.name || 'Unnamed Witness'}
+                          </Typography>
+                          <Chip 
+                            label={`#${index + 1}`} 
+                            size="small" 
+                            sx={{ ml: 'auto', bgcolor: '#e5e7eb', fontSize: '0.65rem' }}
+                          />
+                        </Box>
+                        {witness.contact ? (
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Typography variant="caption" color="textSecondary">📞</Typography>
+                            <Typography variant="body2" color="textSecondary">
+                              {witness.contact}
+                            </Typography>
+                          </Box>
+                        ) : (
                           <Typography variant="caption" color="textSecondary">
-                            Contact: {witness.contact}
+                            No contact provided
                           </Typography>
                         )}
                       </CardContent>
@@ -636,8 +745,8 @@ const LostTimeInjuryDetail = () => {
                   </Grid>
                 ))}
               </Grid>
-            </Paper>
-          )}
+            )}
+          </Paper>
 
           {/* Attachments */}
           {lti.file_path && (
@@ -658,7 +767,7 @@ const LostTimeInjuryDetail = () => {
           )}
         </Grid>
 
-        {/* Right Column */}
+        {/* ===== RIGHT COLUMN ===== */}
         <Grid item xs={12} md={4}>
           {/* Reported By */}
           <Card sx={{ mb: 3 }}>
@@ -888,7 +997,7 @@ const LostTimeInjuryDetail = () => {
         </Grid>
       </Grid>
 
-      {/* Status Update Dialog */}
+      {/* ===== STATUS UPDATE DIALOG ===== */}
       <Dialog open={statusDialog} onClose={() => setStatusDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Update Status</DialogTitle>
         <DialogContent dividers>
@@ -928,7 +1037,7 @@ const LostTimeInjuryDetail = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Approval Flow Dialog */}
+      {/* ===== APPROVAL FLOW DIALOG ===== */}
       <Dialog open={approvalDialog} onClose={() => setApprovalDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           {approvalFlow.length > 0 ? 'Update Approval Flow' : 'Set Approval Flow'}
@@ -992,7 +1101,7 @@ const LostTimeInjuryDetail = () => {
         </DialogActions>
       </Dialog>
 
-      {/* History Dialog */}
+      {/* ===== HISTORY DIALOG ===== */}
       <Dialog
         open={historyDialog}
         onClose={() => setHistoryDialog(false)}

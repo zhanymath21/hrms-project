@@ -29,6 +29,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
 
+// ============ CONSTANTS ============
 const BODY_PART_OPTIONS = [
   { value: 'head', label: 'Head' },
   { value: 'neck', label: 'Neck' },
@@ -70,6 +71,74 @@ const SEVERITY_OPTIONS = [
   { value: 'critical', label: 'Critical' },
 ];
 
+// ============ HELPER FUNCTIONS ============
+// ============ FIXED: PARSE WITNESSES WITH DEBUG ============
+const parseWitnesses = (witnesses) => {
+  console.log('=== EDIT - PARSING WITNESSES ===');
+  console.log('Raw witnesses input:', witnesses);
+  console.log('Type of witnesses:', typeof witnesses);
+  
+  if (!witnesses) {
+    console.log('Witnesses is null/undefined, returning empty array');
+    return [];
+  }
+  
+  if (Array.isArray(witnesses)) {
+    console.log('Witnesses is already an array:', witnesses);
+    return witnesses;
+  }
+  
+  if (typeof witnesses === 'string') {
+    try {
+      const parsed = JSON.parse(witnesses);
+      console.log('Parsed witnesses from string:', parsed);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Error parsing witnesses:', e);
+      return [];
+    }
+  }
+  
+  console.log('Witnesses is not a string or array, returning empty array');
+  return [];
+};
+
+// ============ FIXED: FORMAT TIME FOR INPUT ============
+const formatTimeForInput = (timeString) => {
+  if (!timeString) return '';
+  
+  if (typeof timeString === 'string') {
+    if (/^\d{2}:\d{2}$/.test(timeString)) {
+      return timeString;
+    }
+    
+    if (/^\d{2}:\d{2}:\d{2}$/.test(timeString)) {
+      return timeString.substring(0, 5);
+    }
+    
+    try {
+      const date = new Date(timeString);
+      if (!isNaN(date.getTime())) {
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      }
+      
+      const fallbackDate = new Date(`1970-01-01T${timeString}`);
+      if (!isNaN(fallbackDate.getTime())) {
+        const hours = String(fallbackDate.getHours()).padStart(2, '0');
+        const minutes = String(fallbackDate.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      }
+    } catch (e) {
+      console.error('Error formatting time:', e);
+    }
+  }
+  
+  return timeString || '';
+};
+
+// ============ MAIN COMPONENT ============
 const LostTimeInjuryEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -101,9 +170,20 @@ const LostTimeInjuryEdit = () => {
   const [witnessContact, setWitnessContact] = useState('');
   const [removeFile, setRemoveFile] = useState(false);
 
+  // ============ FETCH DATA ============
   useEffect(() => {
     fetchData();
   }, [id]);
+
+  // ============ DEBUG: Log form data changes ============
+  useEffect(() => {
+    if (formData) {
+      console.log('=== EDIT - CURRENT FORM DATA ===');
+      console.log('Witnesses in form:', formData.witnesses);
+      console.log('Witnesses count:', formData.witnesses?.length || 0);
+      console.log('Witnesses type:', typeof formData.witnesses);
+    }
+  }, [formData]);
 
   const fetchData = async () => {
     try {
@@ -115,31 +195,62 @@ const LostTimeInjuryEdit = () => {
         api.get('/employees', { params: { per_page: 100 } }),
       ]);
 
+      console.log('=== EDIT - FETCHED LTI DATA ===');
+      console.log('Raw response:', ltiRes.data);
+      
       if (ltiRes.data?.status === 'success') {
         const data = ltiRes.data.data;
+        
+        console.log('Data from API:', data);
+        console.log('Witnesses from API (raw):', data.witnesses);
+        console.log('Witnesses type:', typeof data.witnesses);
+        
+        // ✅ PARSE WITNESSES WITH DEBUG
+        const witnessesData = parseWitnesses(data.witnesses);
+        console.log('Parsed witnesses for edit:', witnessesData);
+        console.log('Parsed witnesses count:', witnessesData.length);
+        
+        // Format date for input (YYYY-MM-DD)
+        const formattedDate = data.injury_date ? new Date(data.injury_date).toISOString().split('T')[0] : '';
+        
+        // Format time for input (HH:MM)
+        const formattedTime = formatTimeForInput(data.injury_time);
+        console.log('Formatted time for input:', formattedTime);
+        
+        // Format return to work date
+        const formattedReturnDate = data.return_to_work_date ? new Date(data.return_to_work_date).toISOString().split('T')[0] : '';
+
+        // ✅ SET FORM DATA WITH PARSED WITNESSES
         setFormData({
           employee_id: data.employee_id || '',
           title: data.title || '',
           description: data.description || '',
           location: data.location || '',
-          injury_date: data.injury_date || '',
-          injury_time: data.injury_time ? data.injury_time.substring(0, 5) : '',
+          injury_date: formattedDate,
+          injury_time: formattedTime,
           body_part: data.body_part || '',
           injury_type: data.injury_type || '',
           severity: data.severity || '',
           medical_treatment: data.medical_treatment || false,
-          return_to_work_date: data.return_to_work_date || '',
+          return_to_work_date: formattedReturnDate,
           days_lost: data.days_lost || 0,
           medical_notes: data.medical_notes || '',
-          witnesses: data.witnesses || [],
+          witnesses: witnessesData, // ✅ SET WITNESSES
           file: null,
           existing_file_path: data.file_path || null,
           existing_file_name: data.file_name || null,
         });
+        
+        console.log('Form Data after set:', {
+          witnesses: witnessesData,
+          witnessesCount: witnessesData.length
+        });
+        
       } else {
         setError('Record not found');
       }
 
+      // Parse employees data
       let employeesData = [];
       if (employeesRes.data?.status === 'success') {
         if (employeesRes.data.data?.data && Array.isArray(employeesRes.data.data.data)) {
@@ -158,6 +269,7 @@ const LostTimeInjuryEdit = () => {
     }
   };
 
+  // ============ HANDLERS ============
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -178,26 +290,47 @@ const LostTimeInjuryEdit = () => {
     setFormData(prev => ({ ...prev, file: null }));
   };
 
+  // ============ FIXED: WITNESS HANDLERS ============
   const handleAddWitness = () => {
     if (!witnessName.trim()) {
       alert('Please enter witness name');
       return;
     }
-    setFormData(prev => ({
-      ...prev,
-      witnesses: [...prev.witnesses, { name: witnessName.trim(), contact: witnessContact.trim() }]
-    }));
+    
+    console.log('Adding witness:', { name: witnessName.trim(), contact: witnessContact.trim() });
+    
+    setFormData(prev => {
+      const newWitnesses = [
+        ...prev.witnesses, 
+        { 
+          name: witnessName.trim(), 
+          contact: witnessContact.trim() || '' 
+        }
+      ];
+      console.log('New witnesses array:', newWitnesses);
+      return {
+        ...prev,
+        witnesses: newWitnesses
+      };
+    });
+    
     setWitnessName('');
     setWitnessContact('');
   };
 
   const handleRemoveWitness = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      witnesses: prev.witnesses.filter((_, i) => i !== index)
-    }));
+    console.log('Removing witness at index:', index);
+    setFormData(prev => {
+      const newWitnesses = prev.witnesses.filter((_, i) => i !== index);
+      console.log('Remaining witnesses:', newWitnesses);
+      return {
+        ...prev,
+        witnesses: newWitnesses
+      };
+    });
   };
 
+  // ============ SUBMIT ============
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -207,17 +340,33 @@ const LostTimeInjuryEdit = () => {
     try {
       const submitData = new FormData();
       
+      console.log('=== SUBMITTING DATA ===');
+      console.log('Witnesses before submit:', formData.witnesses);
+      console.log('Witnesses count:', formData.witnesses?.length || 0);
+      
       Object.keys(formData).forEach(key => {
         if (key === 'file') {
           if (formData.file) {
             submitData.append('file', formData.file);
           }
         } else if (key === 'witnesses') {
-          submitData.append('witnesses', JSON.stringify(formData.witnesses));
+          // ✅ Ensure witnesses is properly stringified
+          const witnessesArray = Array.isArray(formData.witnesses) ? formData.witnesses : [];
+          const witnessesJSON = JSON.stringify(witnessesArray);
+          console.log('Witnesses JSON being sent:', witnessesJSON);
+          submitData.append('witnesses', witnessesJSON);
         } else if (key === 'medical_treatment') {
           submitData.append(key, formData[key] ? '1' : '0');
         } else if (key !== 'existing_file_path' && key !== 'existing_file_name') {
-          submitData.append(key, formData[key] || '');
+          let value = formData[key] || '';
+          
+          if (key === 'injury_time' && value && !value.includes(':')) {
+            if (value.length === 4) {
+              value = `${value.substring(0, 2)}:${value.substring(2, 4)}`;
+            }
+          }
+          
+          submitData.append(key, value);
         }
       });
 
@@ -226,6 +375,11 @@ const LostTimeInjuryEdit = () => {
       }
 
       submitData.append('_method', 'PUT');
+
+      console.log('Form data being submitted:');
+      for (let pair of submitData.entries()) {
+        console.log(pair[0] + ': ' + pair[1]);
+      }
 
       const response = await api.post(`/lost-time-injuries/${id}`, submitData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -252,6 +406,7 @@ const LostTimeInjuryEdit = () => {
     }
   };
 
+  // ============ LOADING ============
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -260,8 +415,10 @@ const LostTimeInjuryEdit = () => {
     );
   }
 
+  // ============ RENDER ============
   return (
     <Box>
+      {/* ===== HEADER ===== */}
       <Box display="flex" alignItems="center" mb={3} gap={2}>
         <IconButton onClick={() => navigate(`/lost-time-injuries/${id}`)}>
           <ArrowBackIcon />
@@ -271,6 +428,7 @@ const LostTimeInjuryEdit = () => {
         </Typography>
       </Box>
 
+      {/* ===== ALERTS ===== */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
@@ -283,6 +441,7 @@ const LostTimeInjuryEdit = () => {
         </Alert>
       )}
 
+      {/* ===== FORM ===== */}
       <Paper sx={{ p: 3 }}>
         <form onSubmit={handleSubmit}>
           <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">
@@ -291,6 +450,7 @@ const LostTimeInjuryEdit = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
+            {/* Employee */}
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Employee *</InputLabel>
@@ -312,6 +472,7 @@ const LostTimeInjuryEdit = () => {
               </FormControl>
             </Grid>
 
+            {/* Title */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -325,6 +486,7 @@ const LostTimeInjuryEdit = () => {
               />
             </Grid>
 
+            {/* Description */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -340,6 +502,7 @@ const LostTimeInjuryEdit = () => {
               />
             </Grid>
 
+            {/* Location */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -352,6 +515,7 @@ const LostTimeInjuryEdit = () => {
               />
             </Grid>
 
+            {/* Injury Date */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -366,6 +530,7 @@ const LostTimeInjuryEdit = () => {
               />
             </Grid>
 
+            {/* Injury Time */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -376,9 +541,14 @@ const LostTimeInjuryEdit = () => {
                 onChange={handleChange}
                 InputLabelProps={{ shrink: true }}
                 disabled={saving}
+                helperText="Format: HH:MM (24-hour)"
+                inputProps={{
+                  step: 60,
+                }}
               />
             </Grid>
 
+            {/* Body Part */}
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Body Part Affected</InputLabel>
@@ -399,6 +569,7 @@ const LostTimeInjuryEdit = () => {
               </FormControl>
             </Grid>
 
+            {/* Injury Type */}
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Injury Type</InputLabel>
@@ -419,6 +590,7 @@ const LostTimeInjuryEdit = () => {
               </FormControl>
             </Grid>
 
+            {/* Severity */}
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Severity *</InputLabel>
@@ -440,6 +612,7 @@ const LostTimeInjuryEdit = () => {
               </FormControl>
             </Grid>
 
+            {/* Days Lost */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -454,6 +627,7 @@ const LostTimeInjuryEdit = () => {
               />
             </Grid>
 
+            {/* Medical Treatment */}
             <Grid item xs={12} md={6}>
               <FormControlLabel
                 control={
@@ -468,6 +642,7 @@ const LostTimeInjuryEdit = () => {
               />
             </Grid>
 
+            {/* Return to Work Date */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -481,6 +656,7 @@ const LostTimeInjuryEdit = () => {
               />
             </Grid>
 
+            {/* Medical Notes */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -495,6 +671,7 @@ const LostTimeInjuryEdit = () => {
               />
             </Grid>
 
+            {/* Attachments */}
             <Grid item xs={12}>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                 Attachments
@@ -542,12 +719,14 @@ const LostTimeInjuryEdit = () => {
               )}
             </Grid>
 
+            {/* ===== FIXED: WITNESSES SECTION ===== */}
             <Grid item xs={12}>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Witnesses
+                Witnesses ({formData.witnesses?.length || 0})
               </Typography>
               <Divider sx={{ mb: 2 }} />
               
+              {/* Form to add new witness */}
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={5}>
                   <TextField
@@ -584,27 +763,49 @@ const LostTimeInjuryEdit = () => {
                 </Grid>
               </Grid>
 
-              {formData.witnesses.length > 0 && (
+              {/* ✅ Display existing witnesses with old values */}
+              {formData.witnesses && formData.witnesses.length > 0 && (
                 <Box sx={{ mt: 2 }}>
                   <Typography variant="caption" color="textSecondary">
                     {formData.witnesses.length} witness(es) added
                   </Typography>
-                  <Box sx={{ mt: 1 }}>
+                  <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     {formData.witnesses.map((witness, index) => (
                       <Chip
                         key={index}
-                        label={`${witness.name}${witness.contact ? ` (${witness.contact})` : ''}`}
+                        label={`${witness.name || 'Unnamed'}${witness.contact ? ` (📞 ${witness.contact})` : ''}`}
                         onDelete={() => handleRemoveWitness(index)}
-                        sx={{ mr: 1, mb: 1 }}
                         disabled={saving}
+                        color="primary"
+                        variant="outlined"
+                        sx={{ 
+                          fontSize: '0.9rem',
+                          '& .MuiChip-label': {
+                            maxWidth: '300px',
+                          }
+                        }}
                       />
                     ))}
                   </Box>
+                  
+                  {/* Debug info - remove in production */}
+                  <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
+                    Total witnesses: {formData.witnesses.length}
+                  </Typography>
+                </Box>
+              )}
+
+              {(!formData.witnesses || formData.witnesses.length === 0) && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" color="textSecondary">
+                    No witnesses added yet. Add witnesses using the form above.
+                  </Typography>
                 </Box>
               )}
             </Grid>
           </Grid>
 
+          {/* ===== ACTION BUTTONS ===== */}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4 }}>
             <Button
               variant="outlined"

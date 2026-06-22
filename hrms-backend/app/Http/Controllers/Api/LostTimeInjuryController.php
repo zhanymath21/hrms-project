@@ -20,10 +20,13 @@ class LostTimeInjuryController extends Controller
             $query = LostTimeInjury::with(['employee', 'reportedBy']);
 
             if ($request->has('status')) {
-                $query->byStatus($request->status);
+                $query->where('status', $request->status);
             }
             if ($request->has('employee_id')) {
-                $query->byEmployee($request->employee_id);
+                $query->where('employee_id', $request->employee_id);
+            }
+            if ($request->has('severity')) {
+                $query->where('severity', $request->severity);
             }
             if ($request->has('date_from')) {
                 $query->whereDate('injury_date', '>=', $request->date_from);
@@ -51,7 +54,7 @@ class LostTimeInjuryController extends Controller
             Log::error('Error fetching LTIs: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to fetch data',
+                'message' => 'Failed to fetch data: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -76,9 +79,10 @@ class LostTimeInjuryController extends Controller
                 'data' => $lti,
             ]);
         } catch (\Exception $e) {
+            Log::error('Error fetching LTI: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Data not found',
+                'message' => 'Record not found',
             ], 404);
         }
     }
@@ -97,8 +101,8 @@ class LostTimeInjuryController extends Controller
                 'body_part' => 'nullable|string',
                 'injury_type' => 'nullable|string',
                 'severity' => 'nullable|in:minor,moderate,severe,critical',
-                'medical_treatment' => 'boolean',
-                'return_to_work_date' => 'nullable|date|after:injury_date',
+                'medical_treatment' => 'nullable|boolean',
+                'return_to_work_date' => 'nullable|date',
                 'days_lost' => 'nullable|integer|min:0',
                 'medical_notes' => 'nullable|string',
                 'witnesses' => 'nullable|json',
@@ -113,12 +117,21 @@ class LostTimeInjuryController extends Controller
             }
 
             $user = Auth::guard('api')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
+
             $data = $request->all();
             $data['reported_by'] = $user->id;
             $data['created_by'] = $user->id;
             $data['status'] = 'reported';
             $data['approval_status'] = 'pending';
 
+            // Handle file upload
             if ($request->hasFile('file')) {
                 $file = $request->file('file');
                 $fileName = time() . '_' . $file->getClientOriginalName();
@@ -127,11 +140,12 @@ class LostTimeInjuryController extends Controller
                 $data['file_name'] = $file->getClientOriginalName();
             }
 
+            // Handle witnesses
             if ($request->has('witnesses')) {
                 $witnesses = $request->witnesses;
                 if (is_string($witnesses)) {
                     $decoded = json_decode($witnesses, true);
-                    if (json_last_error() === JSON_ERROR_NONE) {
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                         $data['witnesses'] = $witnesses;
                     } else {
                         $data['witnesses'] = json_encode([]);
@@ -161,11 +175,39 @@ class LostTimeInjuryController extends Controller
         }
     }
 
-    // ============ UPDATE LOST TIME INJURY ============
+    // ============ UPDATE LOST TIME INJURY - ONLY REPORTER OR ADMIN ============
     public function update(Request $request, $id)
     {
         try {
             $lti = LostTimeInjury::findOrFail($id);
+            $user = Auth::guard('api')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
+
+            // ✅ RULE 1: Only Reporter or Admin can edit
+            $isReporter = $lti->reported_by === $user->id;
+            $isAdmin = in_array($user->role ?? '', ['admin', 'hr', 'manager']);
+
+            if (!$isReporter && !$isAdmin) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only the reporter or admin can edit this record',
+                ], 403);
+            }
+
+            // ✅ RULE 3: Cannot edit if status is final (resolved, closed, rejected)
+            $finalStatuses = ['resolved', 'closed', 'rejected'];
+            if (in_array($lti->status, $finalStatuses)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot edit this record. Status is already ' . $lti->status,
+                ], 400);
+            }
 
             $validator = Validator::make($request->all(), [
                 'employee_id' => 'sometimes|exists:employees,id',
@@ -177,7 +219,7 @@ class LostTimeInjuryController extends Controller
                 'body_part' => 'nullable|string',
                 'injury_type' => 'nullable|string',
                 'severity' => 'nullable|in:minor,moderate,severe,critical',
-                'medical_treatment' => 'boolean',
+                'medical_treatment' => 'nullable|boolean',
                 'return_to_work_date' => 'nullable|date',
                 'days_lost' => 'nullable|integer|min:0',
                 'medical_notes' => 'nullable|string',
@@ -194,6 +236,7 @@ class LostTimeInjuryController extends Controller
 
             $data = $request->all();
 
+            // Handle file upload
             if ($request->hasFile('file')) {
                 $file = $request->file('file');
                 $fileName = time() . '_' . $file->getClientOriginalName();
@@ -202,11 +245,17 @@ class LostTimeInjuryController extends Controller
                 $data['file_name'] = $file->getClientOriginalName();
             }
 
+            if ($request->has('remove_file') && $request->remove_file === 'true') {
+                $data['file_path'] = null;
+                $data['file_name'] = null;
+            }
+
+            // Handle witnesses
             if ($request->has('witnesses')) {
                 $witnesses = $request->witnesses;
                 if (is_string($witnesses)) {
                     $decoded = json_decode($witnesses, true);
-                    if (json_last_error() === JSON_ERROR_NONE) {
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                         $data['witnesses'] = $witnesses;
                     } else {
                         $data['witnesses'] = json_encode([]);
@@ -234,11 +283,19 @@ class LostTimeInjuryController extends Controller
         }
     }
 
-    // ============ UPDATE STATUS ============
+    // ============ UPDATE STATUS - WITH APPROVAL CHECK ============
     public function updateStatus(Request $request, $id)
     {
         try {
             $lti = LostTimeInjury::findOrFail($id);
+            $user = Auth::guard('api')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
 
             $validator = Validator::make($request->all(), [
                 'status' => 'required|in:reported,under_investigation,in_review,resolved,closed,rejected',
@@ -255,6 +312,32 @@ class LostTimeInjuryController extends Controller
             $oldStatus = $lti->status;
             $newStatus = $request->status;
 
+            // ✅ RULE 2: Cannot change to closed or rejected if not approved
+            $requiresApproval = ['closed', 'rejected'];
+            if (in_array($newStatus, $requiresApproval) && $lti->approval_status !== 'approved') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot set status to ' . $newStatus . '. Record must be approved first.',
+                ], 400);
+            }
+
+            // ✅ RULE 3: Cannot change if status is final
+            $finalStatuses = ['resolved', 'closed', 'rejected'];
+            if (in_array($oldStatus, $finalStatuses)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot change status. Record is already ' . $oldStatus,
+                ], 400);
+            }
+
+            // ✅ RULE 4: Cannot revert from resolved/closed/rejected
+            if (in_array($oldStatus, $finalStatuses) && !in_array($newStatus, $finalStatuses)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot revert from ' . $oldStatus . ' to ' . $newStatus,
+                ], 400);
+            }
+
             $lti->status = $newStatus;
 
             if ($newStatus === 'resolved' || $newStatus === 'closed') {
@@ -267,12 +350,13 @@ class LostTimeInjuryController extends Controller
 
             $lti->save();
 
+            // Create history
             LostTimeInjuryHistory::create([
                 'lost_time_injury_id' => $lti->id,
                 'old_status' => $oldStatus,
                 'new_status' => $newStatus,
                 'notes' => $request->notes ?? 'Status updated',
-                'updated_by' => auth()->id() ?? null,
+                'updated_by' => $user->id,
             ]);
 
             return response()->json([
@@ -281,6 +365,7 @@ class LostTimeInjuryController extends Controller
                 'data' => $lti->load(['employee', 'reportedBy']),
             ]);
         } catch (\Exception $e) {
+            Log::error('Error updating status: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update status: ' . $e->getMessage(),
@@ -304,12 +389,22 @@ class LostTimeInjuryController extends Controller
 
             // Only reporter can set approval flow
             $isReporter = $lti->reported_by === $user->id;
+            $isAdmin = in_array($user->role ?? '', ['admin', 'hr']);
 
-            if (!$isReporter) {
+            if (!$isReporter && !$isAdmin) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Only the reporter can set approval flow',
+                    'message' => 'Only the reporter or admin can set approval flow',
                 ], 403);
+            }
+
+            // ✅ Cannot set approval flow if status is final
+            $finalStatuses = ['resolved', 'closed', 'rejected'];
+            if (in_array($lti->status, $finalStatuses)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot set approval flow. Record is already ' . $lti->status,
+                ], 400);
             }
 
             if (in_array($lti->approval_status, ['approved', 'rejected'])) {
@@ -384,6 +479,7 @@ class LostTimeInjuryController extends Controller
                 'data' => $lti->load(['manager1', 'manager2', 'manager3', 'manager4']),
             ]);
         } catch (\Exception $e) {
+            Log::error('Error setting approval flow: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to set approval flow: ' . $e->getMessage(),
@@ -403,6 +499,22 @@ class LostTimeInjuryController extends Controller
                     'status' => 'error',
                     'message' => 'Unauthenticated',
                 ], 401);
+            }
+
+            if ($managerLevel < 1 || $managerLevel > 4) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid manager level',
+                ], 400);
+            }
+
+            // ✅ Cannot approve if status is final
+            $finalStatuses = ['resolved', 'closed', 'rejected'];
+            if (in_array($lti->status, $finalStatuses)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot approve. Record is already ' . $lti->status,
+                ], 400);
             }
 
             $managerField = 'manager' . $managerLevel . '_id';
@@ -435,11 +547,15 @@ class LostTimeInjuryController extends Controller
                 ], 422);
             }
 
+            $oldStatus = $lti->status;
+            $oldApprovalStatus = $lti->approval_status;
+
+            // Update manager status
             $lti->$statusField = $request->status;
             $lti->{'manager' . $managerLevel . '_notes'} = $request->notes ?? null;
             $lti->{'manager' . $managerLevel . '_approved_at'} = now();
 
-            // Update approval status
+            // Update overall approval status
             $flow = $lti->approval_flow;
             if ($flow) {
                 $flowArray = is_string($flow) ? json_decode($flow, true) : $flow;
@@ -450,16 +566,25 @@ class LostTimeInjuryController extends Controller
 
                     for ($i = 1; $i <= $total && $i <= 4; $i++) {
                         $field = 'manager' . $i . '_status';
-                        if ($lti->$field === 'approved') $approved++;
-                        elseif ($lti->$field === 'rejected') $rejected++;
+                        if ($lti->$field === 'approved') {
+                            $approved++;
+                        } elseif ($lti->$field === 'rejected') {
+                            $rejected++;
+                        }
                     }
 
                     if ($rejected > 0) {
                         $lti->approval_status = 'rejected';
-                        $lti->status = 'rejected';
+                        // ✅ If rejected, status automatically becomes rejected
+                        if (!in_array($lti->status, $finalStatuses)) {
+                            $lti->status = 'rejected';
+                        }
                     } elseif ($approved === $total) {
                         $lti->approval_status = 'approved';
-                        $lti->status = 'in_review';
+                        // ✅ If fully approved and status is still reported/investigation, move to in_review
+                        if (in_array($lti->status, ['reported', 'under_investigation'])) {
+                            $lti->status = 'in_review';
+                        }
                     } elseif ($approved > 0 && $approved < $total) {
                         $lti->approval_status = 'partially_approved';
                     } else {
@@ -470,22 +595,24 @@ class LostTimeInjuryController extends Controller
 
             $lti->save();
 
+            // Create history
             LostTimeInjuryHistory::create([
                 'lost_time_injury_id' => $lti->id,
-                'old_status' => $lti->status,
+                'old_status' => $oldStatus,
                 'new_status' => $lti->status,
-                'old_approval_status' => $lti->approval_status,
+                'old_approval_status' => $oldApprovalStatus,
                 'new_approval_status' => $lti->approval_status,
-                'notes' => 'Manager ' . $managerLevel . ' ' . $request->status,
+                'notes' => 'Manager ' . $managerLevel . ' ' . $request->status . ': ' . ($request->notes ?? 'No notes'),
                 'updated_by' => $user->id,
             ]);
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Manager ' . $managerLevel . ' ' . $request->status,
+                'message' => 'Manager ' . $managerLevel . ' ' . $request->status . ' successfully',
                 'data' => $lti->load(['manager1', 'manager2', 'manager3', 'manager4']),
             ]);
         } catch (\Exception $e) {
+            Log::error('Error in manager approval: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to process approval: ' . $e->getMessage(),
@@ -498,14 +625,37 @@ class LostTimeInjuryController extends Controller
     {
         try {
             $lti = LostTimeInjury::findOrFail($id);
+
+            $history = $lti->statusHistories()
+                ->with('updatedBy')
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'old_status' => $item->old_status,
+                        'new_status' => $item->new_status,
+                        'old_approval_status' => $item->old_approval_status,
+                        'new_approval_status' => $item->new_approval_status,
+                        'old_days_lost' => $item->old_days_lost,
+                        'new_days_lost' => $item->new_days_lost,
+                        'notes' => $item->notes,
+                        'changed_by' => $item->updatedBy ?
+                            $item->updatedBy->first_name . ' ' . $item->updatedBy->last_name :
+                            'System',
+                        'created_at' => $item->created_at,
+                    ];
+                });
+
             return response()->json([
                 'status' => 'success',
-                'data' => $lti->statusHistoryWithUsers,
+                'data' => $history,
             ]);
         } catch (\Exception $e) {
+            Log::error('Error fetching history: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to fetch history',
+                'message' => 'Failed to fetch history: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -515,6 +665,35 @@ class LostTimeInjuryController extends Controller
     {
         try {
             $lti = LostTimeInjury::findOrFail($id);
+            $user = Auth::guard('api')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
+
+            // Only reporter or admin can delete
+            $isReporter = $lti->reported_by === $user->id;
+            $isAdmin = in_array($user->role ?? '', ['admin', 'hr']);
+
+            if (!$isReporter && !$isAdmin) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only the reporter or admin can delete this record',
+                ], 403);
+            }
+
+            // ✅ Cannot delete if status is final
+            $finalStatuses = ['resolved', 'closed', 'rejected'];
+            if (in_array($lti->status, $finalStatuses)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot delete. Record is already ' . $lti->status,
+                ], 400);
+            }
+
             $lti->statusHistories()->delete();
             $lti->delete();
 
@@ -523,6 +702,7 @@ class LostTimeInjuryController extends Controller
                 'message' => 'Lost Time Injury deleted successfully',
             ]);
         } catch (\Exception $e) {
+            Log::error('Error deleting LTI: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to delete: ' . $e->getMessage(),
@@ -546,6 +726,11 @@ class LostTimeInjuryController extends Controller
                 'by_body_part' => LostTimeInjury::select('body_part', DB::raw('count(*) as count'))
                     ->groupBy('body_part')
                     ->get(),
+                'by_injury_type' => LostTimeInjury::select('injury_type', DB::raw('count(*) as count'))
+                    ->groupBy('injury_type')
+                    ->get(),
+                'with_medical_treatment' => LostTimeInjury::where('medical_treatment', true)->count(),
+                'avg_days_lost' => round(LostTimeInjury::avg('days_lost') ?? 0, 2),
             ];
 
             return response()->json([
@@ -553,9 +738,10 @@ class LostTimeInjuryController extends Controller
                 'data' => $stats,
             ]);
         } catch (\Exception $e) {
+            Log::error('Error fetching stats: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to fetch stats',
+                'message' => 'Failed to fetch stats: ' . $e->getMessage(),
             ], 500);
         }
     }
