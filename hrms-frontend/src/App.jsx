@@ -41,22 +41,25 @@ import VacancyList from './pages/recruitment/VacancyList';
 import VacancyForm from './pages/recruitment/VacancyForm';
 import ApplicationList from './pages/recruitment/ApplicationList';
 import ApplicationCreate from './pages/recruitment/ApplicationCreate';
-import ApplicationDetail from './pages/recruitment/ApplicationDetail';
 import OnboardingList from './pages/recruitment/OnboardingList';
-import OnboardingDetail from './pages/recruitment/OnboardingDetail';
-import OnboardingEdit from './pages/recruitment/OnboardingEdit';
 
+// Incident Report Pages
 import IncidentList from './pages/incidents/IncidentList';
 import IncidentCreate from './pages/incidents/IncidentCreate';
 import IncidentDetail from './pages/incidents/IncidentDetail';
 import IncidentEdit from './pages/incidents/IncidentEdit';
 
-// ✅ Lost Time Injury Pages (NEW)
+// Lost Time Injury Pages
 import LostTimeInjuryList from './pages/safety/LostTimeInjuryList';
 import LostTimeInjuryCreate from './pages/safety/LostTimeInjuryCreate';
 import LostTimeInjuryDetail from './pages/safety/LostTimeInjuryDetail';
 import LostTimeInjuryEdit from './pages/safety/LostTimeInjuryEdit';
 
+// ✅ Payroll Pages
+import PayrollList from './pages/payroll/PayrollList';
+import PayrollCreate from './pages/payroll/PayrollCreate';
+import PayrollDetail from './pages/payroll/PayrollDetail';
+import PayrollEdit from './pages/payroll/PayrollEdit';
 
 import MainLayout from './layouts/MainLayout';
 
@@ -329,6 +332,14 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/attendance-report" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <AttendanceReport />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      
       <Route path="/schedules" element={
         <ProtectedRoute>
           <MainLayout>
@@ -345,15 +356,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
-      <Route path="/attendance-report" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <AttendanceReport />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-      
-      {/* ============ LEAVE ============ */}
       <Route path="/leave" element={
         <ProtectedRoute>
           <MainLayout>
@@ -380,8 +382,6 @@ function AppRoutes() {
       } />
 
       {/* ============ RECRUITMENT / CANDIDATE ============ */}
-      
-      {/* Candidates */}
       <Route path="/candidates" element={
         <ProtectedRoute>
           <MainLayout>
@@ -414,7 +414,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
-      {/* Candidate CV */}
       <Route path="/candidates/cv" element={
         <ProtectedRoute>
           <MainLayout>
@@ -423,7 +422,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
-      {/* Vacancies */}
       <Route path="/vacancies" element={
         <ProtectedRoute>
           <MainLayout>
@@ -448,7 +446,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
-      {/* Applications */}
       <Route path="/applications" element={
         <ProtectedRoute>
           <MainLayout>
@@ -464,15 +461,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      <Route path="/applications/:id" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <ApplicationDetail />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
       
-      {/* Onboarding */}
       <Route path="/onboarding" element={
         <ProtectedRoute>
           <MainLayout>
@@ -481,22 +470,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      <Route path="/onboarding/:id" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <OnboardingDetail />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-
-      <Route path="/onboarding/:id/edit" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <OnboardingEdit />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-
+      {/* ============ INCIDENT REPORTS ============ */}
       <Route path="/incident-reports" element={
         <ProtectedRoute>
           <MainLayout>
@@ -529,15 +503,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      <Route path="/incident-reports/:id/edit" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <IncidentEdit />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* ============ LOST TIME INJURY (NEW) ============ */}
+      {/* ============ LOST TIME INJURY ============ */}
       <Route path="/lost-time-injuries" element={
         <ProtectedRoute>
           <MainLayout>
@@ -566,6 +532,39 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <LostTimeInjuryEdit />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* ============ PAYROLL ============ */}
+      <Route path="/payroll" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <PayrollList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/payroll/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <PayrollCreate />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/payroll/:id" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <PayrollDetail />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/payroll/:id/edit" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <PayrollEdit />
           </MainLayout>
         </ProtectedRoute>
       } />

@@ -14,6 +14,12 @@ return new class extends Migration
             $table->date('start_date');
             $table->date('end_date');
             $table->date('payment_date')->nullable();
+
+            // ✅ Tambahan untuk multiple payroll per bulan
+            $table->enum('payroll_type', ['monthly', 'semi_monthly', 'weekly'])->default('semi_monthly');
+            $table->enum('payroll_cycle', ['first', 'second', 'third', 'fourth'])->default('first');
+            $table->integer('cycle_number')->nullable(); // 1 = first half, 2 = second half
+
             $table->enum('status', ['draft', 'processing', 'approved', 'paid', 'cancelled'])->default('draft');
             $table->decimal('total_gross', 15, 2)->default(0);
             $table->decimal('total_deductions', 15, 2)->default(0);
@@ -30,6 +36,9 @@ return new class extends Migration
             $table->index('status');
             $table->index('start_date');
             $table->index('end_date');
+            $table->index('payroll_type');
+            $table->index('payroll_cycle');
+            $table->unique(['start_date', 'end_date', 'payroll_type']); // Prevent duplicate
         });
     }
 

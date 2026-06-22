@@ -15,6 +15,9 @@ class PayrollPeriod extends Model
         'start_date',
         'end_date',
         'payment_date',
+        'payroll_type',
+        'payroll_cycle',
+        'cycle_number',
         'status',
         'total_gross',
         'total_deductions',
@@ -38,12 +41,58 @@ class PayrollPeriod extends Model
         'total_tax' => 'decimal:2',
     ];
 
-    // Status Constants
     const STATUS_DRAFT = 'draft';
     const STATUS_PROCESSING = 'processing';
     const STATUS_APPROVED = 'approved';
     const STATUS_PAID = 'paid';
     const STATUS_CANCELLED = 'cancelled';
+
+    const TYPE_MONTHLY = 'monthly';
+    const TYPE_SEMI_MONTHLY = 'semi_monthly';
+    const TYPE_WEEKLY = 'weekly';
+
+    const CYCLE_FIRST = 'first';
+    const CYCLE_SECOND = 'second';
+    const CYCLE_THIRD = 'third';
+    const CYCLE_FOURTH = 'fourth';
+
+    // ✅ Get type label
+    public function getTypeLabelAttribute()
+    {
+        $labels = [
+            self::TYPE_MONTHLY => 'Monthly',
+            self::TYPE_SEMI_MONTHLY => 'Semi-Monthly',
+            self::TYPE_WEEKLY => 'Weekly',
+        ];
+        return $labels[$this->payroll_type] ?? $this->payroll_type;
+    }
+
+    // ✅ Get cycle label
+    public function getCycleLabelAttribute()
+    {
+        $labels = [
+            self::CYCLE_FIRST => 'First Cycle',
+            self::CYCLE_SECOND => 'Second Cycle',
+            self::CYCLE_THIRD => 'Third Cycle',
+            self::CYCLE_FOURTH => 'Fourth Cycle',
+        ];
+        return $labels[$this->payroll_cycle] ?? $this->payroll_cycle;
+    }
+
+    // ✅ Get period label for display
+    public function getPeriodLabelAttribute()
+    {
+        $month = $this->start_date->format('F Y');
+        if ($this->payroll_type === self::TYPE_SEMI_MONTHLY) {
+            $day = $this->start_date->format('d');
+            if ($day <= 15) {
+                return "1st Half - {$month}";
+            } else {
+                return "2nd Half - {$month}";
+            }
+        }
+        return $month;
+    }
 
     public function items()
     {
@@ -82,15 +131,5 @@ class PayrollPeriod extends Model
             self::STATUS_CANCELLED => '#ef4444',
         ];
         return $colors[$this->status] ?? '#6b7280';
-    }
-
-    public function getTotalEarningsAttribute()
-    {
-        return $this->items()->sum('total_earnings');
-    }
-
-    public function getTotalNetPayAttribute()
-    {
-        return $this->items()->sum('net_pay');
     }
 }

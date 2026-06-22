@@ -1,4 +1,4 @@
-// src/pages/payroll/PayrollCreate.jsx
+// src/pages/payroll/PayrollCreate.jsx - Add payroll type selection
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -42,12 +42,18 @@ const PayrollCreate = () => {
     start_date: '',
     end_date: '',
     payment_date: '',
+    payroll_type: 'semi_monthly',
+    payroll_cycle: 'first',
     notes: '',
   });
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+    // Auto-generate name when dates change
+    if (formData.start_date && formData.end_date) {
+      generatePayrollName();
+    }
+  }, [formData.start_date, formData.end_date, formData.payroll_type, formData.payroll_cycle]);
 
   const fetchEmployees = async () => {
     try {
@@ -64,6 +70,22 @@ const PayrollCreate = () => {
     } catch (err) {
       console.error('Error fetching employees:', err);
     }
+  };
+
+  const generatePayrollName = () => {
+    const start = new Date(formData.start_date);
+    const end = new Date(formData.end_date);
+    const month = start.toLocaleString('default', { month: 'long' });
+    const year = start.getFullYear();
+    
+    let cycleLabel = '';
+    if (formData.payroll_type === 'semi_monthly') {
+      const day = start.getDate();
+      cycleLabel = day <= 15 ? ' (1st Half)' : ' (2nd Half)';
+    }
+    
+    const name = `${month} ${year} Payroll${cycleLabel}`;
+    setFormData(prev => ({ ...prev, name }));
   };
 
   const handleChange = (e) => {
@@ -160,7 +182,57 @@ const PayrollCreate = () => {
                 onChange={handleChange}
                 required
                 disabled={saving}
-                placeholder="e.g., January 2024 Payroll"
+                helperText="Auto-generated based on dates and type"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>Payroll Type *</InputLabel>
+                <Select
+                  name="payroll_type"
+                  value={formData.payroll_type}
+                  onChange={handleChange}
+                  label="Payroll Type *"
+                  required
+                  disabled={saving}
+                >
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                  <MenuItem value="semi_monthly">Semi-Monthly (2x/month)</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>Payroll Cycle *</InputLabel>
+                <Select
+                  name="payroll_cycle"
+                  value={formData.payroll_cycle}
+                  onChange={handleChange}
+                  label="Payroll Cycle *"
+                  required
+                  disabled={saving}
+                >
+                  <MenuItem value="first">First Cycle</MenuItem>
+                  <MenuItem value="second">Second Cycle</MenuItem>
+                  <MenuItem value="third">Third Cycle</MenuItem>
+                  <MenuItem value="fourth">Fourth Cycle</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                type="date"
+                label="Payment Date"
+                name="payment_date"
+                value={formData.payment_date}
+                onChange={handleChange}
+                InputLabelProps={{ shrink: true }}
+                disabled={saving}
               />
             </Grid>
 
@@ -192,20 +264,7 @@ const PayrollCreate = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                type="date"
-                label="Payment Date"
-                name="payment_date"
-                value={formData.payment_date}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                disabled={saving}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="Notes"
@@ -218,6 +277,19 @@ const PayrollCreate = () => {
                 placeholder="Additional notes..."
               />
             </Grid>
+
+            {/* Info Alert for Semi-Monthly */}
+            {formData.payroll_type === 'semi_monthly' && (
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  <Typography variant="body2">
+                    <strong>Semi-Monthly Payroll:</strong> This will process 
+                    {formData.start_date && new Date(formData.start_date).getDate() <= 15 ? ' First Half' : ' Second Half'} of the month.
+                    Prorated calculations will be applied for employees who joined or left mid-period.
+                  </Typography>
+                </Alert>
+              </Grid>
+            )}
 
             {/* Employees Selection */}
             <Grid item xs={12}>

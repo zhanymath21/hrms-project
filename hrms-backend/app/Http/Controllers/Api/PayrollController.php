@@ -7,6 +7,7 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollItem;
 use App\Models\TaxSetting;
 use App\Models\EmployeeSalarySetting;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +56,9 @@ class PayrollController extends Controller
                 'start_date' => 'required|date',
                 'end_date' => 'required|date|after:start_date',
                 'payment_date' => 'nullable|date',
+                'payroll_type' => 'required|in:monthly,semi_monthly,weekly',
+                'payroll_cycle' => 'required|in:first,second,third,fourth',
+                'cycle_number' => 'nullable|integer|min:1|max:4',
                 'employee_ids' => 'required|array',
                 'employee_ids.*' => 'exists:employees,id',
                 'notes' => 'nullable|string',
@@ -67,6 +71,19 @@ class PayrollController extends Controller
                 ], 422);
             }
 
+            // ✅ Check for duplicate payroll periods
+            $existing = PayrollPeriod::where('start_date', $request->start_date)
+                ->where('end_date', $request->end_date)
+                ->where('payroll_type', $request->payroll_type)
+                ->first();
+
+            if ($existing) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Payroll period already exists for this date range',
+                ], 422);
+            }
+
             DB::beginTransaction();
 
             $payroll = PayrollPeriod::create([
@@ -74,12 +91,20 @@ class PayrollController extends Controller
                 'start_date' => $request->start_date,
                 'end_date' => $request->end_date,
                 'payment_date' => $request->payment_date,
+                'payroll_type' => $request->payroll_type,
+                'payroll_cycle' => $request->payroll_cycle,
+                'cycle_number' => $request->cycle_number ?? $this->getCycleNumber($request->start_date, $request->payroll_type),
                 'status' => 'draft',
                 'notes' => $request->notes,
                 'created_by' => auth()->id(),
             ]);
 
-            // Create payroll items for each employee
+            // Calculate working days for this period
+            $totalDays = $this->calculateWorkingDays($request->start_date, $request->end_date);
+
+            // Get total days in month for prorata calculation
+            $totalDaysInMonth = Carbon::parse($request->start_date)->daysInMonth;
+
             $taxSettings = TaxSetting::getActive();
             $totalEmployees = 0;
             $totalGross = 0;
@@ -94,14 +119,38 @@ class PayrollController extends Controller
                     continue;
                 }
 
-                // Calculate earnings
-                $basicSalary = $salarySetting->basic_salary;
-                $allowance = $salarySetting->housing_allowance + $salarySetting->transport_allowance +
-                    $salarySetting->meal_allowance + $salarySetting->phone_allowance +
-                    $salarySetting->other_allowance;
+                // ✅ Calculate prorated salary if needed
+                $isProrated = false;
+                $proratedDays = $totalDays;
+                $actualSalary = $salarySetting->basic_salary;
+
+                // ✅ For semi-monthly, check if it's full period
+                if ($request->payroll_type === 'semi_monthly') {
+                    // If employee joined mid-period or left before end
+                    $joinDate = $salarySetting->employee->join_date ?? null;
+                    $leaveDate = $salarySetting->employee->leave_date ?? null;
+
+                    if ($joinDate && $joinDate > $request->start_date) {
+                        $proratedDays = $this->calculateWorkingDays($joinDate, $request->end_date);
+                        $isProrated = true;
+                    } elseif ($leaveDate && $leaveDate < $request->end_date) {
+                        $proratedDays = $this->calculateWorkingDays($request->start_date, $leaveDate);
+                        $isProrated = true;
+                    }
+                }
+
+                // Calculate salary based on period type
+                if ($isProrated) {
+                    $monthlySalary = $salarySetting->basic_salary;
+                    $dailyRate = $monthlySalary / $totalDaysInMonth;
+                    $actualSalary = $dailyRate * $proratedDays;
+                }
+
+                $basicSalary = $actualSalary;
+                $allowance = $this->calculateProratedAllowance($salarySetting, $totalDays, $totalDaysInMonth);
                 $totalEarnings = $basicSalary + $allowance;
 
-                // Calculate tax (Cambodia tax system)
+                // Calculate tax
                 $tax = 0;
                 if ($taxSettings && !$salarySetting->is_tax_exempt) {
                     $tax = $taxSettings->calculateTax($totalEarnings, $salarySetting->dependents);
@@ -113,13 +162,10 @@ class PayrollController extends Controller
                     $nssf = $taxSettings->calculateNSSF($basicSalary)['employee'];
                 }
 
-                // Calculate total deductions
                 $totalDeductionsEmployee = $tax + $nssf;
-
-                // Calculate net pay
                 $netPay = $totalEarnings - $totalDeductionsEmployee;
 
-                $payrollItem = PayrollItem::create([
+                PayrollItem::create([
                     'payroll_period_id' => $payroll->id,
                     'employee_id' => $employeeId,
                     'basic_salary' => $basicSalary,
@@ -137,14 +183,17 @@ class PayrollController extends Controller
                     'other_deductions' => 0,
                     'total_deductions' => $totalDeductionsEmployee,
                     'net_pay' => $netPay,
-                    'working_days' => 22,
-                    'present_days' => 22,
+                    'working_days' => $totalDays,
+                    'present_days' => $totalDays,
                     'absent_days' => 0,
                     'leave_days' => 0,
                     'holiday_days' => 0,
                     'overtime_hours' => 0,
                     'currency' => 'KHR',
                     'exchange_rate' => 1,
+                    'is_prorated' => $isProrated,
+                    'prorated_days' => $proratedDays,
+                    'actual_salary' => $actualSalary,
                 ]);
 
                 $totalEmployees++;
@@ -154,7 +203,6 @@ class PayrollController extends Controller
                 $totalTax += $tax;
             }
 
-            // Update payroll totals
             $payroll->update([
                 'total_employees' => $totalEmployees,
                 'total_gross' => $totalGross,
@@ -179,6 +227,54 @@ class PayrollController extends Controller
             ], 500);
         }
     }
+
+    // ✅ Helper: Calculate cycle number
+    private function getCycleNumber($startDate, $type)
+    {
+        $date = Carbon::parse($startDate);
+        $day = $date->day;
+
+        if ($type === 'semi_monthly') {
+            return $day <= 15 ? 1 : 2;
+        } elseif ($type === 'weekly') {
+            return ceil($date->weekOfMonth);
+        }
+        return 1; // monthly
+    }
+
+    // ✅ Helper: Calculate working days
+    private function calculateWorkingDays($startDate, $endDate)
+    {
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+
+        // Count weekdays (Mon-Fri)
+        $workingDays = 0;
+        for ($date = $start->copy(); $date <= $end; $date->addDay()) {
+            if ($date->isWeekday()) {
+                $workingDays++;
+            }
+        }
+        return $workingDays;
+    }
+
+    // ✅ Helper: Calculate prorated allowance
+    private function calculateProratedAllowance($salarySetting, $workingDays, $totalDaysInMonth)
+    {
+        $totalAllowance = $salarySetting->housing_allowance +
+            $salarySetting->transport_allowance +
+            $salarySetting->meal_allowance +
+            $salarySetting->phone_allowance +
+            $salarySetting->other_allowance;
+
+        if ($workingDays < $totalDaysInMonth) {
+            $dailyAllowance = $totalAllowance / $totalDaysInMonth;
+            return $dailyAllowance * $workingDays;
+        }
+
+        return $totalAllowance;
+    }
+
 
     public function show($id)
     {
