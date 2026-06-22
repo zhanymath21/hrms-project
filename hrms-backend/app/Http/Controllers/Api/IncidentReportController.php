@@ -326,7 +326,7 @@ class IncidentReportController extends Controller
         try {
             $incident = IncidentReport::findOrFail($id);
 
-            // ✅ Use 'api' guard (since it's configured for employees)
+            // ✅ Use 'api' guard
             $user = Auth::guard('api')->user();
 
             if (!$user) {
@@ -337,28 +337,13 @@ class IncidentReportController extends Controller
                 ], 401);
             }
 
-            // Log user info for debugging
-            Log::info('User authenticated:', [
-                'user_id' => $user->id,
-                'user_type' => get_class($user),
-                'user_email' => $user->email,
-                'incident_created_by' => $incident->created_by,
-            ]);
-
-            // Check if user is authorized
+            // ✅ ONLY CHECK: User must be the creator (created_by)
             $isCreator = $incident->created_by === $user->id;
 
-            // Check if user is admin/HR/Manager based on position
-            $employeeTitle = $user->position->title ?? '';
-            $adminRoles = ['HR Manager', 'HR Officer', 'HR Assistant', 'Admin', 'System Admin', 'Manager'];
-            $isAdmin = in_array($employeeTitle, $adminRoles) ||
-                str_contains($employeeTitle, 'Manager') ||
-                str_contains($employeeTitle, 'HR');
-
-            if (!$isCreator && !$isAdmin) {
+            if (!$isCreator) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'You are not authorized to set approval flow. Only the creator of this incident or admin can set approval flow.',
+                    'message' => 'You are not authorized to set approval flow. Only the creator of this incident can set approval flow.',
                 ], 403);
             }
 
@@ -453,7 +438,6 @@ class IncidentReportController extends Controller
         try {
             $incident = IncidentReport::findOrFail($id);
 
-            // ✅ Use 'api' guard
             $user = Auth::guard('api')->user();
 
             if (!$user) {
@@ -470,7 +454,26 @@ class IncidentReportController extends Controller
                 ], 400);
             }
 
+            // ✅ Check if user is the manager for this level
+            $managerField = 'manager' . $managerLevel . '_id';
+            $isManager = $incident->$managerField === $user->id;
+
+            if (!$isManager) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You are not authorized to approve this level. Only the assigned manager can approve.',
+                ], 403);
+            }
+
+            // Check if already approved/rejected
             $statusField = 'manager' . $managerLevel . '_status';
+            if (in_array($incident->$statusField, ['approved', 'rejected'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You have already ' . $incident->$statusField . ' this request.',
+                ], 400);
+            }
+
             $notesField = 'manager' . $managerLevel . '_notes';
             $dateField = 'manager' . $managerLevel . '_approved_at';
 
