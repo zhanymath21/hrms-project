@@ -325,10 +325,24 @@ class IncidentReportController extends Controller
         try {
             $incident = IncidentReport::findOrFail($id);
 
+            // Get authenticated employee
+            $user = auth('employee')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
+
             // Check if user is authorized (only creator or admin can set approval flow)
-            $user = auth()->user();
             $isCreator = $incident->created_by === $user->id;
-            $isAdmin = $user->hasRole('admin') || $user->hasRole('hr'); // Adjust roles as needed
+
+            // Check if user is admin or HR - using role field from employees table
+            $isAdmin = in_array($user->role, ['admin', 'hr', 'manager']);
+
+            // If you have a roles relationship, use this instead:
+            // $isAdmin = $user->hasRole('admin') || $user->hasRole('hr');
 
             if (!$isCreator && !$isAdmin) {
                 return response()->json([
@@ -405,7 +419,7 @@ class IncidentReportController extends Controller
                 'new_status' => $incident->status,
                 'old_approval_status' => null,
                 'new_approval_status' => 'pending',
-                'notes' => 'Approval flow set by ' . $user->first_name . ' ' . $user->last_name . ' with ' . count($flow) . ' managers',
+                'notes' => 'Approval flow set by ' . ($user->first_name ?? '') . ' ' . ($user->last_name ?? '') . ' with ' . count($flow) . ' managers',
                 'updated_by' => $user->id,
             ]);
 
@@ -416,6 +430,8 @@ class IncidentReportController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Error setting approval flow: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to set approval flow: ' . $e->getMessage(),
@@ -428,6 +444,16 @@ class IncidentReportController extends Controller
     {
         try {
             $incident = IncidentReport::findOrFail($id);
+
+            // Get authenticated employee
+            $user = auth('employee')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
 
             if ($managerLevel < 1 || $managerLevel > 4) {
                 return response()->json([
@@ -452,24 +478,16 @@ class IncidentReportController extends Controller
                 ], 422);
             }
 
-            // Use DB::table to avoid any model casting issues
-            $now = date('Y-m-d H:i:s');
+            // Store old values for history
+            $oldStatus = $incident->status;
+            $oldApprovalStatus = $incident->approval_status;
 
-            $updateData = [
-                $statusField => $request->status,
-                $notesField => $request->notes ?? null,
-                $dateField => $now,
-            ];
+            // Update the manager's approval
+            $incident->$statusField = $request->status;
+            $incident->$notesField = $request->notes ?? null;
+            $incident->$dateField = now()->toDateTimeString();
 
-            // Update directly using the query builder
-            \DB::table('incident_reports')
-                ->where('id', $incident->id)
-                ->update($updateData);
-
-            // Refresh the model
-            $incident->refresh();
-
-            // Update approval status using query builder
+            // Update approval status
             $flow = $incident->approval_flow;
             if ($flow) {
                 $flowArray = is_string($flow) ? json_decode($flow, true) : $flow;
@@ -478,67 +496,46 @@ class IncidentReportController extends Controller
                     $approved = 0;
                     $rejected = 0;
 
-                    // Get current statuses from database directly
-                    $current = \DB::table('incident_reports')
-                        ->where('id', $incident->id)
-                        ->first();
-
                     for ($i = 1; $i <= $total && $i <= 4; $i++) {
                         $field = 'manager' . $i . '_status';
-                        $status = $current->$field ?? 'pending';
-                        if ($status === 'approved') {
+                        if ($incident->$field === 'approved') {
                             $approved++;
-                        } elseif ($status === 'rejected') {
+                        } elseif ($incident->$field === 'rejected') {
                             $rejected++;
                         }
                     }
 
-                    $newApprovalStatus = 'in_progress';
-                    $newStatus = $incident->status;
-
                     if ($rejected > 0) {
-                        $newApprovalStatus = 'rejected';
-                        $newStatus = 'rejected';
+                        $incident->approval_status = 'rejected';
+                        $incident->status = 'rejected';
                     } elseif ($approved === $total) {
-                        $newApprovalStatus = 'approved';
-                        $newStatus = 'in_review';
+                        $incident->approval_status = 'approved';
+                        $incident->status = 'in_review';
                     } elseif ($approved > 0 && $approved < $total) {
-                        $newApprovalStatus = 'partially_approved';
+                        $incident->approval_status = 'partially_approved';
+                    } else {
+                        $incident->approval_status = 'in_progress';
                     }
-
-                    // Update approval status
-                    \DB::table('incident_reports')
-                        ->where('id', $incident->id)
-                        ->update([
-                            'approval_status' => $newApprovalStatus,
-                            'status' => $newStatus,
-                        ]);
-
-                    $incident->refresh();
                 }
             }
 
+            $incident->save();
+
             // Create history record
-            \DB::table('incident_status_histories')->insert([
+            IncidentStatusHistory::create([
                 'incident_report_id' => $incident->id,
-                'old_status' => $incident->status,
+                'old_status' => $oldStatus,
                 'new_status' => $incident->status,
-                'old_approval_status' => $incident->approval_status,
+                'old_approval_status' => $oldApprovalStatus,
                 'new_approval_status' => $incident->approval_status,
                 'notes' => 'Manager ' . $managerLevel . ' ' . $request->status . ': ' . ($request->notes ?? 'No notes'),
-                'updated_by' => auth()->id() ?? null,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'updated_by' => $user->id,
             ]);
-
-            // Refresh again to get latest data
-            $incident = IncidentReport::with(['manager1', 'manager2', 'manager3', 'manager4'])
-                ->find($id);
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Manager ' . $managerLevel . ' ' . $request->status . ' successfully',
-                'data' => $incident,
+                'data' => $incident->load(['manager1', 'manager2', 'manager3', 'manager4']),
             ]);
         } catch (\Exception $e) {
             Log::error('Error in manager approval: ' . $e->getMessage());
