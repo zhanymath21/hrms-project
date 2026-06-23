@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             PayrollItemSeeder::class,
             DepartmentSeeder::class,
             PositionSeeder::class,
+            VacancySeeder::class,
             WorkScheduleSeeder::class,
             AdminEmployeeSeeder::class,
             LeaveTypeSeeder::class,
