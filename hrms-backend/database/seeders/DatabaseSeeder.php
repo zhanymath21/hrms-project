@@ -30,6 +30,8 @@ class DatabaseSeeder extends Seeder
             LeaveTypeSeeder::class,
             LeaveBalanceSeeder::class,
             IncidentReportSeeder::class,
+            OnboardingSeeder::class,          // Make sure this exists
+            OnboardingStatusHistorySeeder::class,
         ]);
     }
 }
