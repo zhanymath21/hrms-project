@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             VacancySeeder::class,
             WorkScheduleSeeder::class,
             AdminEmployeeSeeder::class,
+            PpeSeeder::class,
             LeaveTypeSeeder::class,
             LeaveBalanceSeeder::class,
         ]);
