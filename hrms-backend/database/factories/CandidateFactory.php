@@ -11,7 +11,7 @@ class CandidateFactory extends Factory
 
     public function definition()
     {
-        $statuses = ['new', 'contacted', 'screening', 'interview_scheduled', 'interview_completed', 'technical_test', 'offered', 'accepted', 'rejected'];
+        $statuses = ['new', 'contacted', 'screening', 'interview_scheduled', 'interview_completed', 'technical_test', 'offer', 'accepted', 'rejected'];
 
         return [
             'first_name' => $this->faker->firstName,
