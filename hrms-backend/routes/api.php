@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\LostTimeInjuryController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PayrollController;
+use App\Http\Controllers\Api\PayslipController;
 use App\Http\Controllers\Api\PPECategoryController;
 use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\ReportController;
@@ -297,6 +298,13 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/payroll/{id}', [PayrollController::class, 'update']);
     Route::put('/payroll/{id}/status', [PayrollController::class, 'updateStatus']);
     Route::delete('/payroll/{id}', [PayrollController::class, 'destroy']);
+
+    Route::get('/payslips', [PayslipController::class, 'index']);
+    Route::post('/payslips/generate/{payrollPeriodId}', [PayslipController::class, 'generate']);
+    Route::get('/payslips/{id}', [PayslipController::class, 'show']);
+    Route::put('/payslips/{id}/status', [PayslipController::class, 'updateStatus']);
+    Route::delete('/payslips/{id}', [PayslipController::class, 'destroy']);
+    Route::get('/payslips/employee/{employeeId}/summary', [PayslipController::class, 'employeeSummary']);
 
     Route::get('/employee-salary-settings', [EmployeeSalarySettingController::class, 'index']);
     Route::get('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'show']);

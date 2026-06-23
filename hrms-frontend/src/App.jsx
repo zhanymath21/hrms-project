@@ -63,6 +63,8 @@ import PayrollDetail from './pages/payroll/PayrollDetail';
 import PayrollEdit from './pages/payroll/PayrollEdit';
 import EmployeeSalarySettings from './pages/payroll/EmployeeSalarySettings';
 import TaxSettings from './pages/payroll/TaxSettings';
+import PayslipList from './pages/payroll/PayslipList';
+
 
 import MainLayout from './layouts/MainLayout';
 
@@ -583,6 +585,21 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <EmployeeSalarySettings />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/payslips/:payrollId" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <PayslipList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/payslips/employee/:employeeId" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <PayslipList />
           </MainLayout>
         </ProtectedRoute>
       } />

@@ -189,6 +189,14 @@ const PayrollDetail = () => {
           {payroll.status === 'draft' && (
             <>
               <Button
+                variant="contained"
+                color="info"
+                startIcon={<ReceiptIcon />}
+                onClick={() => navigate(`/payslips/${payroll.id}`)}
+              >
+                Payslips
+              </Button>
+              <Button
                 variant="outlined"
                 startIcon={<EditIcon />}
                 onClick={() => navigate(`/payroll/${id}/edit`)}
