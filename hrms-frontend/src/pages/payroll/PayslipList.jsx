@@ -20,6 +20,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+   Grid,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -28,7 +29,8 @@ import {
   Print as PrintIcon,
   Email as EmailIcon,
   Delete as DeleteIcon,
-  Receipt as ReceiptIcon,
+    Receipt as ReceiptIcon,
+   Close as CloseIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
