@@ -11,8 +11,7 @@ class CandidateFactory extends Factory
 
     public function definition()
     {
-        // MUST match the ENUM in migration:
-        // ['new', 'screening', 'interview', 'technical_test', 'hr_interview', 'offered', 'hired', 'rejected', 'withdrawn']
+        // Statuses that match your migration
         $statuses = [
             'new',
             'screening',
