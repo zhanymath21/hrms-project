@@ -36,7 +36,7 @@ class CandidateSeeder extends Seeder
                 'candidate_id' => $candidate->id,
                 'old_status' => $i > 0 ? $statusFlow[$i - 1] : null,
                 'new_status' => $statusFlow[$i],
-                'changed_by' => null,
+                'updated_by' => null,
                 'reason' => "Status changed to " . $statusFlow[$i],
                 'created_at' => $candidate->created_at->addDays($i * 2),
             ]);
