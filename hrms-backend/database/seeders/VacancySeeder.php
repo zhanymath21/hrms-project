@@ -27,7 +27,7 @@ class VacancySeeder extends Seeder
         Vacancy::factory(30)
             ->create()
             ->each(function ($vacancy) {
-                // Update applicants_count randomly
+                // Update applicants_count randomly using the helper method
                 $vacancy->update([
                     'applicants_count' => $this->getRandomApplicants($vacancy->status)
                 ]);
@@ -170,14 +170,18 @@ class VacancySeeder extends Seeder
 
     /**
      * Get random applicants count based on status
+     * Use Laravel's built-in faker
      */
     private function getRandomApplicants($status)
     {
+        // Use the faker instance from the seeder
+        $faker = \Faker\Factory::create();
+
         return match ($status) {
-            'open' => $this->faker->numberBetween(5, 50),
-            'closed' => $this->faker->numberBetween(20, 100),
-            'on_hold' => $this->faker->numberBetween(0, 15),
-            default => $this->faker->numberBetween(0, 30),
+            'open' => $faker->numberBetween(5, 50),
+            'closed' => $faker->numberBetween(20, 100),
+            'on_hold' => $faker->numberBetween(0, 15),
+            default => $faker->numberBetween(0, 30),
         };
     }
 
