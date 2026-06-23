@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Log;
 
 class ExchangeRateController extends Controller
 {
+    /**
+     * Get all exchange rates
+     */
     public function index(Request $request)
     {
         try {
@@ -35,16 +38,30 @@ class ExchangeRateController extends Controller
             Log::error('Error fetching exchange rates: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to fetch exchange rates',
+                'message' => 'Failed to fetch exchange rates: ' . $e->getMessage(),
             ], 500);
         }
     }
 
+    /**
+     * Get active exchange rates
+     */
     public function active()
     {
         try {
-            $usdToKhr = ExchangeRate::getActive('USD', 'KHR');
-            $khrToUsd = ExchangeRate::getActive('KHR', 'USD');
+            $usdToKhr = ExchangeRate::where('from_currency', 'USD')
+                ->where('to_currency', 'KHR')
+                ->where('is_active', true)
+                ->whereDate('effective_date', '<=', now())
+                ->orderBy('effective_date', 'desc')
+                ->first();
+
+            $khrToUsd = ExchangeRate::where('from_currency', 'KHR')
+                ->where('to_currency', 'USD')
+                ->where('is_active', true)
+                ->whereDate('effective_date', '<=', now())
+                ->orderBy('effective_date', 'desc')
+                ->first();
 
             return response()->json([
                 'status' => 'success',
@@ -57,11 +74,14 @@ class ExchangeRateController extends Controller
             Log::error('Error fetching active exchange rates: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to fetch active exchange rates',
+                'message' => 'Failed to fetch active exchange rates: ' . $e->getMessage(),
             ], 500);
         }
     }
 
+    /**
+     * Convert currency
+     */
     public function convert(Request $request)
     {
         try {
@@ -96,11 +116,35 @@ class ExchangeRateController extends Controller
             Log::error('Error converting currency: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to convert currency',
+                'message' => 'Failed to convert currency: ' . $e->getMessage(),
             ], 500);
         }
     }
 
+    /**
+     * Get single exchange rate
+     */
+    public function show($id)
+    {
+        try {
+            $rate = ExchangeRate::findOrFail($id);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $rate,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching exchange rate: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Exchange rate not found',
+            ], 404);
+        }
+    }
+
+    /**
+     * Create exchange rate
+     */
     public function store(Request $request)
     {
         try {
@@ -152,6 +196,9 @@ class ExchangeRateController extends Controller
         }
     }
 
+    /**
+     * Update exchange rate
+     */
     public function update(Request $request, $id)
     {
         try {
@@ -202,6 +249,9 @@ class ExchangeRateController extends Controller
         }
     }
 
+    /**
+     * Delete exchange rate
+     */
     public function destroy($id)
     {
         try {

@@ -1,3 +1,4 @@
+// src/pages/payroll/ExchangeRateSettings.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -24,6 +25,12 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Card,
+  CardContent,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -33,6 +40,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Close as CloseIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/axios';
 import { formatDate } from '../../utils/dateFormat';
 

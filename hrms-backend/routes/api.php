@@ -322,10 +322,10 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/tax-settings/{id}', [TaxSettingController::class, 'destroy']);
     Route::post('/tax-settings/{id}/activate', [TaxSettingController::class, 'activate']);
 
-    Route::get('/exange-rates', [ExchangeRateController::class, 'index']);
-    Route::get('/exange-rates/active', [ExchangeRateController::class, 'active']);
-    Route::post('/exange-rates/convert', [ExchangeRateController::class, 'convert']);
-    Route::post('/exange-rates', [ExchangeRateController::class, 'store']);
-    Route::put('/exange-rates/{id}', [ExchangeRateController::class, 'update']);
-    Route::delete('/exange-rates/{id}', [ExchangeRateController::class, 'destroy']);
+    Route::get('/exchange-rates', [ExchangeRateController::class, 'index']);
+    Route::get('/exchange-rates/active', [ExchangeRateController::class, 'active']);
+    Route::post('/exchange-rates/convert', [ExchangeRateController::class, 'convert']);
+    Route::post('/exchange-rates', [ExchangeRateController::class, 'store']);
+    Route::put('/exchange-ratess/{id}', [ExchangeRateController::class, 'update']);
+    Route::delete('/exchange-ratess/{id}', [ExchangeRateController::class, 'destroy']);
 });
