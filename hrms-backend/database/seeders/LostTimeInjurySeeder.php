@@ -46,9 +46,15 @@ class LostTimeInjurySeeder extends Seeder
     {
         $faker = Faker::create();
 
+        // Get employee IDs directly, not the entire objects
         $employee = Employee::inRandomOrder()->first();
         $reportedBy = Employee::inRandomOrder()->first();
-        $createdBy = Employee::inRandomOrder()->first() ?? 1;
+        $createdBy = Employee::inRandomOrder()->first();
+
+        // Use the IDs, or null if no employee found
+        $employeeId = $employee?->id;
+        $reportedById = $reportedBy?->id;
+        $createdById = $createdBy?->id ?? 1; // Fallback to 1 if no employee found
 
         $bodyParts = [
             'Head',
@@ -110,11 +116,17 @@ class LostTimeInjurySeeder extends Seeder
 
         $approvalStatus = $this->getApprovalStatusByInjuryStatus($status);
 
+        // Get manager IDs
+        $manager1Id = $this->getRandomManagerId();
+        $manager2Id = $this->getRandomManagerId();
+        $manager3Id = $this->getRandomManagerId();
+        $manager4Id = $this->getRandomManagerId();
+
         $injury = LostTimeInjury::create([
-            // Foreign Keys
-            'employee_id' => $employee?->id,
-            'reported_by' => $reportedBy?->id,
-            'created_by' => $createdBy,
+            // Foreign Keys - Use ONLY the IDs
+            'employee_id' => $employeeId,
+            'reported_by' => $reportedById,
+            'created_by' => $createdById,
 
             // Basic Information
             'title' => $this->generateInjuryTitle(),
@@ -166,23 +178,23 @@ class LostTimeInjurySeeder extends Seeder
             // Approval Flow
             'approval_flow' => $this->generateApprovalFlow(),
 
-            // Manager Approvals
-            'manager1_id' => $this->getRandomManager(),
+            // Manager Approvals - Use ONLY the IDs
+            'manager1_id' => $manager1Id,
             'manager1_status' => $faker->randomElement(['pending', 'approved', 'rejected']),
             'manager1_approved_at' => $faker->optional(0.5)->dateTimeBetween('-30 days', 'now'),
             'manager1_notes' => $faker->optional(0.3)->sentence,
 
-            'manager2_id' => $this->getRandomManager(),
+            'manager2_id' => $manager2Id,
             'manager2_status' => $faker->randomElement(['pending', 'approved', 'rejected']),
             'manager2_approved_at' => $faker->optional(0.4)->dateTimeBetween('-30 days', 'now'),
             'manager2_notes' => $faker->optional(0.3)->sentence,
 
-            'manager3_id' => $this->getRandomManager(),
+            'manager3_id' => $manager3Id,
             'manager3_status' => $faker->randomElement(['pending', 'approved', 'rejected']),
             'manager3_approved_at' => $faker->optional(0.3)->dateTimeBetween('-30 days', 'now'),
             'manager3_notes' => $faker->optional(0.3)->sentence,
 
-            'manager4_id' => $this->getRandomManager(),
+            'manager4_id' => $manager4Id,
             'manager4_status' => $faker->randomElement(['pending', 'approved', 'rejected']),
             'manager4_approved_at' => $faker->optional(0.2)->dateTimeBetween('-30 days', 'now'),
             'manager4_notes' => $faker->optional(0.3)->sentence,
@@ -284,9 +296,14 @@ class LostTimeInjurySeeder extends Seeder
         ];
 
         foreach ($specificInjuries as $data) {
+            // Get employee IDs directly
             $employee = Employee::inRandomOrder()->first();
             $reportedBy = Employee::inRandomOrder()->first();
-            $createdBy = Employee::inRandomOrder()->first() ?? 1;
+            $createdBy = Employee::inRandomOrder()->first();
+
+            $employeeId = $employee?->id;
+            $reportedById = $reportedBy?->id;
+            $createdById = $createdBy?->id ?? 1;
 
             $injuryDate = Carbon::now()->subDays(rand(1, 60));
             $resolvedDate = ($data['status'] === 'resolved' || $data['status'] === 'closed')
@@ -296,9 +313,9 @@ class LostTimeInjurySeeder extends Seeder
             LostTimeInjury::updateOrCreate(
                 ['title' => $data['title']],
                 [
-                    'employee_id' => $employee?->id,
-                    'reported_by' => $reportedBy?->id,
-                    'created_by' => $createdBy,
+                    'employee_id' => $employeeId,
+                    'reported_by' => $reportedById,
+                    'created_by' => $createdById,
                     'description' => $data['description'],
                     'location' => $data['location'],
                     'injury_date' => $injuryDate,
@@ -313,6 +330,10 @@ class LostTimeInjurySeeder extends Seeder
                     'resolution_notes' => $data['resolution_notes'] ?? null,
                     'resolved_date' => $resolvedDate,
                     'approval_status' => $this->getApprovalStatusByInjuryStatus($data['status']),
+                    'manager1_id' => $this->getRandomManagerId(),
+                    'manager2_id' => $this->getRandomManagerId(),
+                    'manager3_id' => $this->getRandomManagerId(),
+                    'manager4_id' => $this->getRandomManagerId(),
                 ]
             );
         }
@@ -345,6 +366,9 @@ class LostTimeInjurySeeder extends Seeder
                 $daysLost = $injury->days_lost;
                 $oldDaysLost = $i > 0 ? $daysLost - rand(1, min(10, $daysLost)) : null;
 
+                $updatedBy = Employee::inRandomOrder()->first();
+                $updatedById = $updatedBy?->id;
+
                 LostTimeInjuryHistory::create([
                     'lost_time_injury_id' => $injury->id,
                     'old_status' => $previousStatus,
@@ -354,7 +378,7 @@ class LostTimeInjurySeeder extends Seeder
                     'old_days_lost' => $oldDaysLost,
                     'new_days_lost' => $daysLost,
                     'notes' => $this->getStatusChangeNotes($status),
-                    'updated_by' => Employee::inRandomOrder()->first()?->id,
+                    'updated_by' => $updatedById,
                     'created_at' => $injury->created_at->addDays($i * 3),
                     'updated_at' => $injury->created_at->addDays($i * 3),
                 ]);
@@ -475,8 +499,9 @@ class LostTimeInjurySeeder extends Seeder
         return $levels;
     }
 
-    private function getRandomManager()
+    private function getRandomManagerId()
     {
+        // Get employees with manager positions (position_id 1, 3, 4)
         $manager = Employee::whereIn('position_id', [1, 3, 4])
             ->inRandomOrder()
             ->first();
@@ -533,7 +558,7 @@ class LostTimeInjurySeeder extends Seeder
             ->groupBy('severity')
             ->get();
         foreach ($severities as $severity) {
-            $this->command->info("   • {$severity->severity}: {$severity->count} injuries, avg {$severity->avg_days} days lost");
+            $this->command->info("   • {$severity->severity}: {$severity->count} injuries, avg " . round($severity->avg_days, 2) . " days lost");
         }
     }
 }

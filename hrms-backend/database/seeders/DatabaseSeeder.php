@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             WorkScheduleSeeder::class,
             AdminEmployeeSeeder::class,
             PpeSeeder::class,
+            LostTimeInjurySeeder::class,
             LeaveTypeSeeder::class,
             LeaveBalanceSeeder::class,
             IncidentReportSeeder::class,
