@@ -28,6 +28,7 @@ class DatabaseSeeder extends Seeder
             PpeSeeder::class,
             LeaveTypeSeeder::class,
             LeaveBalanceSeeder::class,
+            IncidentReportSeeder::class,
         ]);
     }
 }
