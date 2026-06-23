@@ -7,7 +7,6 @@ use App\Models\Onboarding;
 use App\Models\OnboardingStatusHistory;
 use App\Models\Employee;
 use Carbon\Carbon;
-use Faker\Factory as Faker;
 
 class OnboardingStatusHistorySeeder extends Seeder
 {
@@ -59,8 +58,9 @@ class OnboardingStatusHistorySeeder extends Seeder
             $previousStatus = $i > 0 ? $statusFlow[$i - 1] : null;
 
             // Calculate progress for this step
-            $progressStep = floor(($i / count($statusFlow)) * 100);
-            $oldProgress = $i > 0 ? floor((($i - 1) / count($statusFlow)) * 100) : 0;
+            $totalStatuses = count($statusFlow);
+            $progressStep = $totalStatuses > 0 ? floor(($i / $totalStatuses) * 100) : 0;
+            $oldProgress = $i > 0 && $totalStatuses > 0 ? floor((($i - 1) / $totalStatuses) * 100) : 0;
 
             $updatedBy = Employee::inRandomOrder()->first();
             $updatedById = $updatedBy?->id;
@@ -90,29 +90,40 @@ class OnboardingStatusHistorySeeder extends Seeder
     private function addProgressUpdates($onboarding, $currentIndex, $currentProgress)
     {
         $statusFlow = $this->getStatusFlow();
-        $lastStatusProgress = floor(($currentIndex / count($statusFlow)) * 100);
+        $totalStatuses = count($statusFlow);
+        $lastStatusProgress = $totalStatuses > 0 ? floor(($currentIndex / $totalStatuses) * 100) : 0;
 
         // If progress is significantly higher than status progress, add progress updates
         if ($currentProgress > $lastStatusProgress + 10) {
-            $progressSteps = range($lastStatusProgress + 10, $currentProgress, 10);
+            $start = $lastStatusProgress + 10;
+            $end = $currentProgress;
+            $step = 10;
 
-            foreach ($progressSteps as $progress) {
-                if ($progress > 100) break;
+            // Validate range parameters to avoid ValueError
+            if ($start <= $end && $step > 0) {
+                $progressSteps = range($start, $end, $step);
 
-                $updatedBy = Employee::inRandomOrder()->first();
-                $updatedById = $updatedBy?->id;
+                foreach ($progressSteps as $progress) {
+                    if ($progress > 100) break;
 
-                OnboardingStatusHistory::create([
-                    'onboarding_id' => $onboarding->id,
-                    'old_status' => $onboarding->status,
-                    'new_status' => $onboarding->status,
-                    'old_progress' => $progress - 10,
-                    'new_progress' => $progress,
-                    'notes' => 'Progress updated to ' . $progress . '%',
-                    'updated_by' => $updatedById,
-                    'created_at' => $onboarding->created_at->addDays(rand(1, 30)),
-                    'updated_at' => $onboarding->created_at->addDays(rand(1, 30)),
-                ]);
+                    $updatedBy = Employee::inRandomOrder()->first();
+                    $updatedById = $updatedBy?->id;
+
+                    $oldProgress = $progress - 10;
+                    if ($oldProgress < 0) $oldProgress = 0;
+
+                    OnboardingStatusHistory::create([
+                        'onboarding_id' => $onboarding->id,
+                        'old_status' => $onboarding->status,
+                        'new_status' => $onboarding->status,
+                        'old_progress' => $oldProgress,
+                        'new_progress' => $progress,
+                        'notes' => 'Progress updated to ' . $progress . '%',
+                        'updated_by' => $updatedById,
+                        'created_at' => $onboarding->created_at->addDays(rand(1, 30)),
+                        'updated_at' => $onboarding->created_at->addDays(rand(1, 30)),
+                    ]);
+                }
             }
         }
     }
@@ -139,7 +150,7 @@ class OnboardingStatusHistorySeeder extends Seeder
     {
         $this->command->info('📝 Creating additional history records...');
 
-        // Get onboarding records that are completed or in progress
+        // Get onboarding records that are in progress or completed
         $onboardings = Onboarding::whereIn('status', [
             'orientation_scheduled',
             'orientation_completed',
@@ -147,6 +158,10 @@ class OnboardingStatusHistorySeeder extends Seeder
             'training_completed',
             'onboarding_completed'
         ])->get();
+
+        if ($onboardings->isEmpty()) {
+            return;
+        }
 
         foreach ($onboardings as $onboarding) {
             // Add 1-3 additional random history entries
@@ -159,12 +174,15 @@ class OnboardingStatusHistorySeeder extends Seeder
                 $updatedBy = Employee::inRandomOrder()->first();
                 $updatedById = $updatedBy?->id;
 
+                $oldProgress = rand(0, 50);
+                $newProgress = $onboarding->progress ?? rand(50, 90);
+
                 OnboardingStatusHistory::create([
                     'onboarding_id' => $onboarding->id,
                     'old_status' => $randomStatus,
                     'new_status' => $onboarding->status,
-                    'old_progress' => rand(0, 50),
-                    'new_progress' => $onboarding->progress ?? rand(50, 90),
+                    'old_progress' => $oldProgress,
+                    'new_progress' => $newProgress,
                     'notes' => $this->getRandomNotes(),
                     'updated_by' => $updatedById,
                     'created_at' => $onboarding->created_at->addDays(rand(1, 20)),
@@ -222,6 +240,11 @@ class OnboardingStatusHistorySeeder extends Seeder
             'Welcome package delivered',
             'First day orientation completed',
             'Benefits enrollment completed',
+            'Manager feedback received',
+            'Training materials distributed',
+            'System access granted',
+            'Office tour completed',
+            'Team introduction done',
         ];
 
         return $notes[array_rand($notes)];
@@ -229,12 +252,23 @@ class OnboardingStatusHistorySeeder extends Seeder
 
     private function displaySummary()
     {
+        $totalHistories = OnboardingStatusHistory::count();
+
+        if ($totalHistories === 0) {
+            $this->command->info("\n📊 No status histories found.");
+            return;
+        }
+
         $stats = [
-            'Total Histories' => OnboardingStatusHistory::count(),
+            'Total Histories' => $totalHistories,
             'Unique Onboardings' => OnboardingStatusHistory::distinct('onboarding_id')->count(),
         ];
 
-        $this->command->info("\n📊 Onboarding Status History Summary:");
+        $this->command->info("\n📊 ========================================");
+        $this->command->info("📊 ONBOARDING STATUS HISTORY SUMMARY");
+        $this->command->info("📊 ========================================");
+
+        $this->command->info("\n📈 Overview:");
         foreach ($stats as $key => $value) {
             $this->command->info("   • {$key}: {$value}");
         }
@@ -245,8 +279,32 @@ class OnboardingStatusHistorySeeder extends Seeder
             ->groupBy('new_status')
             ->orderBy('count', 'desc')
             ->get();
-        foreach ($statuses as $status) {
-            $this->command->info("   • {$status->new_status}: {$status->count}");
+
+        if ($statuses->isNotEmpty()) {
+            foreach ($statuses as $status) {
+                $percentage = round(($status->count / $totalHistories) * 100, 1);
+                $bar = str_repeat('█', (int)($percentage / 5));
+                $this->command->info("   • {$status->new_status}: {$status->count} ({$percentage}%) {$bar}");
+            }
         }
+
+        // Progress distribution
+        $this->command->info("\n📈 Progress Distribution:");
+        $progressRanges = [
+            '0-25%' => OnboardingStatusHistory::whereBetween('new_progress', [0, 25])->count(),
+            '26-50%' => OnboardingStatusHistory::whereBetween('new_progress', [26, 50])->count(),
+            '51-75%' => OnboardingStatusHistory::whereBetween('new_progress', [51, 75])->count(),
+            '76-99%' => OnboardingStatusHistory::whereBetween('new_progress', [76, 99])->count(),
+            '100%' => OnboardingStatusHistory::where('new_progress', 100)->count(),
+        ];
+
+        foreach ($progressRanges as $range => $count) {
+            if ($count > 0) {
+                $percentage = round(($count / $totalHistories) * 100, 1);
+                $this->command->info("   • {$range}: {$count} ({$percentage}%)");
+            }
+        }
+
+        $this->command->info("\n📊 ========================================");
     }
 }
