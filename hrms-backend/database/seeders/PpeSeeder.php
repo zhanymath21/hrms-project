@@ -3,9 +3,9 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\PpeCategory;
-use App\Models\PpeItem;
-use App\Models\PpeHistory;
+use App\Models\PPECategory;  // Changed from PpeCategory
+use App\Models\PPEItem;      // Changed from PpeItem
+use App\Models\PPEHistory;   // Changed from PpeHistory
 use App\Models\Employee;
 use Carbon\Carbon;
 use Faker\Factory as Faker;
@@ -49,13 +49,13 @@ class PpeSeeder extends Seeder
         ];
 
         foreach ($categories as $category) {
-            PpeCategory::updateOrCreate(
+            PPECategory::updateOrCreate(  // Changed from PpeCategory
                 ['code' => $category['code']],
                 $category
             );
         }
 
-        $this->command->info('✅ ' . PpeCategory::count() . ' PPE categories created');
+        $this->command->info('✅ ' . PPECategory::count() . ' PPE categories created');
     }
 
     private function createPpeItems($employees)
@@ -87,13 +87,13 @@ class PpeSeeder extends Seeder
         // Create specific PPE items
         $this->createSpecificPpeItems($employees);
 
-        $this->command->info('✅ ' . PpeItem::count() . ' PPE items created');
+        $this->command->info('✅ ' . PPEItem::count() . ' PPE items created');
     }
 
     private function createPpeItem($status, $employee = null)
     {
         $faker = Faker::create();
-        $category = PpeCategory::inRandomOrder()->first();
+        $category = PPECategory::inRandomOrder()->first();  // Changed from PpeCategory
 
         if (!$category) {
             return null;
@@ -156,7 +156,7 @@ class PpeSeeder extends Seeder
             $itemData['status'] = 'available';
         }
 
-        return PpeItem::create($itemData);
+        return PPEItem::create($itemData);  // Changed from PpeItem
     }
 
     private function createSpecificPpeItems($employees)
@@ -210,10 +210,10 @@ class PpeSeeder extends Seeder
         ];
 
         foreach ($specificItems as $itemData) {
-            $category = PpeCategory::where('code', $itemData['category'])->first();
+            $category = PPECategory::where('code', $itemData['category'])->first();  // Changed from PpeCategory
             if (!$category) continue;
 
-            $item = PpeItem::updateOrCreate(
+            $item = PPEItem::updateOrCreate(  // Changed from PpeItem
                 [
                     'name' => $itemData['name'],
                     'category_id' => $category->id,
@@ -251,7 +251,7 @@ class PpeSeeder extends Seeder
     {
         $this->command->info('📜 Creating PPE histories...');
 
-        $ppeItems = PpeItem::all();
+        $ppeItems = PPEItem::all();  // Changed from PpeItem
         $historyCount = 0;
 
         foreach ($ppeItems as $item) {
@@ -262,7 +262,7 @@ class PpeSeeder extends Seeder
                 $actionType = $this->getRandomActionType($item->status);
                 $employee = Employee::inRandomOrder()->first();
 
-                PpeHistory::create([
+                PPEHistory::create([  // Changed from PpeHistory
                     'ppe_item_id' => $item->id,
                     'action_type' => $actionType,
                     'old_data' => null,
@@ -367,12 +367,12 @@ class PpeSeeder extends Seeder
     private function displaySummary()
     {
         $stats = [
-            'Total PPE Items' => PpeItem::count(),
-            'Available' => PpeItem::where('status', 'available')->count(),
-            'Assigned' => PpeItem::where('status', 'assigned')->count(),
-            'Maintenance' => PpeItem::where('status', 'maintenance')->count(),
-            'Write Off' => PpeItem::where('status', 'write_off')->count(),
-            'History Records' => PpeHistory::count(),
+            'Total PPE Items' => PPEItem::count(),  // Changed from PpeItem
+            'Available' => PPEItem::where('status', 'available')->count(),
+            'Assigned' => PPEItem::where('status', 'assigned')->count(),
+            'Maintenance' => PPEItem::where('status', 'maintenance')->count(),
+            'Write Off' => PPEItem::where('status', 'write_off')->count(),
+            'History Records' => PPEHistory::count(),  // Changed from PpeHistory
         ];
 
         $this->command->info("\n📊 PPE Summary:");
@@ -382,7 +382,7 @@ class PpeSeeder extends Seeder
 
         // Show category breakdown
         $this->command->info("\n📂 By Category:");
-        $categories = PpeCategory::withCount('items')->get();
+        $categories = PPECategory::withCount('items')->get();  // Changed from PpeCategory
         foreach ($categories as $category) {
             $this->command->info("   • {$category->name}: {$category->items_count} items");
         }
