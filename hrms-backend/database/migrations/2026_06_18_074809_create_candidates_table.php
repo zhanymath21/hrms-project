@@ -19,7 +19,10 @@ return new class extends Migration
             $table->decimal('current_salary', 15, 2)->nullable();
             $table->decimal('expected_salary', 15, 2)->nullable();
             $table->string('location')->nullable();
-            $table->string('status', 50)->default('new')->change();
+
+            // REMOVED ->change() - this is for ALTER TABLE, not CREATE TABLE
+            $table->string('status', 50)->default('new');
+
             $table->text('notes')->nullable();
 
             // CV fields
