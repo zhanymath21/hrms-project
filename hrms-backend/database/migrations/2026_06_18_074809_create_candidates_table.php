@@ -19,7 +19,7 @@ return new class extends Migration
             $table->decimal('current_salary', 15, 2)->nullable();
             $table->decimal('expected_salary', 15, 2)->nullable();
             $table->string('location')->nullable();
-            $table->enum('status', ['new', 'screening', 'interview', 'technical_test', 'hr_interview', 'offer', 'hired', 'rejected', 'withdrawn'])->default('new');
+            $table->enum('status', ['new', 'screening', 'interview', 'technical_test', 'hr_interview', 'offered', 'hired', 'rejected', 'withdrawn'])->default('new');
             $table->text('notes')->nullable();
 
             // CV fields
