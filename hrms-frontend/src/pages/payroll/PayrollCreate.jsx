@@ -42,6 +42,7 @@ const PayrollCreate = () => {
     payment_date: '',
     payroll_type: 'semi_monthly',
     payroll_cycle: 'first',
+    currency: 'USD', // ✅ Default USD
     notes: '',
   });
 
@@ -49,7 +50,6 @@ const PayrollCreate = () => {
     fetchEmployees();
   }, []);
 
-  // Auto-generate name when dates change
   useEffect(() => {
     if (formData.start_date && formData.end_date) {
       generatePayrollName();
@@ -78,7 +78,6 @@ const PayrollCreate = () => {
 
   const generatePayrollName = () => {
     const start = new Date(formData.start_date);
-    const end = new Date(formData.end_date);
     const month = start.toLocaleString('default', { month: 'long' });
     const year = start.getFullYear();
     
@@ -236,16 +235,20 @@ const PayrollCreate = () => {
             </Grid>
 
             <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                type="date"
-                label="Payment Date"
-                name="payment_date"
-                value={formData.payment_date}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                disabled={saving}
-              />
+              <FormControl fullWidth>
+                <InputLabel>Currency *</InputLabel>
+                <Select
+                  name="currency"
+                  value={formData.currency}
+                  onChange={handleChange}
+                  label="Currency *"
+                  required
+                  disabled={saving}
+                >
+                  <MenuItem value="USD">$ USD - Dollar</MenuItem>
+                  <MenuItem value="KHR">៛ KHR - Riel</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -276,7 +279,20 @@ const PayrollCreate = () => {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                type="date"
+                label="Payment Date"
+                name="payment_date"
+                value={formData.payment_date}
+                onChange={handleChange}
+                InputLabelProps={{ shrink: true }}
+                disabled={saving}
+              />
+            </Grid>
+
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 label="Notes"
@@ -290,7 +306,6 @@ const PayrollCreate = () => {
               />
             </Grid>
 
-            {/* Info Alert for Semi-Monthly */}
             {formData.payroll_type === 'semi_monthly' && (
               <Grid item xs={12}>
                 <Alert severity="info">
@@ -303,7 +318,6 @@ const PayrollCreate = () => {
               </Grid>
             )}
 
-            {/* Employees Selection */}
             <Grid item xs={12}>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                 Select Employees ({selectedEmployees.length} selected)

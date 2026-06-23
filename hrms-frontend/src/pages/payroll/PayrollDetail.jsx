@@ -15,10 +15,6 @@ import {
   CircularProgress,
   Card,
   CardContent,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Table,
   TableBody,
   TableCell,
@@ -26,7 +22,6 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-  LinearProgress,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -60,24 +55,28 @@ const ADMIN_ROLES = [
   'Marketing Manager', 'Sales Manager', 'Operations Manager', 'Manager',
 ];
 
-// ✅ Perbaiki fungsi formatCurrency
-const formatCurrency = (amount) => {
-  // Handle null, undefined, atau NaN
+const formatCurrency = (amount, currency = 'KHR') => {
   if (amount === null || amount === undefined || isNaN(amount)) {
-    return new Intl.NumberFormat('km-KH', {
-      style: 'currency',
-      currency: 'KHR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(0);
+    return currency === 'USD' ? '$0.00' : '៛0';
   }
   
-  return new Intl.NumberFormat('km-KH', {
-    style: 'currency',
-    currency: 'KHR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+  const symbols = {
+    USD: '$',
+    KHR: '៛',
+  };
+  
+  const decimals = {
+    USD: 2,
+    KHR: 0,
+  };
+  
+  const symbol = symbols[currency] || currency;
+  const decimal = decimals[currency] || 0;
+  
+  return symbol + Number(amount).toLocaleString('en-US', {
+    minimumFractionDigits: decimal,
+    maximumFractionDigits: decimal,
+  });
 };
 
 const PayrollDetail = () => {
@@ -144,7 +143,6 @@ const PayrollDetail = () => {
     }
   };
 
-  // ✅ Hitung total dengan safe value
   const calculateTotal = (field) => {
     if (!items || items.length === 0) return 0;
     return items.reduce((sum, item) => sum + (parseFloat(item[field]) || 0), 0);
@@ -168,6 +166,10 @@ const PayrollDetail = () => {
     );
   };
 
+  const getCurrency = () => {
+    return payroll?.currency || 'KHR';
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -188,10 +190,10 @@ const PayrollDetail = () => {
   }
 
   const isFinalStatus = ['approved', 'paid', 'cancelled'].includes(payroll.status);
+  const currency = getCurrency();
 
   return (
     <Box>
-      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
         <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
           <IconButton onClick={() => navigate('/payroll')}>
@@ -201,6 +203,11 @@ const PayrollDetail = () => {
             {payroll.name}
           </Typography>
           {renderStatusChip(payroll.status)}
+          <Chip 
+            label={currency === 'USD' ? 'USD' : 'KHR'} 
+            size="small"
+            color={currency === 'USD' ? 'primary' : 'default'}
+          />
         </Box>
 
         <Box display="flex" gap={1} flexWrap="wrap">
@@ -281,7 +288,6 @@ const PayrollDetail = () => {
         </Box>
       </Box>
 
-      {/* Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
@@ -296,7 +302,7 @@ const PayrollDetail = () => {
             <CardContent>
               <Typography variant="caption" color="textSecondary">Total Gross</Typography>
               <Typography variant="h5" fontWeight="bold" color="primary.main">
-                {formatCurrency(payroll.total_gross)}
+                {formatCurrency(payroll.total_gross, currency)}
               </Typography>
             </CardContent>
           </Card>
@@ -306,7 +312,7 @@ const PayrollDetail = () => {
             <CardContent>
               <Typography variant="caption" color="textSecondary">Total Deductions</Typography>
               <Typography variant="h5" fontWeight="bold" color="error.main">
-                {formatCurrency(payroll.total_deductions)}
+                {formatCurrency(payroll.total_deductions, currency)}
               </Typography>
             </CardContent>
           </Card>
@@ -316,14 +322,13 @@ const PayrollDetail = () => {
             <CardContent>
               <Typography variant="caption" color="textSecondary">Total Net Pay</Typography>
               <Typography variant="h5" fontWeight="bold" color="success.main">
-                {formatCurrency(payroll.total_net)}
+                {formatCurrency(payroll.total_net, currency)}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Payroll Details */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom fontWeight="bold">
           Payroll Details
@@ -348,6 +353,12 @@ const PayrollDetail = () => {
             <Typography variant="body1">
               {payroll.payroll_type === 'semi_monthly' ? 'Semi-Monthly' : 
                payroll.payroll_type === 'monthly' ? 'Monthly' : 'Weekly'}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Typography variant="caption" color="textSecondary">Currency</Typography>
+            <Typography variant="body1">
+              {currency === 'USD' ? 'USD ($)' : 'KHR (៛)'}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -387,7 +398,6 @@ const PayrollDetail = () => {
         </Grid>
       </Paper>
 
-      {/* Employee Payroll Items */}
       <Paper sx={{ p: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6" fontWeight="bold">
@@ -435,16 +445,16 @@ const PayrollDetail = () => {
                         </Typography>
                       </Box>
                     </TableCell>
-                    <TableCell align="right">{formatCurrency(item.basic_salary)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.allowance)}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.basic_salary, currency)}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.allowance, currency)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'medium' }}>
-                      {formatCurrency(item.total_earnings)}
+                      {formatCurrency(item.total_earnings, currency)}
                     </TableCell>
-                    <TableCell align="right">{formatCurrency(item.tax)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.social_security)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.total_deductions)}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.tax, currency)}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.social_security, currency)}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.total_deductions, currency)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                      {formatCurrency(item.net_pay)}
+                      {formatCurrency(item.net_pay, currency)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -455,19 +465,19 @@ const PayrollDetail = () => {
                     Total
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('total_earnings'))}
+                    {formatCurrency(calculateTotal('total_earnings'), currency)}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('tax'))}
+                    {formatCurrency(calculateTotal('tax'), currency)}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('social_security'))}
+                    {formatCurrency(calculateTotal('social_security'), currency)}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('total_deductions'))}
+                    {formatCurrency(calculateTotal('total_deductions'), currency)}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                    {formatCurrency(calculateTotal('net_pay'))}
+                    {formatCurrency(calculateTotal('net_pay'), currency)}
                   </TableCell>
                 </TableRow>
               )}

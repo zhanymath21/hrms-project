@@ -17,6 +17,7 @@ class PayslipController extends Controller
     /**
      * Generate payslips for a payroll period
      */
+
     public function generate($payrollPeriodId)
     {
         try {
@@ -28,6 +29,7 @@ class PayslipController extends Controller
             Payslip::where('payroll_period_id', $payrollPeriodId)->delete();
 
             $payslips = [];
+            $currency = $payroll->currency ?? 'USD';
 
             foreach ($payroll->items as $item) {
                 $employee = $item->employee;
@@ -87,6 +89,7 @@ class PayslipController extends Controller
 
                     'currency' => $item->currency,
                     'status' => 'generated',
+                    'currency' => $currency,
                     'notes' => 'Payslip generated from payroll',
                 ]);
 

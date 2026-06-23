@@ -62,7 +62,7 @@ const ADMIN_ROLES = [
   'Marketing Manager', 'Sales Manager', 'Operations Manager', 'Manager',
 ];
 
-// ✅ Format Currency Function
+// Format Currency Function
 const formatCurrency = (amount, currency = 'KHR') => {
   if (amount === null || amount === undefined || isNaN(amount)) {
     return currency === 'USD' ? '$0.00' : '៛0';
@@ -85,16 +85,6 @@ const formatCurrency = (amount, currency = 'KHR') => {
     minimumFractionDigits: decimal,
     maximumFractionDigits: decimal,
   });
-};
-
-// ✅ Get Currency Label
-const getCurrencyLabel = (currency) => {
-  return currency === 'USD' ? 'USD ($)' : 'KHR (៛)';
-};
-
-// ✅ Get Currency Color
-const getCurrencyColor = (currency) => {
-  return currency === 'USD' ? 'primary' : 'default';
 };
 
 const PayrollList = () => {
@@ -244,7 +234,6 @@ const PayrollList = () => {
 
   return (
     <Box>
-      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
           <Typography variant="h4" component="h1" fontWeight="bold">
@@ -268,7 +257,6 @@ const PayrollList = () => {
         </Box>
       </Box>
 
-      {/* Stats Cards */}
       {stats && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={2.4}>
@@ -320,7 +308,6 @@ const PayrollList = () => {
         </Grid>
       )}
 
-      {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={2}>
@@ -425,10 +412,8 @@ const PayrollList = () => {
         </Grid>
       </Paper>
 
-      {/* Error */}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Table */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -494,14 +479,12 @@ const PayrollList = () => {
                     {payroll.payment_date ? formatDate(payroll.payment_date) : '-'}
                   </TableCell>
                   <TableCell align="center">
-                    {/* View Button */}
                     <Tooltip title="View Details">
                       <IconButton size="small" onClick={() => navigate(`/payroll/${payroll.id}`)}>
                         <VisibilityIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
 
-                    {/* Payslip Button */}
                     <Tooltip title="View Payslips">
                       <IconButton 
                         size="small" 
@@ -512,42 +495,34 @@ const PayrollList = () => {
                       </IconButton>
                     </Tooltip>
 
-                    {/* Edit Button - Only for draft */}
                     {payroll.status === 'draft' && (
-                      <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => navigate(`/payroll/${payroll.id}/edit`)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      <>
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => navigate(`/payroll/${payroll.id}/edit`)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => setDeleteDialog({ open: true, id: payroll.id, name: payroll.name })}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Process Payroll">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleStatusChange(payroll.id, 'processing')}
+                          >
+                            <CheckCircleIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </>
                     )}
 
-                    {/* Delete Button - Only for draft */}
-                    {payroll.status === 'draft' && (
-                      <Tooltip title="Delete">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => setDeleteDialog({ open: true, id: payroll.id, name: payroll.name })}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-
-                    {/* Process Button - Draft to Processing */}
-                    {payroll.status === 'draft' && (
-                      <Tooltip title="Process Payroll">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => handleStatusChange(payroll.id, 'processing')}
-                        >
-                          <CheckCircleIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-
-                    {/* Approve Button - Processing to Approved (Admin only) */}
                     {payroll.status === 'processing' && (
                       <Tooltip title={!isAdmin ? 'Only Admin/HR can approve' : 'Approve Payroll'}>
                         <span>
@@ -563,7 +538,6 @@ const PayrollList = () => {
                       </Tooltip>
                     )}
 
-                    {/* Mark as Paid Button - Approved to Paid (Admin only) */}
                     {payroll.status === 'approved' && (
                       <Tooltip title={!isAdmin ? 'Only Admin/HR can mark as paid' : 'Mark as Paid'}>
                         <span>
@@ -579,7 +553,6 @@ const PayrollList = () => {
                       </Tooltip>
                     )}
 
-                    {/* Cancel Button - Draft or Processing */}
                     {(payroll.status === 'draft' || payroll.status === 'processing') && (
                       <Tooltip title="Cancel Payroll">
                         <IconButton
@@ -600,7 +573,6 @@ const PayrollList = () => {
         </Table>
       </TableContainer>
 
-      {/* Delete Dialog */}
       <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, id: null, name: '' })}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>

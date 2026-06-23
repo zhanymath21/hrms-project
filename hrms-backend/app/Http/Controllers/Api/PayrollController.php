@@ -61,6 +61,7 @@ class PayrollController extends Controller
                 'cycle_number' => 'nullable|integer|min:1|max:4',
                 'employee_ids' => 'required|array',
                 'employee_ids.*' => 'exists:employees,id',
+                'currency' => 'nullable|string|in:USD,KHR',
                 'notes' => 'nullable|string',
             ]);
 
@@ -95,6 +96,7 @@ class PayrollController extends Controller
                 'payroll_cycle' => $request->payroll_cycle,
                 'cycle_number' => $request->cycle_number ?? $this->getCycleNumber($request->start_date, $request->payroll_type),
                 'status' => 'draft',
+                'currency' => $request->currency ?? 'USD',
                 'notes' => $request->notes,
                 'created_by' => auth()->id(),
             ]);

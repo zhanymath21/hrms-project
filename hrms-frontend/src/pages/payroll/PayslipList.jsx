@@ -1,5 +1,4 @@
-// src/pages/payroll/PayslipList.jsx - Full updated file
-
+// src/pages/payroll/PayslipList.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -42,6 +41,30 @@ const STATUS_CONFIG = {
   generated: { label: 'Generated', bgColor: '#3b82f6', textColor: '#ffffff' },
   sent: { label: 'Sent', bgColor: '#10b981', textColor: '#ffffff' },
   printed: { label: 'Printed', bgColor: '#8b5cf6', textColor: '#ffffff' },
+};
+
+const formatCurrency = (amount, currency = 'KHR') => {
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return currency === 'USD' ? '$0.00' : '៛0';
+  }
+  
+  const symbols = {
+    USD: '$',
+    KHR: '៛',
+  };
+  
+  const decimals = {
+    USD: 2,
+    KHR: 0,
+  };
+  
+  const symbol = symbols[currency] || currency;
+  const decimal = decimals[currency] || 0;
+  
+  return symbol + Number(amount).toLocaleString('en-US', {
+    minimumFractionDigits: decimal,
+    maximumFractionDigits: decimal,
+  });
 };
 
 const PayslipList = () => {
@@ -147,27 +170,6 @@ const PayslipList = () => {
     );
   };
 
-  // ✅ Perbaiki fungsi formatCurrency
-  const formatCurrency = (amount) => {
-    // Handle null, undefined, atau NaN
-    if (amount === null || amount === undefined || isNaN(amount)) {
-      return new Intl.NumberFormat('km-KH', {
-        style: 'currency',
-        currency: 'KHR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(0);
-    }
-    
-    return new Intl.NumberFormat('km-KH', {
-      style: 'currency',
-      currency: 'KHR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  // ✅ Fungsi untuk menghitung total allowances
   const calculateTotalAllowances = (payslip) => {
     return (payslip.housing_allowance || 0) +
            (payslip.transport_allowance || 0) +
@@ -186,7 +188,6 @@ const PayslipList = () => {
 
   return (
     <Box>
-      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
           <Typography variant="h4" component="h1" fontWeight="bold">
@@ -195,6 +196,12 @@ const PayslipList = () => {
           {payroll && (
             <Typography variant="body2" color="textSecondary">
               {payroll.name} - {formatDate(payroll.start_date)} to {formatDate(payroll.end_date)}
+              <Chip 
+                label={payroll.currency || 'KHR'} 
+                size="small"
+                color={payroll.currency === 'USD' ? 'primary' : 'default'}
+                sx={{ ml: 1 }}
+              />
             </Typography>
           )}
         </Box>
@@ -222,7 +229,6 @@ const PayslipList = () => {
         </Alert>
       )}
 
-      {/* Summary */}
       {payslips.length > 0 && (
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={2}>
@@ -233,13 +239,13 @@ const PayslipList = () => {
             <Grid item xs={12} sm={3}>
               <Typography variant="caption" color="textSecondary">Total Net Pay</Typography>
               <Typography variant="h6" color="success.main">
-                {formatCurrency(payslips.reduce((sum, p) => sum + (p.net_pay || 0), 0))}
+                {formatCurrency(payslips.reduce((sum, p) => sum + (p.net_pay || 0), 0), payroll?.currency || 'KHR')}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={3}>
               <Typography variant="caption" color="textSecondary">Total Tax</Typography>
               <Typography variant="h6" color="error.main">
-                {formatCurrency(payslips.reduce((sum, p) => sum + (p.tax || 0), 0))}
+                {formatCurrency(payslips.reduce((sum, p) => sum + (p.tax || 0), 0), payroll?.currency || 'KHR')}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={3}>
@@ -252,7 +258,6 @@ const PayslipList = () => {
         </Paper>
       )}
 
-      {/* Table */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -278,48 +283,49 @@ const PayslipList = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              payslips.map((payslip) => (
-                <TableRow key={payslip.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight="medium">
-                      {payslip.employee_name}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      {payslip.employee_code || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{payslip.position || '-'}</TableCell>
-                  <TableCell>
-                    <Typography variant="caption">
-                      {formatDate(payslip.period_start)}
-                    </Typography>
-                    <Typography variant="caption" display="block" color="textSecondary">
-                      to {formatDate(payslip.period_end)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right">{formatCurrency(payslip.basic_salary)}</TableCell>
-                  <TableCell align="right">
-                    {formatCurrency(calculateTotalAllowances(payslip))}
-                  </TableCell>
-                  <TableCell align="right">{formatCurrency(payslip.tax)}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                    {formatCurrency(payslip.net_pay)}
-                  </TableCell>
-                  <TableCell>{renderStatusChip(payslip.status)}</TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="View">
-                      <IconButton size="small" onClick={() => viewPayslip(payslip.id)}>
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton size="small" color="error" onClick={() => deletePayslip(payslip.id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))
+              payslips.map((payslip) => {
+                const currency = payslip.currency || 'KHR';
+                return (
+                  <TableRow key={payslip.id} hover>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {payslip.employee_name}
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        {payslip.employee_code || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{payslip.position || '-'}</TableCell>
+                    <TableCell>
+                      <Typography variant="caption">
+                        {formatDate(payslip.period_start)}
+                      </Typography>
+                      <Typography variant="caption" display="block" color="textSecondary">
+                        to {formatDate(payslip.period_end)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">{formatCurrency(payslip.basic_salary, currency)}</TableCell>
+                    <TableCell align="right">{formatCurrency(calculateTotalAllowances(payslip), currency)}</TableCell>
+                    <TableCell align="right">{formatCurrency(payslip.tax, currency)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                      {formatCurrency(payslip.net_pay, currency)}
+                    </TableCell>
+                    <TableCell>{renderStatusChip(payslip.status)}</TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="View">
+                        <IconButton size="small" onClick={() => viewPayslip(payslip.id)}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton size="small" color="error" onClick={() => deletePayslip(payslip.id)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -339,7 +345,6 @@ const PayslipList = () => {
         <DialogContent dividers>
           {selectedPayslip && (
             <Box>
-              {/* Employee Info */}
               <Grid container spacing={2} mb={3}>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="textSecondary">Employee</Typography>
@@ -354,102 +359,102 @@ const PayslipList = () => {
                   <Typography variant="body1">{selectedPayslip.department || '-'}</Typography>
                 </Grid>
                 <Grid item xs={6}>
-                  <Typography variant="caption" color="textSecondary">Period</Typography>
-                  <Typography variant="body1">
-                    {formatDate(selectedPayslip.period_start)} - {formatDate(selectedPayslip.period_end)}
-                  </Typography>
+                  <Typography variant="caption" color="textSecondary">Currency</Typography>
+                  <Chip 
+                    label={selectedPayslip.currency || 'KHR'} 
+                    size="small"
+                    color={selectedPayslip.currency === 'USD' ? 'primary' : 'default'}
+                  />
                 </Grid>
               </Grid>
 
-              {/* Earnings */}
               <Typography variant="h6" fontWeight="bold" gutterBottom>Earnings</Typography>
               <Table size="small">
                 <TableBody>
                   <TableRow>
                     <TableCell>Basic Salary</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.basic_salary)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.basic_salary, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>Housing Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.housing_allowance)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.housing_allowance, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>Transport Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.transport_allowance)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.transport_allowance, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>Meal Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.meal_allowance)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.meal_allowance, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>Phone Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.phone_allowance)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.phone_allowance, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>Other Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.other_allowance)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Overtime</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.overtime)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Bonus</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.bonus)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.other_allowance, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow sx={{ fontWeight: 'bold' }}>
                     <TableCell>Total Earnings</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.total_earnings)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.total_earnings, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
 
-              {/* Deductions */}
               <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ mt: 3 }}>Deductions</Typography>
               <Table size="small">
                 <TableBody>
                   <TableRow>
                     <TableCell>Tax</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.tax)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.tax, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>Social Security (NSSF)</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.social_security)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.social_security, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>Health Insurance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.health_insurance)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Loan</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.loan)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Advance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.advance)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Other Deductions</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.other_deductions)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.health_insurance, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                   <TableRow sx={{ fontWeight: 'bold' }}>
                     <TableCell>Total Deductions</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.total_deductions)}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(selectedPayslip.total_deductions, selectedPayslip.currency || 'KHR')}
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
 
-              {/* Net Pay */}
               <Box sx={{ mt: 3, p: 2, bgcolor: '#f0fdf4', borderRadius: 1, border: '1px solid #86efac' }}>
                 <Grid container justifyContent="space-between">
                   <Typography variant="h6" fontWeight="bold">Net Pay</Typography>
                   <Typography variant="h5" fontWeight="bold" color="success.main">
-                    {formatCurrency(selectedPayslip.net_pay)}
+                    {formatCurrency(selectedPayslip.net_pay, selectedPayslip.currency || 'KHR')}
                   </Typography>
                 </Grid>
               </Box>
 
-              {/* Working Days */}
               <Typography variant="caption" color="textSecondary" display="block" sx={{ mt: 2 }}>
                 Working Days: {selectedPayslip.working_days || 0} | 
                 Present: {selectedPayslip.present_days || 0} | 
