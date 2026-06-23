@@ -30,7 +30,7 @@ class IncidentReportSeeder extends Seeder
     private function createIncidentReports()
     {
         $statuses = ['reported', 'under_investigation', 'in_review', 'resolved', 'closed', 'rejected'];
-        $statusWeights = [20, 25, 20, 15, 15, 5]; // 20% reported, 25% under_investigation, etc.
+        $statusWeights = [20, 25, 20, 15, 15, 5];
 
         $total = 50;
 
@@ -46,9 +46,15 @@ class IncidentReportSeeder extends Seeder
     {
         $faker = Faker::create();
 
+        // Get employee IDs directly
         $reportedBy = Employee::inRandomOrder()->first();
-        $createdBy = Employee::inRandomOrder()->first() ?? 1;
+        $createdBy = Employee::inRandomOrder()->first();
         $assignedTo = Employee::inRandomOrder()->first();
+
+        // Use ONLY the IDs
+        $reportedById = $reportedBy?->id;
+        $createdById = $createdBy?->id ?? 1; // Fallback to 1 if no employee found
+        $assignedToId = $assignedTo?->id;
 
         $categories = [
             'safety',
@@ -76,6 +82,12 @@ class IncidentReportSeeder extends Seeder
             : null;
 
         $approvalStatus = $this->getApprovalStatusByIncidentStatus($status);
+
+        // Get manager IDs
+        $manager1Id = $this->getRandomManagerId();
+        $manager2Id = $this->getRandomManagerId();
+        $manager3Id = $this->getRandomManagerId();
+        $manager4Id = $this->getRandomManagerId();
 
         $report = IncidentReport::create([
             'title' => $this->generateIncidentTitle(),
@@ -105,25 +117,33 @@ class IncidentReportSeeder extends Seeder
             'file_name' => $faker->optional(0.3)->word . '.pdf',
             'witnesses' => $this->generateWitnesses(),
             'approval_flow' => $this->generateApprovalFlow(),
-            'reported_by' => $reportedBy?->id,
-            'assigned_to' => $assignedTo?->id,
-            'created_by' => $createdBy,
-            'manager1_id' => $this->getRandomManager(),
+
+            // Foreign Keys - Use ONLY the IDs
+            'reported_by' => $reportedById,
+            'assigned_to' => $assignedToId,
+            'created_by' => $createdById,
+
+            // Manager IDs
+            'manager1_id' => $manager1Id,
             'manager1_status' => $faker->randomElement(['pending', 'approved', 'rejected']),
             'manager1_approved_at' => $faker->optional(0.5)->dateTimeBetween('-30 days', 'now'),
             'manager1_notes' => $faker->optional(0.3)->sentence,
-            'manager2_id' => $this->getRandomManager(),
+
+            'manager2_id' => $manager2Id,
             'manager2_status' => $faker->randomElement(['pending', 'approved', 'rejected']),
             'manager2_approved_at' => $faker->optional(0.4)->dateTimeBetween('-30 days', 'now'),
             'manager2_notes' => $faker->optional(0.3)->sentence,
-            'manager3_id' => $this->getRandomManager(),
+
+            'manager3_id' => $manager3Id,
             'manager3_status' => $faker->randomElement(['pending', 'approved', 'rejected']),
             'manager3_approved_at' => $faker->optional(0.3)->dateTimeBetween('-30 days', 'now'),
             'manager3_notes' => $faker->optional(0.3)->sentence,
-            'manager4_id' => $this->getRandomManager(),
+
+            'manager4_id' => $manager4Id,
             'manager4_status' => $faker->randomElement(['pending', 'approved', 'rejected']),
             'manager4_approved_at' => $faker->optional(0.2)->dateTimeBetween('-30 days', 'now'),
             'manager4_notes' => $faker->optional(0.3)->sentence,
+
             'approval_status' => $approvalStatus,
             'created_at' => $incidentDate,
             'updated_at' => $incidentDate,
@@ -204,8 +224,14 @@ class IncidentReportSeeder extends Seeder
         ];
 
         foreach ($specificIncidents as $data) {
+            // Get employee IDs directly
             $reportedBy = Employee::inRandomOrder()->first();
-            $createdBy = Employee::inRandomOrder()->first() ?? 1;
+            $createdBy = Employee::inRandomOrder()->first();
+            $assignedTo = Employee::inRandomOrder()->first();
+
+            $reportedById = $reportedBy?->id;
+            $createdById = $createdBy?->id ?? 1;
+            $assignedToId = $assignedTo?->id;
 
             IncidentReport::updateOrCreate(
                 ['title' => $data['title']],
@@ -217,14 +243,18 @@ class IncidentReportSeeder extends Seeder
                     'status' => $data['status'],
                     'incident_date' => Carbon::now()->subDays(rand(1, 30)),
                     'incident_time' => Carbon::now()->format('H:i:s'),
-                    'reported_by' => $reportedBy?->id,
-                    'created_by' => $createdBy,
-                    'assigned_to' => Employee::inRandomOrder()->first()?->id,
+                    'reported_by' => $reportedById,
+                    'created_by' => $createdById,
+                    'assigned_to' => $assignedToId,
                     'resolution_notes' => $data['resolution_notes'] ?? null,
                     'resolved_date' => ($data['status'] === 'resolved' || $data['status'] === 'closed')
                         ? Carbon::now()->subDays(rand(1, 10))
                         : null,
                     'approval_status' => $this->getApprovalStatusByIncidentStatus($data['status']),
+                    'manager1_id' => $this->getRandomManagerId(),
+                    'manager2_id' => $this->getRandomManagerId(),
+                    'manager3_id' => $this->getRandomManagerId(),
+                    'manager4_id' => $this->getRandomManagerId(),
                 ]
             );
         }
@@ -255,6 +285,9 @@ class IncidentReportSeeder extends Seeder
                 $approvalFlow = ['pending', 'in_progress', 'approved'];
                 $approvalIndex = min($i, count($approvalFlow) - 1);
 
+                $updatedBy = Employee::inRandomOrder()->first();
+                $updatedById = $updatedBy?->id;
+
                 IncidentStatusHistory::create([
                     'incident_report_id' => $incident->id,
                     'old_status' => $previousStatus,
@@ -262,7 +295,7 @@ class IncidentReportSeeder extends Seeder
                     'old_approval_status' => $i > 0 ? $approvalFlow[$approvalIndex - 1] : null,
                     'new_approval_status' => $approvalFlow[$approvalIndex],
                     'notes' => $this->getStatusChangeNotes($status),
-                    'updated_by' => Employee::inRandomOrder()->first()?->id,
+                    'updated_by' => $updatedById,
                     'created_at' => $incident->created_at->addDays($i * 3),
                     'updated_at' => $incident->created_at->addDays($i * 3),
                 ]);
@@ -408,8 +441,9 @@ class IncidentReportSeeder extends Seeder
         return $levels;
     }
 
-    private function getRandomManager()
+    private function getRandomManagerId()
     {
+        // Get employees with manager positions (position_id 1, 3, 4)
         $manager = Employee::whereIn('position_id', [1, 3, 4])
             ->inRandomOrder()
             ->first();
