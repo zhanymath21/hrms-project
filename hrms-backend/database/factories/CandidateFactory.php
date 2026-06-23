@@ -11,7 +11,19 @@ class CandidateFactory extends Factory
 
     public function definition()
     {
-        $statuses = ['new', 'contacted', 'screening', 'interview_scheduled', 'interview_completed', 'technical_test', 'offer', 'accepted', 'rejected'];
+        // MUST match the ENUM in migration:
+        // ['new', 'screening', 'interview', 'technical_test', 'hr_interview', 'offered', 'hired', 'rejected', 'withdrawn']
+        $statuses = [
+            'new',
+            'screening',
+            'interview',
+            'technical_test',
+            'hr_interview',
+            'offered',
+            'hired',
+            'rejected',
+            'withdrawn'
+        ];
 
         return [
             'first_name' => $this->faker->firstName,
@@ -29,6 +41,13 @@ class CandidateFactory extends Factory
                 'Business Analyst',
                 'Project Manager',
                 'Product Manager',
+                'UX/UI Designer',
+                'Graphic Designer',
+                'Marketing Specialist',
+                'Sales Executive',
+                'HR Manager',
+                'Finance Manager',
+                'Accountant',
             ]),
             'experience_years' => $this->faker->numberBetween(0, 15),
             'current_salary' => $this->faker->optional(0.7, 0)->numberBetween(800000, 4000000),
@@ -38,7 +57,9 @@ class CandidateFactory extends Factory
                 'Siem Reap',
                 'Battambang',
                 'Sihanoukville',
-                'Kampong Cham'
+                'Kampong Cham',
+                'Takeo',
+                'Kampot',
             ]),
             'status' => $this->faker->randomElement($statuses),
             'notes' => $this->faker->optional(0.6)->paragraph,
@@ -46,6 +67,7 @@ class CandidateFactory extends Factory
             'cv_file_path' => $this->faker->optional(0.8)->filePath,
             'cv_file_type' => $this->faker->optional(0.8)->randomElement(['application/pdf', 'application/msword']),
             'cv_file_size' => $this->faker->optional(0.8)->numberBetween(100000, 5000000),
+            'cv_url' => $this->faker->optional(0.3)->url,
             'created_at' => $this->faker->dateTimeBetween('-90 days', 'now'),
             'updated_at' => function (array $attributes) {
                 return $attributes['created_at'];
