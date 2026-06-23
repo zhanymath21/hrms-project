@@ -28,7 +28,6 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Stack,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -41,8 +40,6 @@ import {
   Receipt as ReceiptIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
-  Print as PrintIcon,
-  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/axios';
@@ -57,12 +54,48 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelled', bgColor: '#ef4444', textColor: '#ffffff' },
 };
 
+// Admin Roles
 const ADMIN_ROLES = [
   'admin', 'hr', 'hr-manager', 'super_admin',
   'HR Manager', 'HR Officer', 'HR Assistant',
   'System Admin', 'IT Manager', 'Finance Manager',
   'Marketing Manager', 'Sales Manager', 'Operations Manager', 'Manager',
 ];
+
+// ✅ Format Currency Function
+const formatCurrency = (amount, currency = 'KHR') => {
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return currency === 'USD' ? '$0.00' : '៛0';
+  }
+  
+  const symbols = {
+    USD: '$',
+    KHR: '៛',
+  };
+  
+  const decimals = {
+    USD: 2,
+    KHR: 0,
+  };
+  
+  const symbol = symbols[currency] || currency;
+  const decimal = decimals[currency] || 0;
+  
+  return symbol + Number(amount).toLocaleString('en-US', {
+    minimumFractionDigits: decimal,
+    maximumFractionDigits: decimal,
+  });
+};
+
+// ✅ Get Currency Label
+const getCurrencyLabel = (currency) => {
+  return currency === 'USD' ? 'USD ($)' : 'KHR (៛)';
+};
+
+// ✅ Get Currency Color
+const getCurrencyColor = (currency) => {
+  return currency === 'USD' ? 'primary' : 'default';
+};
 
 const PayrollList = () => {
   const navigate = useNavigate();
@@ -75,6 +108,7 @@ const PayrollList = () => {
     search: '',
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
+    currency: '',
   });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, name: '' });
 
@@ -97,6 +131,7 @@ const PayrollList = () => {
       if (filters.year) params.year = filters.year;
       if (filters.month) params.month = filters.month;
       if (filters.search) params.search = filters.search;
+      if (filters.currency) params.currency = filters.currency;
       
       const response = await api.get('/payroll', { params });
       
@@ -158,6 +193,21 @@ const PayrollList = () => {
     setFilters(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleSearch = () => {
+    fetchPayrolls();
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      status: '',
+      search: '',
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      currency: '',
+    });
+    setTimeout(fetchPayrolls, 100);
+  };
+
   const renderStatusChip = (status) => {
     const config = STATUS_CONFIG[status];
     if (!config) return <Chip label={status || 'Unknown'} size="small" />;
@@ -174,13 +224,16 @@ const PayrollList = () => {
     );
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('km-KH', {
-      style: 'currency',
-      currency: 'KHR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount || 0);
+  const renderCurrencyChip = (currency) => {
+    return (
+      <Chip
+        label={currency === 'USD' ? 'USD' : 'KHR'}
+        size="small"
+        color={currency === 'USD' ? 'primary' : 'default'}
+        variant="outlined"
+        sx={{ fontWeight: 600 }}
+      />
+    );
   };
 
   const getMonthName = (month) => {
@@ -218,7 +271,7 @@ const PayrollList = () => {
       {/* Stats Cards */}
       {stats && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={2.4}>
             <Card>
               <CardContent>
                 <Typography variant="caption" color="textSecondary">Total Payroll</Typography>
@@ -226,7 +279,7 @@ const PayrollList = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={2.4}>
             <Card>
               <CardContent>
                 <Typography variant="caption" color="textSecondary">Total Gross</Typography>
@@ -236,7 +289,7 @@ const PayrollList = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={2.4}>
             <Card>
               <CardContent>
                 <Typography variant="caption" color="textSecondary">Total Net Pay</Typography>
@@ -246,7 +299,7 @@ const PayrollList = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={2.4}>
             <Card>
               <CardContent>
                 <Typography variant="caption" color="textSecondary">Total Tax</Typography>
@@ -256,13 +309,21 @@ const PayrollList = () => {
               </CardContent>
             </Card>
           </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card>
+              <CardContent>
+                <Typography variant="caption" color="textSecondary">Total Employees</Typography>
+                <Typography variant="h5" fontWeight="bold">{stats.total_employees || 0}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
       )}
 
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={2}>
             <TextField
               fullWidth
               size="small"
@@ -273,14 +334,17 @@ const PayrollList = () => {
               placeholder="Search payroll..."
               InputProps={{
                 endAdornment: (
-                  <IconButton size="small" onClick={fetchPayrolls}>
+                  <IconButton size="small" onClick={handleSearch}>
                     <SearchIcon />
                   </IconButton>
                 ),
               }}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') handleSearch();
+              }}
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
               <Select
@@ -296,7 +360,7 @@ const PayrollList = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={2}>
             <TextField
               fullWidth
               size="small"
@@ -308,7 +372,7 @@ const PayrollList = () => {
               InputProps={{ inputProps: { min: 2000, max: 2100 } }}
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Month</InputLabel>
               <Select
@@ -323,6 +387,41 @@ const PayrollList = () => {
               </Select>
             </FormControl>
           </Grid>
+          <Grid item xs={12} sm={2}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Currency</InputLabel>
+              <Select
+                name="currency"
+                value={filters.currency}
+                onChange={handleFilterChange}
+                label="Currency"
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="USD">USD ($)</MenuItem>
+                <MenuItem value="KHR">KHR (៛)</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={2}>
+            <Box display="flex" gap={1}>
+              <Button
+                variant="contained"
+                onClick={handleSearch}
+                startIcon={<SearchIcon />}
+                fullWidth
+              >
+                Search
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={handleClearFilters}
+                startIcon={<ClearIcon />}
+                fullWidth
+              >
+                Clear
+              </Button>
+            </Box>
+          </Grid>
         </Grid>
       </Paper>
 
@@ -335,10 +434,12 @@ const PayrollList = () => {
           <TableHead>
             <TableRow>
               <TableCell>Period</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Currency</TableCell>
               <TableCell>Employees</TableCell>
-              <TableCell>Gross Pay</TableCell>
-              <TableCell>Total Tax</TableCell>
-              <TableCell>Net Pay</TableCell>
+              <TableCell align="right">Gross Pay</TableCell>
+              <TableCell align="right">Tax</TableCell>
+              <TableCell align="right">Net Pay</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Payment Date</TableCell>
               <TableCell align="center">Actions</TableCell>
@@ -347,13 +448,13 @@ const PayrollList = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={10} align="center">
                   <CircularProgress />
                 </TableCell>
               </TableRow>
             ) : payrolls.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={10} align="center">
                   <Typography color="textSecondary">No payroll records found</Typography>
                 </TableCell>
               </TableRow>
@@ -368,42 +469,72 @@ const PayrollList = () => {
                       {formatDate(payroll.start_date)} - {formatDate(payroll.end_date)}
                     </Typography>
                   </TableCell>
-                  <TableCell>{payroll.total_employees || 0}</TableCell>
-                  <TableCell>{formatCurrency(payroll.total_gross)}</TableCell>
-                  <TableCell>{formatCurrency(payroll.total_tax)}</TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight="bold" color="success.main">
-                      {formatCurrency(payroll.total_net)}
-                    </Typography>
+                    <Chip 
+                      label={payroll.payroll_type === 'semi_monthly' ? 'Semi-Monthly' : 
+                             payroll.payroll_type === 'monthly' ? 'Monthly' : 'Weekly'}
+                      size="small"
+                      color={payroll.payroll_type === 'semi_monthly' ? 'primary' : 'default'}
+                      variant="outlined"
+                    />
+                  </TableCell>
+                  <TableCell>{renderCurrencyChip(payroll.currency || 'KHR')}</TableCell>
+                  <TableCell>{payroll.total_employees || 0}</TableCell>
+                  <TableCell align="right">
+                    {formatCurrency(payroll.total_gross, payroll.currency || 'KHR')}
+                  </TableCell>
+                  <TableCell align="right">
+                    {formatCurrency(payroll.total_tax, payroll.currency || 'KHR')}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                    {formatCurrency(payroll.total_net, payroll.currency || 'KHR')}
                   </TableCell>
                   <TableCell>{renderStatusChip(payroll.status)}</TableCell>
                   <TableCell>
                     {payroll.payment_date ? formatDate(payroll.payment_date) : '-'}
                   </TableCell>
                   <TableCell align="center">
+                    {/* View Button */}
                     <Tooltip title="View Details">
                       <IconButton size="small" onClick={() => navigate(`/payroll/${payroll.id}`)}>
                         <VisibilityIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+
+                    {/* Payslip Button */}
+                    <Tooltip title="View Payslips">
+                      <IconButton 
+                        size="small" 
+                        color="info"
+                        onClick={() => navigate(`/payslips/${payroll.id}`)}
+                      >
+                        <ReceiptIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+
+                    {/* Edit Button - Only for draft */}
                     {payroll.status === 'draft' && (
-                      <>
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => navigate(`/payroll/${payroll.id}/edit`)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => setDeleteDialog({ open: true, id: payroll.id, name: payroll.name })}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </>
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => navigate(`/payroll/${payroll.id}/edit`)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     )}
+
+                    {/* Delete Button - Only for draft */}
+                    {payroll.status === 'draft' && (
+                      <Tooltip title="Delete">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => setDeleteDialog({ open: true, id: payroll.id, name: payroll.name })}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+
+                    {/* Process Button - Draft to Processing */}
                     {payroll.status === 'draft' && (
                       <Tooltip title="Process Payroll">
                         <IconButton
@@ -415,34 +546,49 @@ const PayrollList = () => {
                         </IconButton>
                       </Tooltip>
                     )}
+
+                    {/* Approve Button - Processing to Approved (Admin only) */}
                     {payroll.status === 'processing' && (
-                      <Tooltip title="Approve Payroll">
-                        <IconButton
-                          size="small"
-                          color="success"
-                          onClick={() => handleStatusChange(payroll.id, 'approved')}
-                          disabled={!isAdmin}
-                        >
-                          <CheckCircleIcon fontSize="small" />
-                        </IconButton>
+                      <Tooltip title={!isAdmin ? 'Only Admin/HR can approve' : 'Approve Payroll'}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="success"
+                            onClick={() => handleStatusChange(payroll.id, 'approved')}
+                            disabled={!isAdmin}
+                          >
+                            <CheckCircleIcon fontSize="small" />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     )}
+
+                    {/* Mark as Paid Button - Approved to Paid (Admin only) */}
                     {payroll.status === 'approved' && (
-                      <Tooltip title="Mark as Paid">
-                        <IconButton
-                          size="small"
-                          color="secondary"
-                          onClick={() => handleStatusChange(payroll.id, 'paid')}
-                          disabled={!isAdmin}
-                        >
-                          <ReceiptIcon fontSize="small" />
-                        </IconButton>
+                      <Tooltip title={!isAdmin ? 'Only Admin/HR can mark as paid' : 'Mark as Paid'}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="secondary"
+                            onClick={() => handleStatusChange(payroll.id, 'paid')}
+                            disabled={!isAdmin}
+                          >
+                            <ReceiptIcon fontSize="small" />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     )}
-                    {payroll.status === 'paid' && (
-                      <Tooltip title="Print Report">
-                        <IconButton size="small" color="info">
-                          <PrintIcon fontSize="small" />
+
+                    {/* Cancel Button - Draft or Processing */}
+                    {(payroll.status === 'draft' || payroll.status === 'processing') && (
+                      <Tooltip title="Cancel Payroll">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleStatusChange(payroll.id, 'cancelled')}
+                          disabled={!isAdmin}
+                        >
+                          <CancelIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}

@@ -111,4 +111,42 @@ class PayrollItem extends Model
             'net_pay' => $this->net_pay,
         ];
     }
+
+    // app/Models/PayrollItem.php
+
+    // Tambahkan method untuk konversi
+    public function getAmountInCurrency($currency = 'USD')
+    {
+        if ($this->currency === $currency) {
+            return $this->net_pay;
+        }
+
+        $rate = ExchangeRate::convert($this->net_pay, $this->currency, $currency);
+        return $rate;
+    }
+
+    public function getNetPayInUsdAttribute()
+    {
+        return $this->getAmountInCurrency('USD');
+    }
+
+    public function getNetPayInKhrAttribute()
+    {
+        return $this->getAmountInCurrency('KHR');
+    }
+
+    public function getFormattedNetPayAttribute()
+    {
+        return ExchangeRate::format($this->net_pay, $this->currency);
+    }
+
+    public function getFormattedNetPayUsdAttribute()
+    {
+        return ExchangeRate::format($this->net_pay_usd, 'USD');
+    }
+
+    public function getFormattedNetPayKhrAttribute()
+    {
+        return ExchangeRate::format($this->net_pay_khr, 'KHR');
+    }
 }

@@ -128,4 +128,38 @@ class Payslip extends Model
     {
         return number_format($this->net_pay, 2) . ' ' . $this->currency_symbol;
     }
+
+    // app/Models/Payslip.php
+
+    // Tambahkan method untuk konversi
+    public function getNetPayInUsdAttribute()
+    {
+        if ($this->currency === 'USD') {
+            return $this->net_pay;
+        }
+        return ExchangeRate::convert($this->net_pay, 'KHR', 'USD');
+    }
+
+    public function getNetPayInKhrAttribute()
+    {
+        if ($this->currency === 'KHR') {
+            return $this->net_pay;
+        }
+        return ExchangeRate::convert($this->net_pay, 'USD', 'KHR');
+    }
+
+    public function getFormattedNetPayAttribute()
+    {
+        return ExchangeRate::format($this->net_pay, $this->currency);
+    }
+
+    public function getFormattedNetPayUsdAttribute()
+    {
+        return ExchangeRate::format($this->net_pay_usd, 'USD');
+    }
+
+    public function getFormattedNetPayKhrAttribute()
+    {
+        return ExchangeRate::format($this->net_pay_khr, 'KHR');
+    }
 }

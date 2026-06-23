@@ -64,6 +64,7 @@ import PayrollEdit from './pages/payroll/PayrollEdit';
 import EmployeeSalarySettings from './pages/payroll/EmployeeSalarySettings';
 import TaxSettings from './pages/payroll/TaxSettings';
 import PayslipList from './pages/payroll/PayslipList';
+import ExchangeRateSettings from './pages/payroll/ExchangeRateSettings';
 
 
 import MainLayout from './layouts/MainLayout';
@@ -600,6 +601,13 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <PayslipList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/exchange-rates" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ExchangeRateSettings />
           </MainLayout>
         </ProtectedRoute>
       } />

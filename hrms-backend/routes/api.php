@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\EmployeeAssetController;
 use App\Http\Controllers\Api\EmployeeDocumentController;
 use App\Http\Controllers\Api\EmployeeOfficeController;
 use App\Http\Controllers\Api\EmployeeSalarySettingController;
+use App\Http\Controllers\Api\ExchangeRateController;
 use App\Http\Controllers\Api\IncidentReportController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
@@ -320,4 +321,11 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/tax-settings/{id}', [TaxSettingController::class, 'update']);
     Route::delete('/tax-settings/{id}', [TaxSettingController::class, 'destroy']);
     Route::post('/tax-settings/{id}/activate', [TaxSettingController::class, 'activate']);
+
+    Route::get('/exange-rates', [ExchangeRateController::class, 'index']);
+    Route::get('/exange-rates/active', [ExchangeRateController::class, 'active']);
+    Route::post('/exange-rates/convert', [ExchangeRateController::class, 'convert']);
+    Route::post('/exange-rates', [ExchangeRateController::class, 'store']);
+    Route::put('/exange-rates/{id}', [ExchangeRateController::class, 'update']);
+    Route::delete('/exange-rates/{id}', [ExchangeRateController::class, 'destroy']);
 });

@@ -60,6 +60,26 @@ const ADMIN_ROLES = [
   'Marketing Manager', 'Sales Manager', 'Operations Manager', 'Manager',
 ];
 
+// ✅ Perbaiki fungsi formatCurrency
+const formatCurrency = (amount) => {
+  // Handle null, undefined, atau NaN
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return new Intl.NumberFormat('km-KH', {
+      style: 'currency',
+      currency: 'KHR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(0);
+  }
+  
+  return new Intl.NumberFormat('km-KH', {
+    style: 'currency',
+    currency: 'KHR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
 const PayrollDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -85,8 +105,9 @@ const PayrollDetail = () => {
       const response = await api.get(`/payroll/${id}`);
 
       if (response.data?.status === 'success') {
-        setPayroll(response.data.data);
-        setItems(response.data.data.items || []);
+        const data = response.data.data;
+        setPayroll(data);
+        setItems(data.items || []);
       } else {
         setError('Payroll not found');
       }
@@ -123,13 +144,10 @@ const PayrollDetail = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('km-KH', {
-      style: 'currency',
-      currency: 'KHR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount || 0);
+  // ✅ Hitung total dengan safe value
+  const calculateTotal = (field) => {
+    if (!items || items.length === 0) return 0;
+    return items.reduce((sum, item) => sum + (parseFloat(item[field]) || 0), 0);
   };
 
   const renderStatusChip = (status) => {
@@ -186,16 +204,16 @@ const PayrollDetail = () => {
         </Box>
 
         <Box display="flex" gap={1} flexWrap="wrap">
+          <Button
+            variant="contained"
+            color="info"
+            startIcon={<ReceiptIcon />}
+            onClick={() => navigate(`/payslips/${payroll.id}`)}
+          >
+            Payslips
+          </Button>
           {payroll.status === 'draft' && (
             <>
-              <Button
-                variant="contained"
-                color="info"
-                startIcon={<ReceiptIcon />}
-                onClick={() => navigate(`/payslips/${payroll.id}`)}
-              >
-                Payslips
-              </Button>
               <Button
                 variant="outlined"
                 startIcon={<EditIcon />}
@@ -326,6 +344,13 @@ const PayrollDetail = () => {
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
+            <Typography variant="caption" color="textSecondary">Payroll Type</Typography>
+            <Typography variant="body1">
+              {payroll.payroll_type === 'semi_monthly' ? 'Semi-Monthly' : 
+               payroll.payroll_type === 'monthly' ? 'Monthly' : 'Weekly'}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6}>
             <Typography variant="caption" color="textSecondary">Created By</Typography>
             <Typography variant="body1">
               {payroll.created_by?.first_name} {payroll.created_by?.last_name}
@@ -383,12 +408,9 @@ const PayrollDetail = () => {
                 <TableCell>Employee</TableCell>
                 <TableCell align="right">Basic Salary</TableCell>
                 <TableCell align="right">Allowance</TableCell>
-                <TableCell align="right">Overtime</TableCell>
-                <TableCell align="right">Bonus</TableCell>
                 <TableCell align="right">Total Earnings</TableCell>
                 <TableCell align="right">Tax</TableCell>
                 <TableCell align="right">NSSF</TableCell>
-                <TableCell align="right">Other Deductions</TableCell>
                 <TableCell align="right">Total Deductions</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>Net Pay</TableCell>
               </TableRow>
@@ -396,7 +418,7 @@ const PayrollDetail = () => {
             <TableBody>
               {items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} align="center">
+                  <TableCell colSpan={8} align="center">
                     <Typography color="textSecondary">No payroll items found</Typography>
                   </TableCell>
                 </TableRow>
@@ -415,16 +437,11 @@ const PayrollDetail = () => {
                     </TableCell>
                     <TableCell align="right">{formatCurrency(item.basic_salary)}</TableCell>
                     <TableCell align="right">{formatCurrency(item.allowance)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.overtime)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.bonus)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'medium' }}>
                       {formatCurrency(item.total_earnings)}
                     </TableCell>
-                    <TableCell align="right" color="error.main">
-                      {formatCurrency(item.tax)}
-                    </TableCell>
+                    <TableCell align="right">{formatCurrency(item.tax)}</TableCell>
                     <TableCell align="right">{formatCurrency(item.social_security)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.other_deductions)}</TableCell>
                     <TableCell align="right">{formatCurrency(item.total_deductions)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
                       {formatCurrency(item.net_pay)}
@@ -434,26 +451,23 @@ const PayrollDetail = () => {
               )}
               {items.length > 0 && (
                 <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                  <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>
+                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>
                     Total
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(payroll.total_gross)}
+                    {formatCurrency(calculateTotal('total_earnings'))}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(payroll.total_tax)}
+                    {formatCurrency(calculateTotal('tax'))}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(items.reduce((sum, item) => sum + (item.social_security || 0), 0))}
+                    {formatCurrency(calculateTotal('social_security'))}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(items.reduce((sum, item) => sum + (item.other_deductions || 0), 0))}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(payroll.total_deductions)}
+                    {formatCurrency(calculateTotal('total_deductions'))}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                    {formatCurrency(payroll.total_net)}
+                    {formatCurrency(calculateTotal('net_pay'))}
                   </TableCell>
                 </TableRow>
               )}

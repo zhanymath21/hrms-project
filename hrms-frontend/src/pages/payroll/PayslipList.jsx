@@ -1,4 +1,5 @@
-// src/pages/payroll/PayslipList.jsx
+// src/pages/payroll/PayslipList.jsx - Full updated file
+
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -20,7 +21,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-   Grid,
+  Grid,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -29,8 +30,8 @@ import {
   Print as PrintIcon,
   Email as EmailIcon,
   Delete as DeleteIcon,
-    Receipt as ReceiptIcon,
-   Close as CloseIcon,
+  Receipt as ReceiptIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
@@ -118,16 +119,6 @@ const PayslipList = () => {
     }
   };
 
-  const updateStatus = async (id, status) => {
-    try {
-      await api.put(`/payslips/${id}/status`, { status });
-      await fetchPayslips();
-    } catch (err) {
-      console.error('Error updating payslip status:', err);
-      alert('Failed to update status');
-    }
-  };
-
   const deletePayslip = async (id) => {
     if (!window.confirm('Delete this payslip?')) return;
     
@@ -156,13 +147,33 @@ const PayslipList = () => {
     );
   };
 
+  // ✅ Perbaiki fungsi formatCurrency
   const formatCurrency = (amount) => {
+    // Handle null, undefined, atau NaN
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return new Intl.NumberFormat('km-KH', {
+        style: 'currency',
+        currency: 'KHR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(0);
+    }
+    
     return new Intl.NumberFormat('km-KH', {
       style: 'currency',
       currency: 'KHR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount || 0);
+    }).format(amount);
+  };
+
+  // ✅ Fungsi untuk menghitung total allowances
+  const calculateTotalAllowances = (payslip) => {
+    return (payslip.housing_allowance || 0) +
+           (payslip.transport_allowance || 0) +
+           (payslip.meal_allowance || 0) +
+           (payslip.phone_allowance || 0) +
+           (payslip.other_allowance || 0);
   };
 
   if (loading) {
@@ -222,13 +233,13 @@ const PayslipList = () => {
             <Grid item xs={12} sm={3}>
               <Typography variant="caption" color="textSecondary">Total Net Pay</Typography>
               <Typography variant="h6" color="success.main">
-                {formatCurrency(payslips.reduce((sum, p) => sum + p.net_pay, 0))}
+                {formatCurrency(payslips.reduce((sum, p) => sum + (p.net_pay || 0), 0))}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={3}>
               <Typography variant="caption" color="textSecondary">Total Tax</Typography>
               <Typography variant="h6" color="error.main">
-                {formatCurrency(payslips.reduce((sum, p) => sum + p.tax, 0))}
+                {formatCurrency(payslips.reduce((sum, p) => sum + (p.tax || 0), 0))}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={3}>
@@ -288,13 +299,7 @@ const PayslipList = () => {
                   </TableCell>
                   <TableCell align="right">{formatCurrency(payslip.basic_salary)}</TableCell>
                   <TableCell align="right">
-                    {formatCurrency(
-                      payslip.housing_allowance +
-                      payslip.transport_allowance +
-                      payslip.meal_allowance +
-                      payslip.phone_allowance +
-                      payslip.other_allowance
-                    )}
+                    {formatCurrency(calculateTotalAllowances(payslip))}
                   </TableCell>
                   <TableCell align="right">{formatCurrency(payslip.tax)}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
@@ -305,21 +310,6 @@ const PayslipList = () => {
                     <Tooltip title="View">
                       <IconButton size="small" onClick={() => viewPayslip(payslip.id)}>
                         <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Download PDF">
-                      <IconButton size="small" color="primary">
-                        <DownloadIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Print">
-                      <IconButton size="small" color="info">
-                        <PrintIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Send Email">
-                      <IconButton size="small" color="secondary">
-                        <EmailIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Delete">
@@ -461,10 +451,10 @@ const PayslipList = () => {
 
               {/* Working Days */}
               <Typography variant="caption" color="textSecondary" display="block" sx={{ mt: 2 }}>
-                Working Days: {selectedPayslip.working_days} | 
-                Present: {selectedPayslip.present_days} | 
-                Absent: {selectedPayslip.absent_days} | 
-                Leave: {selectedPayslip.leave_days}
+                Working Days: {selectedPayslip.working_days || 0} | 
+                Present: {selectedPayslip.present_days || 0} | 
+                Absent: {selectedPayslip.absent_days || 0} | 
+                Leave: {selectedPayslip.leave_days || 0}
               </Typography>
             </Box>
           )}

@@ -140,6 +140,7 @@ const menuItems = [
       { text: 'Lost Time Injury', path: '/lost-time-injuries', icon: <HealingIcon /> },
     ]
   },
+  { text: 'Exchange Rates', icon: <AttachMoneyIcon />,path: '/exchange-rates',color: '#8b5cf6',},
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },
 ];
 

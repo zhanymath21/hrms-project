@@ -32,6 +32,7 @@ class DatabaseSeeder extends Seeder
             IncidentReportSeeder::class,
             OnboardingSeeder::class,          // Make sure this exists
             OnboardingStatusHistorySeeder::class,
+            ExchangeRateSeeder::class,
         ]);
     }
 }
