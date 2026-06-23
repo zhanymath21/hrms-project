@@ -69,15 +69,15 @@ class OnboardingSeeder extends Seeder
 
             $status = $faker->randomElement($statuses);
             $progress = $this->getProgressByStatus($status);
-            
+
             $employee = $employees->random();
             $vacancy = $vacancies->random();
             $createdBy = $employees->random();
 
             $startDate = $faker->dateTimeBetween('-3 months', 'now');
             $expectedEndDate = $faker->optional(0.7)->dateTimeBetween($startDate, '+3 months');
-            $actualEndDate = ($status === 'onboarding_completed') 
-                ? $faker->dateTimeBetween($startDate, '+2 months') 
+            $actualEndDate = ($status === 'onboarding_completed')
+                ? $faker->dateTimeBetween($startDate, '+2 months')
                 : null;
 
             // Get IDs only
@@ -103,8 +103,10 @@ class OnboardingSeeder extends Seeder
                 'updated_at' => $startDate,
             ]);
 
+            // FIXED: Use concatenation instead of {$index + 1}
             if (($index + 1) % 10 == 0) {
-                $this->command->info("   ✅ Created {$index + 1} onboarding records...");
+                $createdCount = $index + 1;
+                $this->command->info("   ✅ Created {$createdCount} onboarding records...");
             }
         }
 
@@ -293,7 +295,7 @@ class OnboardingSeeder extends Seeder
 
         foreach ($selectedTasks as $index => $task) {
             $isCompleted = $index < $completedCount;
-            
+
             $tasks[] = [
                 'task' => $task,
                 'completed' => $isCompleted,
@@ -311,7 +313,7 @@ class OnboardingSeeder extends Seeder
     private function displaySummary()
     {
         $totalOnboardings = Onboarding::count();
-        
+
         if ($totalOnboardings === 0) {
             $this->command->info("\n📊 No onboarding records found.");
             return;
@@ -320,7 +322,7 @@ class OnboardingSeeder extends Seeder
         $this->command->info("\n📊 ========================================");
         $this->command->info("📊 ONBOARDING SUMMARY");
         $this->command->info("📊 ========================================");
-        
+
         // Basic stats
         $this->command->info("\n📈 Overview:");
         $this->command->info("   • Total Onboardings: " . $totalOnboardings);
@@ -336,7 +338,7 @@ class OnboardingSeeder extends Seeder
             ->groupBy('status')
             ->orderBy('count', 'desc')
             ->get();
-        
+
         if ($statuses->isNotEmpty()) {
             foreach ($statuses as $status) {
                 $percentage = round(($status->count / $totalOnboardings) * 100, 1);
