@@ -10,6 +10,7 @@ use App\Models\AttendanceSession;
 use App\Models\Holiday;
 use App\Models\Employee;
 use Carbon\Carbon;
+use Faker\Factory as Faker;
 
 class AttendanceSeeder extends Seeder
 {
@@ -102,16 +103,39 @@ class AttendanceSeeder extends Seeder
 
     private function createHolidays()
     {
+        $faker = Faker::create();
+        $year = Carbon::now()->year;
+
         $holidays = [
-            ['name' => 'New Year\'s Day', 'date' => Carbon::now()->startOfYear()->format('Y-m-d')],
-            ['name' => 'International Women\'s Day', 'date' => Carbon::now()->startOfYear()->addMonths(2)->addDays(7)->format('Y-m-d')],
-            ['name' => 'Khmer New Year', 'date' => Carbon::now()->startOfYear()->addMonths(3)->addDays(12)->format('Y-m-d')],
-            ['name' => 'Labour Day', 'date' => Carbon::now()->startOfYear()->addMonths(4)->startOfMonth()->format('Y-m-d')],
-            ['name' => 'King\'s Birthday', 'date' => Carbon::now()->startOfYear()->addMonths(4)->addDays(12)->format('Y-m-d')],
-            ['name' => 'Independence Day', 'date' => Carbon::now()->startOfYear()->addMonths(10)->addDays(8)->format('Y-m-d')],
-            ['name' => 'Water Festival', 'date' => Carbon::now()->startOfYear()->addMonths(10)->addDays(13)->format('Y-m-d')],
-            ['name' => 'Human Rights Day', 'date' => Carbon::now()->startOfYear()->addMonths(11)->addDays(9)->format('Y-m-d')],
+            ['name' => 'New Year\'s Day', 'date' => $year . '-01-01'],
+            ['name' => 'International Women\'s Day', 'date' => $year . '-03-08'],
+            ['name' => 'Khmer New Year', 'date' => $year . '-04-13'],
+            ['name' => 'Labour Day', 'date' => $year . '-05-01'],
+            ['name' => 'King\'s Birthday', 'date' => $year . '-05-13'],
+            ['name' => 'Pchum Ben', 'date' => $year . '-10-01'],
+            ['name' => 'Independence Day', 'date' => $year . '-11-09'],
+            ['name' => 'Water Festival', 'date' => $year . '-11-14'],
+            ['name' => 'Human Rights Day', 'date' => $year . '-12-10'],
         ];
+
+        // Add some random holidays
+        for ($i = 0; $i < 3; $i++) {
+            $randomDate = Carbon::now()->startOfYear()->addDays($faker->numberBetween(1, 364));
+            // Check if date already exists in holidays list
+            $exists = false;
+            foreach ($holidays as $h) {
+                if ($h['date'] == $randomDate->format('Y-m-d')) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if (!$exists) {
+                $holidays[] = [
+                    'name' => 'Company Holiday',
+                    'date' => $randomDate->format('Y-m-d'),
+                ];
+            }
+        }
 
         foreach ($holidays as $holiday) {
             Holiday::updateOrCreate(
