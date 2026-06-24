@@ -42,7 +42,6 @@ const PayrollCreate = () => {
     payment_date: '',
     payroll_type: 'semi_monthly',
     payroll_cycle: 'first',
-    currency: 'USD', // ✅ Default USD
     notes: '',
   });
 
@@ -160,7 +159,7 @@ const PayrollCreate = () => {
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h4" component="h1" fontWeight="bold">
-          Create Payroll
+          Create Payroll (USD)
         </Typography>
       </Box>
 
@@ -235,20 +234,16 @@ const PayrollCreate = () => {
             </Grid>
 
             <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>Currency *</InputLabel>
-                <Select
-                  name="currency"
-                  value={formData.currency}
-                  onChange={handleChange}
-                  label="Currency *"
-                  required
-                  disabled={saving}
-                >
-                  <MenuItem value="USD">$ USD - Dollar</MenuItem>
-                  <MenuItem value="KHR">៛ KHR - Riel</MenuItem>
-                </Select>
-              </FormControl>
+              <TextField
+                fullWidth
+                type="date"
+                label="Payment Date"
+                name="payment_date"
+                value={formData.payment_date}
+                onChange={handleChange}
+                InputLabelProps={{ shrink: true }}
+                disabled={saving}
+              />
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -279,20 +274,7 @@ const PayrollCreate = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                type="date"
-                label="Payment Date"
-                name="payment_date"
-                value={formData.payment_date}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                disabled={saving}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="Notes"

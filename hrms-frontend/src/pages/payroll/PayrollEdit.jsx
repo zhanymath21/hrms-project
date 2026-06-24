@@ -15,8 +15,6 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Stack,
-  Chip,
   Card,
   CardContent,
 } from '@mui/material';
@@ -24,7 +22,7 @@ import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   Person as PersonIcon,
-  Delete as DeleteIcon,
+  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
@@ -43,6 +41,8 @@ const PayrollEdit = () => {
     start_date: '',
     end_date: '',
     payment_date: '',
+    payroll_type: 'semi_monthly',
+    payroll_cycle: 'first',
     notes: '',
   });
   const [originalItems, setOriginalItems] = useState([]);
@@ -68,6 +68,8 @@ const PayrollEdit = () => {
           start_date: data.start_date || '',
           end_date: data.end_date || '',
           payment_date: data.payment_date || '',
+          payroll_type: data.payroll_type || 'semi_monthly',
+          payroll_cycle: data.payroll_cycle || 'first',
           notes: data.notes || '',
         });
         setSelectedEmployees(data.items?.map(item => item.employee_id) || []);
@@ -163,7 +165,7 @@ const PayrollEdit = () => {
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h4" component="h1" fontWeight="bold">
-          Edit Payroll
+          Edit Payroll (USD)
         </Typography>
       </Box>
 
@@ -199,6 +201,56 @@ const PayrollEdit = () => {
               />
             </Grid>
 
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>Payroll Type *</InputLabel>
+                <Select
+                  name="payroll_type"
+                  value={formData.payroll_type}
+                  onChange={handleChange}
+                  label="Payroll Type *"
+                  required
+                  disabled={saving}
+                >
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                  <MenuItem value="semi_monthly">Semi-Monthly (2x/month)</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>Payroll Cycle *</InputLabel>
+                <Select
+                  name="payroll_cycle"
+                  value={formData.payroll_cycle}
+                  onChange={handleChange}
+                  label="Payroll Cycle *"
+                  required
+                  disabled={saving}
+                >
+                  <MenuItem value="first">First Cycle</MenuItem>
+                  <MenuItem value="second">Second Cycle</MenuItem>
+                  <MenuItem value="third">Third Cycle</MenuItem>
+                  <MenuItem value="fourth">Fourth Cycle</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                type="date"
+                label="Payment Date"
+                name="payment_date"
+                value={formData.payment_date}
+                onChange={handleChange}
+                InputLabelProps={{ shrink: true }}
+                disabled={saving}
+              />
+            </Grid>
+
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -227,20 +279,7 @@ const PayrollEdit = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                type="date"
-                label="Payment Date"
-                name="payment_date"
-                value={formData.payment_date}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                disabled={saving}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="Notes"
@@ -253,7 +292,6 @@ const PayrollEdit = () => {
               />
             </Grid>
 
-            {/* Employees Selection */}
             <Grid item xs={12}>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                 Select Employees ({selectedEmployees.length} selected)
@@ -283,9 +321,6 @@ const PayrollEdit = () => {
                         cursor: 'pointer',
                         bgcolor: selectedEmployees.includes(emp.id) ? '#f0fdf4' : 'transparent',
                         borderColor: selectedEmployees.includes(emp.id) ? '#86efac' : '#e5e7eb',
-                        '&:hover': {
-                          bgcolor: selectedEmployees.includes(emp.id) ? '#dcfce7' : '#f9fafb',
-                        },
                       }}
                       onClick={() => handleToggleEmployee(emp.id)}
                     >

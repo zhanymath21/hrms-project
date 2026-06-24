@@ -22,6 +22,11 @@ import {
   TableHead,
   TableRow,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -35,6 +40,7 @@ import {
   Print as PrintIcon,
   Download as DownloadIcon,
   Receipt as ReceiptIcon,
+  Adjust as AdjustIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/axios';
@@ -55,28 +61,11 @@ const ADMIN_ROLES = [
   'Marketing Manager', 'Sales Manager', 'Operations Manager', 'Manager',
 ];
 
-const formatCurrency = (amount, currency = 'KHR') => {
+const formatCurrency = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) {
-    return currency === 'USD' ? '$0.00' : '៛0';
+    return '$0.00';
   }
-  
-  const symbols = {
-    USD: '$',
-    KHR: '៛',
-  };
-  
-  const decimals = {
-    USD: 2,
-    KHR: 0,
-  };
-  
-  const symbol = symbols[currency] || currency;
-  const decimal = decimals[currency] || 0;
-  
-  return symbol + Number(amount).toLocaleString('en-US', {
-    minimumFractionDigits: decimal,
-    maximumFractionDigits: decimal,
-  });
+  return '$' + Number(amount).toFixed(2);
 };
 
 const PayrollDetail = () => {
@@ -87,7 +76,7 @@ const PayrollDetail = () => {
   const [payroll, setPayroll] = useState(null);
   const [items, setItems] = useState([]);
   const [updating, setUpdating] = useState(false);
-  const [deleteDialog, setDeleteDialog] = useState(false);
+  const [adjustmentModal, setAdjustmentModal] = useState({ open: false, item: null });
 
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const userRole = currentUser?.role || '';
@@ -143,6 +132,44 @@ const PayrollDetail = () => {
     }
   };
 
+  const handleOpenAdjustment = (item) => {
+    setAdjustmentModal({ open: true, item });
+  };
+
+  const handleCloseAdjustment = () => {
+    setAdjustmentModal({ open: false, item: null });
+  };
+
+  const handleApplyAdjustment = async (data) => {
+    try {
+      setUpdating(true);
+      await api.post(`/payroll-adjustments/${adjustmentModal.item.id}/adjust`, data);
+      await fetchPayroll();
+      handleCloseAdjustment();
+    } catch (err) {
+      console.error('Error applying adjustment:', err);
+      alert(err.response?.data?.message || 'Failed to apply adjustment');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleClearAdjustment = async () => {
+    if (!window.confirm('Clear all manual adjustments? This will revert to original values.')) return;
+    
+    try {
+      setUpdating(true);
+      await api.post(`/payroll-adjustments/${adjustmentModal.item.id}/clear`);
+      await fetchPayroll();
+      handleCloseAdjustment();
+    } catch (err) {
+      console.error('Error clearing adjustment:', err);
+      alert(err.response?.data?.message || 'Failed to clear adjustment');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const calculateTotal = (field) => {
     if (!items || items.length === 0) return 0;
     return items.reduce((sum, item) => sum + (parseFloat(item[field]) || 0), 0);
@@ -166,10 +193,6 @@ const PayrollDetail = () => {
     );
   };
 
-  const getCurrency = () => {
-    return payroll?.currency || 'KHR';
-  };
-
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -190,7 +213,6 @@ const PayrollDetail = () => {
   }
 
   const isFinalStatus = ['approved', 'paid', 'cancelled'].includes(payroll.status);
-  const currency = getCurrency();
 
   return (
     <Box>
@@ -203,11 +225,7 @@ const PayrollDetail = () => {
             {payroll.name}
           </Typography>
           {renderStatusChip(payroll.status)}
-          <Chip 
-            label={currency === 'USD' ? 'USD' : 'KHR'} 
-            size="small"
-            color={currency === 'USD' ? 'primary' : 'default'}
-          />
+          <Chip label="USD" size="small" color="primary" />
         </Box>
 
         <Box display="flex" gap={1} flexWrap="wrap">
@@ -302,7 +320,7 @@ const PayrollDetail = () => {
             <CardContent>
               <Typography variant="caption" color="textSecondary">Total Gross</Typography>
               <Typography variant="h5" fontWeight="bold" color="primary.main">
-                {formatCurrency(payroll.total_gross, currency)}
+                {formatCurrency(payroll.total_gross)}
               </Typography>
             </CardContent>
           </Card>
@@ -312,7 +330,7 @@ const PayrollDetail = () => {
             <CardContent>
               <Typography variant="caption" color="textSecondary">Total Deductions</Typography>
               <Typography variant="h5" fontWeight="bold" color="error.main">
-                {formatCurrency(payroll.total_deductions, currency)}
+                {formatCurrency(payroll.total_deductions)}
               </Typography>
             </CardContent>
           </Card>
@@ -322,7 +340,7 @@ const PayrollDetail = () => {
             <CardContent>
               <Typography variant="caption" color="textSecondary">Total Net Pay</Typography>
               <Typography variant="h5" fontWeight="bold" color="success.main">
-                {formatCurrency(payroll.total_net, currency)}
+                {formatCurrency(payroll.total_net)}
               </Typography>
             </CardContent>
           </Card>
@@ -356,39 +374,11 @@ const PayrollDetail = () => {
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
-            <Typography variant="caption" color="textSecondary">Currency</Typography>
-            <Typography variant="body1">
-              {currency === 'USD' ? 'USD ($)' : 'KHR (៛)'}
-            </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
             <Typography variant="caption" color="textSecondary">Created By</Typography>
             <Typography variant="body1">
               {payroll.created_by?.first_name} {payroll.created_by?.last_name}
             </Typography>
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="caption" color="textSecondary">Created At</Typography>
-            <Typography variant="body1">
-              {formatDate(payroll.created_at, 'dd/MM/yyyy HH:mm')}
-            </Typography>
-          </Grid>
-          {payroll.approved_by && (
-            <>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="caption" color="textSecondary">Approved By</Typography>
-                <Typography variant="body1">
-                  {payroll.approved_by?.first_name} {payroll.approved_by?.last_name}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="caption" color="textSecondary">Approved At</Typography>
-                <Typography variant="body1">
-                  {formatDate(payroll.approved_at, 'dd/MM/yyyy HH:mm')}
-                </Typography>
-              </Grid>
-            </>
-          )}
           {payroll.notes && (
             <Grid item xs={12}>
               <Typography variant="caption" color="textSecondary">Notes</Typography>
@@ -416,19 +406,23 @@ const PayrollDetail = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Employee</TableCell>
+                <TableCell align="center">Days</TableCell>
+                <TableCell align="center">Present</TableCell>
+                <TableCell align="center">Absent</TableCell>
+                <TableCell align="center">Leave</TableCell>
                 <TableCell align="right">Basic Salary</TableCell>
                 <TableCell align="right">Allowance</TableCell>
                 <TableCell align="right">Total Earnings</TableCell>
                 <TableCell align="right">Tax</TableCell>
                 <TableCell align="right">NSSF</TableCell>
-                <TableCell align="right">Total Deductions</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Net Pay</TableCell>
+                <TableCell align="right">Net Pay</TableCell>
+                <TableCell align="center">Adjustment</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={12} align="center">
                     <Typography color="textSecondary">No payroll items found</Typography>
                   </TableCell>
                 </TableRow>
@@ -445,46 +439,288 @@ const PayrollDetail = () => {
                         </Typography>
                       </Box>
                     </TableCell>
-                    <TableCell align="right">{formatCurrency(item.basic_salary, currency)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.allowance, currency)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'medium' }}>
-                      {formatCurrency(item.total_earnings, currency)}
+                    <TableCell align="center">{item.working_days || 0}</TableCell>
+                    <TableCell align="center">
+                      <Typography color="success.main">{item.effective_present_days || 0}</Typography>
+                      {item.override_present_days !== null && (
+                        <Tooltip title="Overridden">
+                          <Chip label="Adj" size="small" color="warning" sx={{ ml: 0.5, height: 16, fontSize: '0.6rem' }} />
+                        </Tooltip>
+                      )}
                     </TableCell>
-                    <TableCell align="right">{formatCurrency(item.tax, currency)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.social_security, currency)}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.total_deductions, currency)}</TableCell>
+                    <TableCell align="center">
+                      <Typography color="error.main">{item.effective_absent_days || 0}</Typography>
+                      {item.override_absent_days !== null && (
+                        <Tooltip title="Overridden">
+                          <Chip label="Adj" size="small" color="warning" sx={{ ml: 0.5, height: 16, fontSize: '0.6rem' }} />
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Typography color="warning.main">{item.effective_leave_days || 0}</Typography>
+                      {item.override_leave_days !== null && (
+                        <Tooltip title="Overridden">
+                          <Chip label="Adj" size="small" color="warning" sx={{ ml: 0.5, height: 16, fontSize: '0.6rem' }} />
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">{formatCurrency(item.basic_salary)}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.allowance)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'medium' }}>
+                      {formatCurrency(item.total_earnings)}
+                    </TableCell>
+                    <TableCell align="right">{formatCurrency(item.tax)}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.social_security)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                      {formatCurrency(item.net_pay, currency)}
+                      {formatCurrency(item.net_pay)}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="Manual Adjustment">
+                        <span>
+                          <IconButton
+                            size="small"
+                            color={item.is_manual_adjusted ? 'warning' : 'default'}
+                            onClick={() => handleOpenAdjustment(item)}
+                            disabled={payroll.status === 'paid' || payroll.status === 'cancelled'}
+                          >
+                            <AdjustIcon fontSize="small" />
+                          </IconButton>
+                          {item.is_manual_adjusted && (
+                            <Chip label="Adj" size="small" color="warning" sx={{ ml: 0.5, height: 16, fontSize: '0.6rem' }} />
+                          )}
+                        </span>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))
               )}
               {items.length > 0 && (
                 <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>
+                  <TableCell colSpan={6} align="right" sx={{ fontWeight: 'bold' }}>
                     Total
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('total_earnings'), currency)}
+                    {formatCurrency(calculateTotal('total_earnings'))}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('tax'), currency)}
+                    {formatCurrency(calculateTotal('tax'))}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('social_security'), currency)}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('total_deductions'), currency)}
+                    {formatCurrency(calculateTotal('social_security'))}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                    {formatCurrency(calculateTotal('net_pay'), currency)}
+                    {formatCurrency(calculateTotal('net_pay'))}
                   </TableCell>
+                  <TableCell />
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </TableContainer>
       </Paper>
+
+      {/* Adjustment Modal */}
+      <Dialog open={adjustmentModal.open} onClose={handleCloseAdjustment} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Manual Payroll Adjustment</Typography>
+            <IconButton onClick={handleCloseAdjustment}>
+              <CancelIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          {adjustmentModal.item && (
+            <AdjustmentForm
+              item={adjustmentModal.item}
+              onSubmit={handleApplyAdjustment}
+              onClear={handleClearAdjustment}
+              onCancel={handleCloseAdjustment}
+              saving={updating}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </Box>
+  );
+};
+
+// Adjustment Form Component
+const AdjustmentForm = ({ item, onSubmit, onClear, onCancel, saving }) => {
+  const [formData, setFormData] = useState({
+    manual_adjustment_amount: item.manual_adjustment_amount || 0,
+    manual_adjustment_reason: item.manual_adjustment_reason || '',
+    override_present_days: item.override_present_days ?? item.present_days,
+    override_absent_days: item.override_absent_days ?? item.absent_days,
+    override_leave_days: item.override_leave_days ?? item.leave_days,
+    override_notes: item.override_notes || '',
+  });
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value === '' ? null : parseFloat(value) || 0,
+    }));
+  };
+
+  const handleTextChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = () => {
+    if (!formData.manual_adjustment_reason || formData.manual_adjustment_reason.length < 5) {
+      alert('Please provide a reason (minimum 5 characters)');
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  return (
+    <Box>
+      <Box sx={{ mb: 3, p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
+        <Grid container spacing={2}>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="textSecondary">Employee</Typography>
+            <Typography variant="body1" fontWeight="medium">
+              {item.employee?.first_name} {item.employee?.last_name}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="textSecondary">Current Net Pay</Typography>
+            <Typography variant="body1" fontWeight="bold" color="success.main">
+              {formatCurrency(item.net_pay)}
+            </Typography>
+          </Grid>
+          <Grid item xs={4}>
+            <Typography variant="caption" color="textSecondary">Present</Typography>
+            <Typography variant="body2">{item.present_days || 0} days</Typography>
+          </Grid>
+          <Grid item xs={4}>
+            <Typography variant="caption" color="textSecondary">Absent</Typography>
+            <Typography variant="body2">{item.absent_days || 0} days</Typography>
+          </Grid>
+          <Grid item xs={4}>
+            <Typography variant="caption" color="textSecondary">Leave</Typography>
+            <Typography variant="body2">{item.leave_days || 0} days</Typography>
+          </Grid>
+        </Grid>
+      </Box>
+
+      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+        Attendance Override
+      </Typography>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={4}>
+          <TextField
+            fullWidth
+            type="number"
+            label="Present Days"
+            name="override_present_days"
+            value={formData.override_present_days ?? ''}
+            onChange={handleChange}
+            InputProps={{ inputProps: { min: 0 } }}
+            helperText={`Original: ${item.present_days || 0}`}
+          />
+        </Grid>
+        <Grid item xs={4}>
+          <TextField
+            fullWidth
+            type="number"
+            label="Absent Days"
+            name="override_absent_days"
+            value={formData.override_absent_days ?? ''}
+            onChange={handleChange}
+            InputProps={{ inputProps: { min: 0 } }}
+            helperText={`Original: ${item.absent_days || 0}`}
+          />
+        </Grid>
+        <Grid item xs={4}>
+          <TextField
+            fullWidth
+            type="number"
+            label="Leave Days"
+            name="override_leave_days"
+            value={formData.override_leave_days ?? ''}
+            onChange={handleChange}
+            InputProps={{ inputProps: { min: 0 } }}
+            helperText={`Original: ${item.leave_days || 0}`}
+          />
+        </Grid>
+      </Grid>
+
+      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+        Salary Adjustment
+      </Typography>
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            type="number"
+            label="Adjustment Amount (USD)"
+            name="manual_adjustment_amount"
+            value={formData.manual_adjustment_amount}
+            onChange={handleChange}
+            InputProps={{ 
+              inputProps: { step: 0.01 },
+              startAdornment: <Typography>$</Typography>,
+            }}
+            helperText="Positive for bonus/extra, negative for deduction"
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Reason for Adjustment *"
+            name="manual_adjustment_reason"
+            value={formData.manual_adjustment_reason}
+            onChange={handleTextChange}
+            required
+            multiline
+            rows={2}
+            placeholder="Explain why this adjustment is needed..."
+            helperText="Minimum 5 characters"
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Additional Notes"
+            name="override_notes"
+            value={formData.override_notes}
+            onChange={handleTextChange}
+            multiline
+            rows={2}
+            placeholder="Any additional notes..."
+          />
+        </Grid>
+      </Grid>
+
+      {item.is_manual_adjusted && (
+        <Alert severity="info" sx={{ mt: 2 }}>
+          <Typography variant="body2">
+            <strong>Previously Adjusted:</strong> {formatCurrency(item.manual_adjustment_amount)} 
+            ({item.manual_adjustment_reason})
+          </Typography>
+        </Alert>
+      )}
+
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
+        <Button onClick={onCancel} disabled={saving}>Cancel</Button>
+        {item.is_manual_adjusted && (
+          <Button onClick={onClear} color="error" disabled={saving}>
+            Clear Adjustment
+          </Button>
+        )}
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={saving || !formData.manual_adjustment_reason}
+        >
+          {saving ? 'Saving...' : 'Apply Adjustment'}
+        </Button>
+      </Box>
     </Box>
   );
 };

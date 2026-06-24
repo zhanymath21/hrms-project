@@ -78,7 +78,7 @@ class Payslip extends Model
         'leave_days' => 0,
         'holiday_days' => 0,
         'overtime_hours' => 0,
-        'currency' => 'KHR',
+        'currency' => 'USD',
         'status' => 'draft',
     ];
 

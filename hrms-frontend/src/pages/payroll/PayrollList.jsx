@@ -62,29 +62,12 @@ const ADMIN_ROLES = [
   'Marketing Manager', 'Sales Manager', 'Operations Manager', 'Manager',
 ];
 
-// Format Currency Function
-const formatCurrency = (amount, currency = 'KHR') => {
+// Format Currency Function - USD only
+const formatCurrency = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) {
-    return currency === 'USD' ? '$0.00' : '៛0';
+    return '$0.00';
   }
-  
-  const symbols = {
-    USD: '$',
-    KHR: '៛',
-  };
-  
-  const decimals = {
-    USD: 2,
-    KHR: 0,
-  };
-  
-  const symbol = symbols[currency] || currency;
-  const decimal = decimals[currency] || 0;
-  
-  return symbol + Number(amount).toLocaleString('en-US', {
-    minimumFractionDigits: decimal,
-    maximumFractionDigits: decimal,
-  });
+  return '$' + Number(amount).toFixed(2);
 };
 
 const PayrollList = () => {
@@ -98,7 +81,6 @@ const PayrollList = () => {
     search: '',
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
-    currency: '',
   });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, name: '' });
 
@@ -121,7 +103,6 @@ const PayrollList = () => {
       if (filters.year) params.year = filters.year;
       if (filters.month) params.month = filters.month;
       if (filters.search) params.search = filters.search;
-      if (filters.currency) params.currency = filters.currency;
       
       const response = await api.get('/payroll', { params });
       
@@ -193,7 +174,6 @@ const PayrollList = () => {
       search: '',
       year: new Date().getFullYear(),
       month: new Date().getMonth() + 1,
-      currency: '',
     });
     setTimeout(fetchPayrolls, 100);
   };
@@ -214,18 +194,6 @@ const PayrollList = () => {
     );
   };
 
-  const renderCurrencyChip = (currency) => {
-    return (
-      <Chip
-        label={currency === 'USD' ? 'USD' : 'KHR'}
-        size="small"
-        color={currency === 'USD' ? 'primary' : 'default'}
-        variant="outlined"
-        sx={{ fontWeight: 600 }}
-      />
-    );
-  };
-
   const getMonthName = (month) => {
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'];
@@ -240,7 +208,7 @@ const PayrollList = () => {
             💰 Payroll
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            Manage employee payroll and salary processing
+            Manage employee payroll and salary processing (USD)
           </Typography>
         </Box>
         <Box display="flex" gap={1}>
@@ -310,7 +278,7 @@ const PayrollList = () => {
 
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={2}>
+          <Grid item xs={12} sm={3}>
             <TextField
               fullWidth
               size="small"
@@ -331,7 +299,7 @@ const PayrollList = () => {
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={2}>
+          <Grid item xs={12} sm={3}>
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
               <Select
@@ -347,7 +315,7 @@ const PayrollList = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={2}>
+          <Grid item xs={12} sm={3}>
             <TextField
               fullWidth
               size="small"
@@ -359,7 +327,7 @@ const PayrollList = () => {
               InputProps={{ inputProps: { min: 2000, max: 2100 } }}
             />
           </Grid>
-          <Grid item xs={12} sm={2}>
+          <Grid item xs={12} sm={3}>
             <FormControl fullWidth size="small">
               <InputLabel>Month</InputLabel>
               <Select
@@ -374,41 +342,6 @@ const PayrollList = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Currency</InputLabel>
-              <Select
-                name="currency"
-                value={filters.currency}
-                onChange={handleFilterChange}
-                label="Currency"
-              >
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="USD">USD ($)</MenuItem>
-                <MenuItem value="KHR">KHR (៛)</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={2}>
-            <Box display="flex" gap={1}>
-              <Button
-                variant="contained"
-                onClick={handleSearch}
-                startIcon={<SearchIcon />}
-                fullWidth
-              >
-                Search
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={handleClearFilters}
-                startIcon={<ClearIcon />}
-                fullWidth
-              >
-                Clear
-              </Button>
-            </Box>
-          </Grid>
         </Grid>
       </Paper>
 
@@ -420,7 +353,6 @@ const PayrollList = () => {
             <TableRow>
               <TableCell>Period</TableCell>
               <TableCell>Type</TableCell>
-              <TableCell>Currency</TableCell>
               <TableCell>Employees</TableCell>
               <TableCell align="right">Gross Pay</TableCell>
               <TableCell align="right">Tax</TableCell>
@@ -433,13 +365,13 @@ const PayrollList = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} align="center">
+                <TableCell colSpan={9} align="center">
                   <CircularProgress />
                 </TableCell>
               </TableRow>
             ) : payrolls.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} align="center">
+                <TableCell colSpan={9} align="center">
                   <Typography color="textSecondary">No payroll records found</Typography>
                 </TableCell>
               </TableRow>
@@ -463,16 +395,15 @@ const PayrollList = () => {
                       variant="outlined"
                     />
                   </TableCell>
-                  <TableCell>{renderCurrencyChip(payroll.currency || 'KHR')}</TableCell>
                   <TableCell>{payroll.total_employees || 0}</TableCell>
                   <TableCell align="right">
-                    {formatCurrency(payroll.total_gross, payroll.currency || 'KHR')}
+                    {formatCurrency(payroll.total_gross)}
                   </TableCell>
                   <TableCell align="right">
-                    {formatCurrency(payroll.total_tax, payroll.currency || 'KHR')}
+                    {formatCurrency(payroll.total_tax)}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                    {formatCurrency(payroll.total_net, payroll.currency || 'KHR')}
+                    {formatCurrency(payroll.total_net)}
                   </TableCell>
                   <TableCell>{renderStatusChip(payroll.status)}</TableCell>
                   <TableCell>
