@@ -158,11 +158,33 @@ class LeaveSeeder extends Seeder
             $endDate = Carbon::parse($startDate)->addDays($daysToAdd);
             $totalDays = Carbon::parse($startDate)->diffInDays($endDate) + 1;
 
-            $approvedBy = $status === 'approved' ? $employees->random()?->id : null;
-            $approvedAt = $status === 'approved' ? $faker->dateTimeBetween($startDate, 'now') : null;
+            // FIX: Check if startDate is before 'now' before using dateTimeBetween
+            $now = Carbon::now();
+            $approvedBy = null;
+            $approvedAt = null;
 
-            $cancelledBy = $status === 'cancelled' ? $employees->random()?->id : null;
-            $cancelledAt = $status === 'cancelled' ? $faker->dateTimeBetween($startDate, 'now') : null;
+            if ($status === 'approved') {
+                $approvedBy = $employees->random()?->id;
+                // Only set approved_at if startDate is before now
+                if (Carbon::parse($startDate) <= $now) {
+                    $approvedAt = $faker->dateTimeBetween($startDate, 'now');
+                } else {
+                    $approvedAt = $startDate;
+                }
+            }
+
+            $cancelledBy = null;
+            $cancelledAt = null;
+
+            if ($status === 'cancelled') {
+                $cancelledBy = $employees->random()?->id;
+                // Only set cancelled_at if startDate is before now
+                if (Carbon::parse($startDate) <= $now) {
+                    $cancelledAt = $faker->dateTimeBetween($startDate, 'now');
+                } else {
+                    $cancelledAt = $startDate;
+                }
+            }
 
             Leave::create([
                 'employee_id' => $employee->id,
@@ -263,7 +285,7 @@ class LeaveSeeder extends Seeder
                 'status' => $data['status'],
                 'rejection_reason' => $data['rejection_reason'] ?? null,
                 'approved_by' => $data['status'] === 'approved' ? Employee::inRandomOrder()->first()?->id : null,
-                'approved_at' => $data['status'] === 'approved' ? now() : null,
+                'approved_at' => $data['status'] === 'approved' ? Carbon::now()->subDays(rand(1, 10)) : null,
             ]);
         }
     }
