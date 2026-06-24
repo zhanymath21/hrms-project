@@ -118,16 +118,4 @@ class LeaveFactory extends Factory
             ];
         });
     }
-
-    public function betweenDates($startDate, $endDate)
-    {
-        return $this->state(function (array $attributes) use ($startDate, $endDate) {
-            $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
-            return [
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-                'total_days' => $totalDays,
-            ];
-        });
-    }
 }
