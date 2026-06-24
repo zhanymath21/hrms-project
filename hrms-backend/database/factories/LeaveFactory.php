@@ -48,9 +48,6 @@ class LeaveFactory extends Factory
         ];
     }
 
-    /**
-     * Indicate that the leave is pending.
-     */
     public function pending()
     {
         return $this->state(function (array $attributes) {
@@ -65,9 +62,6 @@ class LeaveFactory extends Factory
         });
     }
 
-    /**
-     * Indicate that the leave is approved.
-     */
     public function approved()
     {
         return $this->state(function (array $attributes) {
@@ -81,9 +75,6 @@ class LeaveFactory extends Factory
         });
     }
 
-    /**
-     * Indicate that the leave is rejected.
-     */
     public function rejected()
     {
         return $this->state(function (array $attributes) {
@@ -96,9 +87,6 @@ class LeaveFactory extends Factory
         });
     }
 
-    /**
-     * Indicate that the leave is cancelled.
-     */
     public function cancelled()
     {
         return $this->state(function (array $attributes) {
@@ -113,9 +101,6 @@ class LeaveFactory extends Factory
         });
     }
 
-    /**
-     * Set a specific leave type.
-     */
     public function forLeaveType($leaveTypeId)
     {
         return $this->state(function (array $attributes) use ($leaveTypeId) {
@@ -125,9 +110,6 @@ class LeaveFactory extends Factory
         });
     }
 
-    /**
-     * Set a specific employee.
-     */
     public function forEmployee($employeeId)
     {
         return $this->state(function (array $attributes) use ($employeeId) {
@@ -137,9 +119,6 @@ class LeaveFactory extends Factory
         });
     }
 
-    /**
-     * Set specific date range.
-     */
     public function betweenDates($startDate, $endDate)
     {
         return $this->state(function (array $attributes) use ($startDate, $endDate) {
