@@ -36,11 +36,11 @@ class LeaveSeeder extends Seeder
 
     private function createLeaveTypes()
     {
-        // No 'color' column - matches your migration exactly
+        // All codes are 10 characters or less
         $leaveTypes = [
             [
                 'name' => 'Annual Leave',
-                'code' => 'ANNUAL',
+                'code' => 'ANNUAL',        // 6 chars
                 'description' => 'Annual paid leave for employees',
                 'days_per_year' => 18,
                 'is_paid' => true,
@@ -50,7 +50,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Sick Leave',
-                'code' => 'SICK',
+                'code' => 'SICK',          // 4 chars
                 'description' => 'Sick leave with medical certificate',
                 'days_per_year' => 10,
                 'is_paid' => true,
@@ -60,7 +60,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Emergency Leave',
-                'code' => 'EMERGENCY',
+                'code' => 'EMERG',         // 5 chars (was EMERGENCY - 9 chars)
                 'description' => 'Emergency leave for urgent matters',
                 'days_per_year' => 5,
                 'is_paid' => true,
@@ -70,7 +70,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Maternity Leave',
-                'code' => 'MATERNITY',
+                'code' => 'MATERN',        // 6 chars (was MATERNITY - 9 chars)
                 'description' => 'Maternity leave for expecting mothers',
                 'days_per_year' => 90,
                 'is_paid' => true,
@@ -80,7 +80,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Paternity Leave',
-                'code' => 'PATERNITY',
+                'code' => 'PATER',         // 5 chars (was PATERNITY - 9 chars)
                 'description' => 'Paternity leave for new fathers',
                 'days_per_year' => 7,
                 'is_paid' => true,
@@ -90,7 +90,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Compassionate Leave',
-                'code' => 'COMPASSIONATE',
+                'code' => 'COMPASS',       // 7 chars (was COMPASSIONATE - 13 chars)
                 'description' => 'Leave for bereavement or family emergencies',
                 'days_per_year' => 5,
                 'is_paid' => true,
@@ -100,7 +100,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Unpaid Leave',
-                'code' => 'UNPAID',
+                'code' => 'UNPAID',        // 6 chars
                 'description' => 'Unpaid leave for personal reasons',
                 'days_per_year' => 0,
                 'is_paid' => false,
@@ -110,7 +110,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Study Leave',
-                'code' => 'STUDY',
+                'code' => 'STUDY',         // 5 chars
                 'description' => 'Leave for educational purposes',
                 'days_per_year' => 5,
                 'is_paid' => false,
@@ -120,7 +120,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Public Holiday',
-                'code' => 'PUBLIC',
+                'code' => 'PUBLIC',        // 6 chars
                 'description' => 'Public holidays',
                 'days_per_year' => 0,
                 'is_paid' => true,
@@ -172,7 +172,7 @@ class LeaveSeeder extends Seeder
                 'total_days' => 3,
                 'reason' => 'Family emergency - need to attend to urgent family matter.',
                 'status' => 'approved',
-                'leave_type' => 'EMERGENCY',
+                'leave_type' => 'EMERG',
             ],
             [
                 'start_date' => Carbon::now()->addDays(10),
