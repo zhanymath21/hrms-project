@@ -7,6 +7,7 @@ use App\Models\Leave;
 use App\Models\LeaveType;
 use App\Models\Employee;
 use Carbon\Carbon;
+use Faker\Factory as Faker;
 
 class LeaveSeeder extends Seeder
 {
@@ -25,8 +26,8 @@ class LeaveSeeder extends Seeder
             return;
         }
 
-        // Create 50 leave records
-        Leave::factory(50)->create();
+        // Create 50 leave records manually
+        $this->createLeavesManually($employees);
 
         // Create specific leave records
         $this->createSpecificLeaves();
@@ -36,11 +37,10 @@ class LeaveSeeder extends Seeder
 
     private function createLeaveTypes()
     {
-        // All codes are 10 characters or less
         $leaveTypes = [
             [
                 'name' => 'Annual Leave',
-                'code' => 'ANNUAL',        // 6 chars
+                'code' => 'ANNUAL',
                 'description' => 'Annual paid leave for employees',
                 'days_per_year' => 18,
                 'is_paid' => true,
@@ -50,7 +50,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Sick Leave',
-                'code' => 'SICK',          // 4 chars
+                'code' => 'SICK',
                 'description' => 'Sick leave with medical certificate',
                 'days_per_year' => 10,
                 'is_paid' => true,
@@ -60,7 +60,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Emergency Leave',
-                'code' => 'EMERG',         // 5 chars (was EMERGENCY - 9 chars)
+                'code' => 'EMERG',
                 'description' => 'Emergency leave for urgent matters',
                 'days_per_year' => 5,
                 'is_paid' => true,
@@ -70,7 +70,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Maternity Leave',
-                'code' => 'MATERN',        // 6 chars (was MATERNITY - 9 chars)
+                'code' => 'MATERN',
                 'description' => 'Maternity leave for expecting mothers',
                 'days_per_year' => 90,
                 'is_paid' => true,
@@ -80,7 +80,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Paternity Leave',
-                'code' => 'PATER',         // 5 chars (was PATERNITY - 9 chars)
+                'code' => 'PATER',
                 'description' => 'Paternity leave for new fathers',
                 'days_per_year' => 7,
                 'is_paid' => true,
@@ -90,7 +90,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Compassionate Leave',
-                'code' => 'COMPASS',       // 7 chars (was COMPASSIONATE - 13 chars)
+                'code' => 'COMPASS',
                 'description' => 'Leave for bereavement or family emergencies',
                 'days_per_year' => 5,
                 'is_paid' => true,
@@ -100,7 +100,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Unpaid Leave',
-                'code' => 'UNPAID',        // 6 chars
+                'code' => 'UNPAID',
                 'description' => 'Unpaid leave for personal reasons',
                 'days_per_year' => 0,
                 'is_paid' => false,
@@ -110,7 +110,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Study Leave',
-                'code' => 'STUDY',         // 5 chars
+                'code' => 'STUDY',
                 'description' => 'Leave for educational purposes',
                 'days_per_year' => 5,
                 'is_paid' => false,
@@ -120,7 +120,7 @@ class LeaveSeeder extends Seeder
             ],
             [
                 'name' => 'Public Holiday',
-                'code' => 'PUBLIC',        // 6 chars
+                'code' => 'PUBLIC',
                 'description' => 'Public holidays',
                 'days_per_year' => 0,
                 'is_paid' => true,
@@ -138,6 +138,55 @@ class LeaveSeeder extends Seeder
         }
 
         $this->command->info('✅ ' . LeaveType::count() . ' leave types created');
+    }
+
+    private function createLeavesManually($employees)
+    {
+        $faker = Faker::create();
+        $statuses = ['pending', 'approved', 'rejected', 'cancelled'];
+
+        $leaveTypes = LeaveType::all();
+
+        for ($i = 0; $i < 50; $i++) {
+            $employee = $employees->random();
+            $leaveType = $leaveTypes->random();
+            $status = $faker->randomElement($statuses);
+
+            // Generate dates correctly - ensure start < end
+            $startDate = $faker->dateTimeBetween('-6 months', '+3 months');
+            $daysToAdd = $faker->numberBetween(1, 10);
+            $endDate = Carbon::parse($startDate)->addDays($daysToAdd);
+            $totalDays = Carbon::parse($startDate)->diffInDays($endDate) + 1;
+
+            $approvedBy = $status === 'approved' ? $employees->random()?->id : null;
+            $approvedAt = $status === 'approved' ? $faker->dateTimeBetween($startDate, 'now') : null;
+
+            $cancelledBy = $status === 'cancelled' ? $employees->random()?->id : null;
+            $cancelledAt = $status === 'cancelled' ? $faker->dateTimeBetween($startDate, 'now') : null;
+
+            Leave::create([
+                'employee_id' => $employee->id,
+                'leave_type_id' => $leaveType->id,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'total_days' => $totalDays,
+                'reason' => $faker->paragraphs(2, true),
+                'status' => $status,
+                'approved_by' => $approvedBy,
+                'approved_at' => $approvedAt,
+                'rejection_reason' => $status === 'rejected' ? $faker->sentence : null,
+                'cancelled_at' => $cancelledAt,
+                'cancelled_by' => $cancelledBy,
+                'created_at' => $startDate,
+                'updated_at' => $startDate,
+            ]);
+
+            if (($i + 1) % 10 == 0) {
+                $this->command->info("   ✅ Created " . ($i + 1) . " leave records...");
+            }
+        }
+
+        $this->command->info('✅ Created 50 leave records');
     }
 
     private function createSpecificLeaves()
@@ -178,7 +227,7 @@ class LeaveSeeder extends Seeder
                 'start_date' => Carbon::now()->addDays(10),
                 'end_date' => Carbon::now()->addDays(12),
                 'total_days' => 3,
-                'reason' => 'Professional development training - attending a workshop in the city.',
+                'reason' => 'Professional development training - attending a workshop.',
                 'status' => 'pending',
                 'leave_type' => 'STUDY',
             ],
@@ -201,12 +250,15 @@ class LeaveSeeder extends Seeder
                 continue;
             }
 
+            // Calculate total days
+            $totalDays = Carbon::parse($data['start_date'])->diffInDays(Carbon::parse($data['end_date'])) + 1;
+
             Leave::create([
                 'employee_id' => $employee->id,
                 'leave_type_id' => $leaveType->id,
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'],
-                'total_days' => $data['total_days'],
+                'total_days' => $data['total_days'] ?? $totalDays,
                 'reason' => $data['reason'],
                 'status' => $data['status'],
                 'rejection_reason' => $data['rejection_reason'] ?? null,
@@ -242,7 +294,6 @@ class LeaveSeeder extends Seeder
             $this->command->info("   • {$key}: {$value}");
         }
 
-        // By leave type
         $this->command->info("\n📂 By Leave Type:");
         $leaveTypes = Leave::selectRaw('leave_type_id, COUNT(*) as count')
             ->groupBy('leave_type_id')
@@ -252,8 +303,7 @@ class LeaveSeeder extends Seeder
         if ($leaveTypes->isNotEmpty()) {
             foreach ($leaveTypes as $type) {
                 $percentage = round(($type->count / $totalLeaves) * 100, 1);
-                $bar = str_repeat('█', (int)($percentage / 5));
-                $this->command->info("   • {$type->leaveType->name}: {$type->count} ({$percentage}%) {$bar}");
+                $this->command->info("   • {$type->leaveType->name}: {$type->count} ({$percentage}%)");
             }
         }
 
