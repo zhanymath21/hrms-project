@@ -36,16 +36,98 @@ class LeaveSeeder extends Seeder
 
     private function createLeaveTypes()
     {
+        // No 'color' column - matches your migration exactly
         $leaveTypes = [
-            ['name' => 'Annual Leave', 'code' => 'ANNUAL', 'days_per_year' => 18, 'color' => '#4CAF50'],
-            ['name' => 'Sick Leave', 'code' => 'SICK', 'days_per_year' => 10, 'color' => '#F44336'],
-            ['name' => 'Emergency Leave', 'code' => 'EMERGENCY', 'days_per_year' => 5, 'color' => '#FF9800'],
-            ['name' => 'Maternity Leave', 'code' => 'MATERNITY', 'days_per_year' => 90, 'color' => '#E91E63'],
-            ['name' => 'Paternity Leave', 'code' => 'PATERNITY', 'days_per_year' => 7, 'color' => '#2196F3'],
-            ['name' => 'Compassionate Leave', 'code' => 'COMPASSIONATE', 'days_per_year' => 5, 'color' => '#9C27B0'],
-            ['name' => 'Unpaid Leave', 'code' => 'UNPAID', 'days_per_year' => 0, 'color' => '#607D8B'],
-            ['name' => 'Study Leave', 'code' => 'STUDY', 'days_per_year' => 5, 'color' => '#00BCD4'],
-            ['name' => 'Public Holiday', 'code' => 'PUBLIC', 'days_per_year' => 0, 'color' => '#8BC34A'],
+            [
+                'name' => 'Annual Leave',
+                'code' => 'ANNUAL',
+                'description' => 'Annual paid leave for employees',
+                'days_per_year' => 18,
+                'is_paid' => true,
+                'allow_carry_forward' => true,
+                'max_carry_forward_days' => 6,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Sick Leave',
+                'code' => 'SICK',
+                'description' => 'Sick leave with medical certificate',
+                'days_per_year' => 10,
+                'is_paid' => true,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Emergency Leave',
+                'code' => 'EMERGENCY',
+                'description' => 'Emergency leave for urgent matters',
+                'days_per_year' => 5,
+                'is_paid' => true,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Maternity Leave',
+                'code' => 'MATERNITY',
+                'description' => 'Maternity leave for expecting mothers',
+                'days_per_year' => 90,
+                'is_paid' => true,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Paternity Leave',
+                'code' => 'PATERNITY',
+                'description' => 'Paternity leave for new fathers',
+                'days_per_year' => 7,
+                'is_paid' => true,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Compassionate Leave',
+                'code' => 'COMPASSIONATE',
+                'description' => 'Leave for bereavement or family emergencies',
+                'days_per_year' => 5,
+                'is_paid' => true,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Unpaid Leave',
+                'code' => 'UNPAID',
+                'description' => 'Unpaid leave for personal reasons',
+                'days_per_year' => 0,
+                'is_paid' => false,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Study Leave',
+                'code' => 'STUDY',
+                'description' => 'Leave for educational purposes',
+                'days_per_year' => 5,
+                'is_paid' => false,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Public Holiday',
+                'code' => 'PUBLIC',
+                'description' => 'Public holidays',
+                'days_per_year' => 0,
+                'is_paid' => true,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+            ],
         ];
 
         foreach ($leaveTypes as $type) {
@@ -62,7 +144,10 @@ class LeaveSeeder extends Seeder
     {
         $employee = Employee::inRandomOrder()->first();
 
-        if (!$employee) return;
+        if (!$employee) {
+            $this->command->warn('⚠️ No employees found for specific leaves.');
+            return;
+        }
 
         $specificLeaves = [
             [
@@ -111,9 +196,14 @@ class LeaveSeeder extends Seeder
         foreach ($specificLeaves as $data) {
             $leaveType = LeaveType::where('code', $data['leave_type'])->first();
 
+            if (!$leaveType) {
+                $this->command->warn("⚠️ Leave type '{$data['leave_type']}' not found. Skipping.");
+                continue;
+            }
+
             Leave::create([
                 'employee_id' => $employee->id,
-                'leave_type_id' => $leaveType?->id ?? 1,
+                'leave_type_id' => $leaveType->id,
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'],
                 'total_days' => $data['total_days'],
@@ -128,15 +218,26 @@ class LeaveSeeder extends Seeder
 
     private function displaySummary()
     {
+        $totalLeaves = Leave::count();
+
+        if ($totalLeaves === 0) {
+            $this->command->info("\n📊 No leave records found.");
+            return;
+        }
+
         $stats = [
-            'Total Leaves' => Leave::count(),
+            'Total Leaves' => $totalLeaves,
             'Pending' => Leave::where('status', 'pending')->count(),
             'Approved' => Leave::where('status', 'approved')->count(),
             'Rejected' => Leave::where('status', 'rejected')->count(),
             'Cancelled' => Leave::where('status', 'cancelled')->count(),
         ];
 
-        $this->command->info("\n📊 Leave Summary:");
+        $this->command->info("\n📊 ========================================");
+        $this->command->info("📊 LEAVE SUMMARY");
+        $this->command->info("📊 ========================================");
+
+        $this->command->info("\n📈 Overview:");
         foreach ($stats as $key => $value) {
             $this->command->info("   • {$key}: {$value}");
         }
@@ -147,8 +248,15 @@ class LeaveSeeder extends Seeder
             ->groupBy('leave_type_id')
             ->with('leaveType')
             ->get();
-        foreach ($leaveTypes as $type) {
-            $this->command->info("   • {$type->leaveType->name}: {$type->count}");
+
+        if ($leaveTypes->isNotEmpty()) {
+            foreach ($leaveTypes as $type) {
+                $percentage = round(($type->count / $totalLeaves) * 100, 1);
+                $bar = str_repeat('█', (int)($percentage / 5));
+                $this->command->info("   • {$type->leaveType->name}: {$type->count} ({$percentage}%) {$bar}");
+            }
         }
+
+        $this->command->info("\n📊 ========================================");
     }
 }

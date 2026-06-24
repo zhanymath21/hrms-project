@@ -97,6 +97,23 @@ class LeaveFactory extends Factory
     }
 
     /**
+     * Indicate that the leave is cancelled.
+     */
+    public function cancelled()
+    {
+        return $this->state(function (array $attributes) {
+            $cancelledBy = Employee::inRandomOrder()->first();
+            return [
+                'status' => 'cancelled',
+                'approved_by' => null,
+                'approved_at' => null,
+                'cancelled_at' => now(),
+                'cancelled_by' => $cancelledBy?->id,
+            ];
+        });
+    }
+
+    /**
      * Set a specific leave type.
      */
     public function forLeaveType($leaveTypeId)
@@ -116,6 +133,21 @@ class LeaveFactory extends Factory
         return $this->state(function (array $attributes) use ($employeeId) {
             return [
                 'employee_id' => $employeeId,
+            ];
+        });
+    }
+
+    /**
+     * Set specific date range.
+     */
+    public function betweenDates($startDate, $endDate)
+    {
+        return $this->state(function (array $attributes) use ($startDate, $endDate) {
+            $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+            return [
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'total_days' => $totalDays,
             ];
         });
     }
