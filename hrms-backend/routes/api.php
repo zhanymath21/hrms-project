@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LostTimeInjuryController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\PayrollAdjustmentController;
 use App\Http\Controllers\Api\PayrollController;
 use App\Http\Controllers\Api\PayslipController;
 use App\Http\Controllers\Api\PPECategoryController;
@@ -328,4 +329,9 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/exchange-rates', [ExchangeRateController::class, 'store']);
     Route::put('/exchange-ratess/{id}', [ExchangeRateController::class, 'update']);
     Route::delete('/exchange-ratess/{id}', [ExchangeRateController::class, 'destroy']);
+
+    Route::get('/payroll-adjustments/{id}', [PayrollAdjustmentController::class, 'show']);
+    Route::post('/payroll-adjustments/{id}/adjust', [PayrollAdjustmentController::class, 'adjust']);
+    Route::post('/payroll-adjustments/{id}/clear', [PayrollAdjustmentController::class, 'clear']);
+    Route::get('/payroll-adjustments/employee/{employeeId}/history', [PayrollAdjustmentController::class, 'history']);
 });
