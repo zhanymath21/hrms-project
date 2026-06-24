@@ -83,6 +83,9 @@ class DatabaseSeeder extends Seeder
             // Notifications & Settings
             // NotificationSeeder::class,       // ✅ Tambahkan jika ada
             // SystemSettingsSeeder::class,     // ✅ Tambahkan jika ada
+
+            LeaveSeeder::class,
+            AttendanceSeeder::class,
         ]);
     }
 }
