@@ -20,8 +20,14 @@ class LeaveFactory extends Factory
         $statuses = ['pending', 'approved', 'rejected', 'cancelled'];
         $status = $this->faker->randomElement($statuses);
 
+        // Generate dates correctly
         $startDate = $this->faker->dateTimeBetween('-6 months', '+3 months');
-        $endDate = Carbon::parse($startDate)->addDays($this->faker->numberBetween(1, 10));
+
+        // Make sure end date is after start date
+        $daysToAdd = $this->faker->numberBetween(1, 10);
+        $endDate = Carbon::parse($startDate)->addDays($daysToAdd);
+
+        // Calculate total days
         $totalDays = Carbon::parse($startDate)->diffInDays($endDate) + 1;
 
         $approvedBy = $status === 'approved' ? Employee::inRandomOrder()->first()?->id : null;
@@ -115,6 +121,30 @@ class LeaveFactory extends Factory
         return $this->state(function (array $attributes) use ($employeeId) {
             return [
                 'employee_id' => $employeeId,
+            ];
+        });
+    }
+
+    public function betweenDates($startDate, $endDate)
+    {
+        return $this->state(function (array $attributes) use ($startDate, $endDate) {
+            // Validate and calculate days
+            $start = Carbon::parse($startDate);
+            $end = Carbon::parse($endDate);
+
+            // If end date is before start date, swap them
+            if ($end < $start) {
+                $temp = $start;
+                $start = $end;
+                $end = $temp;
+            }
+
+            $totalDays = $start->diffInDays($end) + 1;
+
+            return [
+                'start_date' => $start,
+                'end_date' => $end,
+                'total_days' => $totalDays,
             ];
         });
     }
