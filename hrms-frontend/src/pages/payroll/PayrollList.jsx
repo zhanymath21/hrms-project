@@ -45,7 +45,6 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/axios';
 import { formatDate } from '../../utils/dateFormat';
 
-// Status Configuration
 const STATUS_CONFIG = {
   draft: { label: 'Draft', bgColor: '#6b7280', textColor: '#ffffff' },
   processing: { label: 'Processing', bgColor: '#3b82f6', textColor: '#ffffff' },
@@ -54,7 +53,6 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelled', bgColor: '#ef4444', textColor: '#ffffff' },
 };
 
-// Admin Roles
 const ADMIN_ROLES = [
   'admin', 'hr', 'hr-manager', 'super_admin',
   'HR Manager', 'HR Officer', 'HR Assistant',
@@ -62,7 +60,6 @@ const ADMIN_ROLES = [
   'Marketing Manager', 'Sales Manager', 'Operations Manager', 'Manager',
 ];
 
-// Format Currency Function - USD only
 const formatCurrency = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) {
     return '$0.00';
@@ -415,17 +412,11 @@ const PayrollList = () => {
                         <VisibilityIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-
                     <Tooltip title="View Payslips">
-                      <IconButton 
-                        size="small" 
-                        color="info"
-                        onClick={() => navigate(`/payslips/${payroll.id}`)}
-                      >
+                      <IconButton size="small" color="info" onClick={() => navigate(`/payslips/${payroll.id}`)}>
                         <ReceiptIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-
                     {payroll.status === 'draft' && (
                       <>
                         <Tooltip title="Edit">
@@ -434,64 +425,38 @@ const PayrollList = () => {
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => setDeleteDialog({ open: true, id: payroll.id, name: payroll.name })}
-                          >
+                          <IconButton size="small" color="error" onClick={() => setDeleteDialog({ open: true, id: payroll.id, name: payroll.name })}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Process Payroll">
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => handleStatusChange(payroll.id, 'processing')}
-                          >
+                          <IconButton size="small" color="primary" onClick={() => handleStatusChange(payroll.id, 'processing')}>
                             <CheckCircleIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </>
                     )}
-
                     {payroll.status === 'processing' && (
                       <Tooltip title={!isAdmin ? 'Only Admin/HR can approve' : 'Approve Payroll'}>
                         <span>
-                          <IconButton
-                            size="small"
-                            color="success"
-                            onClick={() => handleStatusChange(payroll.id, 'approved')}
-                            disabled={!isAdmin}
-                          >
+                          <IconButton size="small" color="success" onClick={() => handleStatusChange(payroll.id, 'approved')} disabled={!isAdmin}>
                             <CheckCircleIcon fontSize="small" />
                           </IconButton>
                         </span>
                       </Tooltip>
                     )}
-
                     {payroll.status === 'approved' && (
                       <Tooltip title={!isAdmin ? 'Only Admin/HR can mark as paid' : 'Mark as Paid'}>
                         <span>
-                          <IconButton
-                            size="small"
-                            color="secondary"
-                            onClick={() => handleStatusChange(payroll.id, 'paid')}
-                            disabled={!isAdmin}
-                          >
+                          <IconButton size="small" color="secondary" onClick={() => handleStatusChange(payroll.id, 'paid')} disabled={!isAdmin}>
                             <ReceiptIcon fontSize="small" />
                           </IconButton>
                         </span>
                       </Tooltip>
                     )}
-
                     {(payroll.status === 'draft' || payroll.status === 'processing') && (
                       <Tooltip title="Cancel Payroll">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleStatusChange(payroll.id, 'cancelled')}
-                          disabled={!isAdmin}
-                        >
+                        <IconButton size="small" color="error" onClick={() => handleStatusChange(payroll.id, 'cancelled')} disabled={!isAdmin}>
                           <CancelIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -507,18 +472,11 @@ const PayrollList = () => {
       <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, id: null, name: '' })}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete payroll period "{deleteDialog.name}"?
-            This action cannot be undone.
-          </Typography>
+          <Typography>Are you sure you want to delete payroll period "{deleteDialog.name}"? This action cannot be undone.</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialog({ open: false, id: null, name: '' })}>
-            Cancel
-          </Button>
-          <Button variant="contained" color="error" onClick={handleDelete}>
-            Delete
-          </Button>
+          <Button onClick={() => setDeleteDialog({ open: false, id: null, name: '' })}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={handleDelete}>Delete</Button>
         </DialogActions>
       </Dialog>
     </Box>

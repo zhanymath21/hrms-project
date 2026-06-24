@@ -109,7 +109,6 @@ const PayrollDetail = () => {
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this payroll?')) return;
-    
     try {
       await api.delete(`/payroll/${id}`);
       navigate('/payroll');
@@ -120,7 +119,6 @@ const PayrollDetail = () => {
 
   const handleStatusChange = async (status) => {
     if (!window.confirm(`Are you sure you want to change status to ${STATUS_CONFIG[status]?.label}?`)) return;
-    
     try {
       setUpdating(true);
       await api.put(`/payroll/${id}/status`, { status });
@@ -156,7 +154,6 @@ const PayrollDetail = () => {
 
   const handleClearAdjustment = async () => {
     if (!window.confirm('Clear all manual adjustments? This will revert to original values.')) return;
-    
     try {
       setUpdating(true);
       await api.post(`/payroll-adjustments/${adjustmentModal.item.id}/clear`);
@@ -229,79 +226,37 @@ const PayrollDetail = () => {
         </Box>
 
         <Box display="flex" gap={1} flexWrap="wrap">
-          <Button
-            variant="contained"
-            color="info"
-            startIcon={<ReceiptIcon />}
-            onClick={() => navigate(`/payslips/${payroll.id}`)}
-          >
+          <Button variant="contained" color="info" startIcon={<ReceiptIcon />} onClick={() => navigate(`/payslips/${payroll.id}`)}>
             Payslips
           </Button>
           {payroll.status === 'draft' && (
             <>
-              <Button
-                variant="outlined"
-                startIcon={<EditIcon />}
-                onClick={() => navigate(`/payroll/${id}/edit`)}
-              >
+              <Button variant="outlined" startIcon={<EditIcon />} onClick={() => navigate(`/payroll/${id}/edit`)}>
                 Edit
               </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={handleDelete}
-              >
+              <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={handleDelete}>
                 Delete
               </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<CheckCircleIcon />}
-                onClick={() => handleStatusChange('processing')}
-                disabled={updating}
-              >
+              <Button variant="contained" color="primary" startIcon={<CheckCircleIcon />} onClick={() => handleStatusChange('processing')} disabled={updating}>
                 Process
               </Button>
             </>
           )}
           {payroll.status === 'processing' && (
-            <Button
-              variant="contained"
-              color="success"
-              startIcon={<CheckCircleIcon />}
-              onClick={() => handleStatusChange('approved')}
-              disabled={!isAdmin || updating}
-            >
+            <Button variant="contained" color="success" startIcon={<CheckCircleIcon />} onClick={() => handleStatusChange('approved')} disabled={!isAdmin || updating}>
               Approve
             </Button>
           )}
           {payroll.status === 'approved' && (
-            <Button
-              variant="contained"
-              color="secondary"
-              startIcon={<ReceiptIcon />}
-              onClick={() => handleStatusChange('paid')}
-              disabled={!isAdmin || updating}
-            >
+            <Button variant="contained" color="secondary" startIcon={<ReceiptIcon />} onClick={() => handleStatusChange('paid')} disabled={!isAdmin || updating}>
               Mark as Paid
             </Button>
           )}
           {(payroll.status === 'paid' || payroll.status === 'approved') && (
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-            >
-              Export
-            </Button>
+            <Button variant="outlined" startIcon={<DownloadIcon />}>Export</Button>
           )}
           {payroll.status === 'paid' && (
-            <Button
-              variant="outlined"
-              startIcon={<PrintIcon />}
-            >
-              Print Report
-            </Button>
+            <Button variant="outlined" startIcon={<PrintIcon />}>Print Report</Button>
           )}
         </Box>
       </Box>
@@ -348,36 +303,24 @@ const PayrollDetail = () => {
       </Grid>
 
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom fontWeight="bold">
-          Payroll Details
-        </Typography>
+        <Typography variant="h6" gutterBottom fontWeight="bold">Payroll Details</Typography>
         <Divider sx={{ mb: 3 }} />
-
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
             <Typography variant="caption" color="textSecondary">Period</Typography>
-            <Typography variant="body1">
-              {formatDate(payroll.start_date)} - {formatDate(payroll.end_date)}
-            </Typography>
+            <Typography variant="body1">{formatDate(payroll.start_date)} - {formatDate(payroll.end_date)}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography variant="caption" color="textSecondary">Payment Date</Typography>
-            <Typography variant="body1">
-              {payroll.payment_date ? formatDate(payroll.payment_date) : 'Not set'}
-            </Typography>
+            <Typography variant="body1">{payroll.payment_date ? formatDate(payroll.payment_date) : 'Not set'}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography variant="caption" color="textSecondary">Payroll Type</Typography>
-            <Typography variant="body1">
-              {payroll.payroll_type === 'semi_monthly' ? 'Semi-Monthly' : 
-               payroll.payroll_type === 'monthly' ? 'Monthly' : 'Weekly'}
-            </Typography>
+            <Typography variant="body1">{payroll.payroll_type === 'semi_monthly' ? 'Semi-Monthly' : payroll.payroll_type === 'monthly' ? 'Monthly' : 'Weekly'}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography variant="caption" color="textSecondary">Created By</Typography>
-            <Typography variant="body1">
-              {payroll.created_by?.first_name} {payroll.created_by?.last_name}
-            </Typography>
+            <Typography variant="body1">{payroll.created_by?.first_name} {payroll.created_by?.last_name}</Typography>
           </Grid>
           {payroll.notes && (
             <Grid item xs={12}>
@@ -390,9 +333,7 @@ const PayrollDetail = () => {
 
       <Paper sx={{ p: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6" fontWeight="bold">
-            Employee Payroll ({items.length})
-          </Typography>
+          <Typography variant="h6" fontWeight="bold">Employee Payroll ({items.length})</Typography>
           {payroll.status === 'draft' && (
             <Button variant="outlined" startIcon={<EditIcon />} onClick={() => navigate(`/payroll/${id}/edit`)}>
               Edit Items
@@ -422,9 +363,7 @@ const PayrollDetail = () => {
             <TableBody>
               {items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} align="center">
-                    <Typography color="textSecondary">No payroll items found</Typography>
-                  </TableCell>
+                  <TableCell colSpan={12} align="center"><Typography color="textSecondary">No payroll items found</Typography></TableCell>
                 </TableRow>
               ) : (
                 items.map((item) => (
@@ -434,16 +373,14 @@ const PayrollDetail = () => {
                         <Avatar sx={{ width: 24, height: 24, bgcolor: '#6366f1', fontSize: 12 }}>
                           {item.employee?.first_name?.[0]}{item.employee?.last_name?.[0]}
                         </Avatar>
-                        <Typography variant="body2">
-                          {item.employee?.first_name} {item.employee?.last_name}
-                        </Typography>
+                        <Typography variant="body2">{item.employee?.first_name} {item.employee?.last_name}</Typography>
                       </Box>
                     </TableCell>
                     <TableCell align="center">{item.working_days || 0}</TableCell>
                     <TableCell align="center">
                       <Typography color="success.main">{item.effective_present_days || 0}</Typography>
                       {item.override_present_days !== null && (
-                        <Tooltip title="Overridden">
+                        <Tooltip title={`Overridden from ${item.present_days}`}>
                           <Chip label="Adj" size="small" color="warning" sx={{ ml: 0.5, height: 16, fontSize: '0.6rem' }} />
                         </Tooltip>
                       )}
@@ -451,7 +388,7 @@ const PayrollDetail = () => {
                     <TableCell align="center">
                       <Typography color="error.main">{item.effective_absent_days || 0}</Typography>
                       {item.override_absent_days !== null && (
-                        <Tooltip title="Overridden">
+                        <Tooltip title={`Overridden from ${item.absent_days}`}>
                           <Chip label="Adj" size="small" color="warning" sx={{ ml: 0.5, height: 16, fontSize: '0.6rem' }} />
                         </Tooltip>
                       )}
@@ -459,58 +396,51 @@ const PayrollDetail = () => {
                     <TableCell align="center">
                       <Typography color="warning.main">{item.effective_leave_days || 0}</Typography>
                       {item.override_leave_days !== null && (
-                        <Tooltip title="Overridden">
+                        <Tooltip title={`Overridden from ${item.leave_days}`}>
                           <Chip label="Adj" size="small" color="warning" sx={{ ml: 0.5, height: 16, fontSize: '0.6rem' }} />
                         </Tooltip>
                       )}
                     </TableCell>
                     <TableCell align="right">{formatCurrency(item.basic_salary)}</TableCell>
                     <TableCell align="right">{formatCurrency(item.allowance)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'medium' }}>
-                      {formatCurrency(item.total_earnings)}
-                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'medium' }}>{formatCurrency(item.total_earnings)}</TableCell>
                     <TableCell align="right">{formatCurrency(item.tax)}</TableCell>
                     <TableCell align="right">{formatCurrency(item.social_security)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                      {formatCurrency(item.net_pay)}
-                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>{formatCurrency(item.net_pay)}</TableCell>
                     <TableCell align="center">
-                      <Tooltip title="Manual Adjustment">
-                        <span>
-                          <IconButton
-                            size="small"
-                            color={item.is_manual_adjusted ? 'warning' : 'default'}
-                            onClick={() => handleOpenAdjustment(item)}
-                            disabled={payroll.status === 'paid' || payroll.status === 'cancelled'}
-                          >
-                            <AdjustIcon fontSize="small" />
-                          </IconButton>
-                          {item.is_manual_adjusted && (
-                            <Chip label="Adj" size="small" color="warning" sx={{ ml: 0.5, height: 16, fontSize: '0.6rem' }} />
-                          )}
-                        </span>
-                      </Tooltip>
+                      <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                        <Tooltip title={item.is_manual_adjusted ? `Adjusted: ${item.manual_adjustment_reason || 'No reason'}` : 'No adjustment'}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              color={item.is_manual_adjusted ? 'warning' : 'default'}
+                              onClick={() => handleOpenAdjustment(item)}
+                              disabled={payroll.status === 'paid' || payroll.status === 'cancelled'}
+                            >
+                              <AdjustIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        {item.is_manual_adjusted && (
+                          <Chip 
+                            label={`${item.manual_adjustment_amount > 0 ? '+' : ''}$${Math.abs(item.manual_adjustment_amount).toFixed(2)}`}
+                            size="small" 
+                            color="warning" 
+                            sx={{ height: 20, fontSize: '0.6rem', fontWeight: 'bold' }} 
+                          />
+                        )}
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))
               )}
               {items.length > 0 && (
                 <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                  <TableCell colSpan={6} align="right" sx={{ fontWeight: 'bold' }}>
-                    Total
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('total_earnings'))}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('tax'))}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {formatCurrency(calculateTotal('social_security'))}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                    {formatCurrency(calculateTotal('net_pay'))}
-                  </TableCell>
+                  <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(calculateTotal('total_earnings'))}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(calculateTotal('tax'))}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(calculateTotal('social_security'))}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>{formatCurrency(calculateTotal('net_pay'))}</TableCell>
                   <TableCell />
                 </TableRow>
               )}
@@ -524,9 +454,7 @@ const PayrollDetail = () => {
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
             <Typography variant="h6">Manual Payroll Adjustment</Typography>
-            <IconButton onClick={handleCloseAdjustment}>
-              <CancelIcon />
-            </IconButton>
+            <IconButton onClick={handleCloseAdjustment}><CancelIcon /></IconButton>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
@@ -558,10 +486,7 @@ const AdjustmentForm = ({ item, onSubmit, onClear, onCancel, saving }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value === '' ? null : parseFloat(value) || 0,
-    }));
+    setFormData(prev => ({ ...prev, [name]: value === '' ? null : parseFloat(value) || 0 }));
   };
 
   const handleTextChange = (e) => {
@@ -583,15 +508,11 @@ const AdjustmentForm = ({ item, onSubmit, onClear, onCancel, saving }) => {
         <Grid container spacing={2}>
           <Grid item xs={6}>
             <Typography variant="caption" color="textSecondary">Employee</Typography>
-            <Typography variant="body1" fontWeight="medium">
-              {item.employee?.first_name} {item.employee?.last_name}
-            </Typography>
+            <Typography variant="body1" fontWeight="medium">{item.employee?.first_name} {item.employee?.last_name}</Typography>
           </Grid>
           <Grid item xs={6}>
             <Typography variant="caption" color="textSecondary">Current Net Pay</Typography>
-            <Typography variant="body1" fontWeight="bold" color="success.main">
-              {formatCurrency(item.net_pay)}
-            </Typography>
+            <Typography variant="body1" fontWeight="bold" color="success.main">{formatCurrency(item.net_pay)}</Typography>
           </Grid>
           <Grid item xs={4}>
             <Typography variant="caption" color="textSecondary">Present</Typography>
@@ -608,116 +529,44 @@ const AdjustmentForm = ({ item, onSubmit, onClear, onCancel, saving }) => {
         </Grid>
       </Box>
 
-      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-        Attendance Override
-      </Typography>
+      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Attendance Override</Typography>
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={4}>
-          <TextField
-            fullWidth
-            type="number"
-            label="Present Days"
-            name="override_present_days"
-            value={formData.override_present_days ?? ''}
-            onChange={handleChange}
-            InputProps={{ inputProps: { min: 0 } }}
-            helperText={`Original: ${item.present_days || 0}`}
-          />
+          <TextField fullWidth type="number" label="Present Days" name="override_present_days" value={formData.override_present_days ?? ''} onChange={handleChange} InputProps={{ inputProps: { min: 0 } }} helperText={`Original: ${item.present_days || 0}`} />
         </Grid>
         <Grid item xs={4}>
-          <TextField
-            fullWidth
-            type="number"
-            label="Absent Days"
-            name="override_absent_days"
-            value={formData.override_absent_days ?? ''}
-            onChange={handleChange}
-            InputProps={{ inputProps: { min: 0 } }}
-            helperText={`Original: ${item.absent_days || 0}`}
-          />
+          <TextField fullWidth type="number" label="Absent Days" name="override_absent_days" value={formData.override_absent_days ?? ''} onChange={handleChange} InputProps={{ inputProps: { min: 0 } }} helperText={`Original: ${item.absent_days || 0}`} />
         </Grid>
         <Grid item xs={4}>
-          <TextField
-            fullWidth
-            type="number"
-            label="Leave Days"
-            name="override_leave_days"
-            value={formData.override_leave_days ?? ''}
-            onChange={handleChange}
-            InputProps={{ inputProps: { min: 0 } }}
-            helperText={`Original: ${item.leave_days || 0}`}
-          />
+          <TextField fullWidth type="number" label="Leave Days" name="override_leave_days" value={formData.override_leave_days ?? ''} onChange={handleChange} InputProps={{ inputProps: { min: 0 } }} helperText={`Original: ${item.leave_days || 0}`} />
         </Grid>
       </Grid>
 
-      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-        Salary Adjustment
-      </Typography>
+      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Salary Adjustment</Typography>
       <Grid container spacing={2}>
         <Grid item xs={12}>
-          <TextField
-            fullWidth
-            type="number"
-            label="Adjustment Amount (USD)"
-            name="manual_adjustment_amount"
-            value={formData.manual_adjustment_amount}
-            onChange={handleChange}
-            InputProps={{ 
-              inputProps: { step: 0.01 },
-              startAdornment: <Typography>$</Typography>,
-            }}
-            helperText="Positive for bonus/extra, negative for deduction"
-          />
+          <TextField fullWidth type="number" label="Adjustment Amount (USD)" name="manual_adjustment_amount" value={formData.manual_adjustment_amount} onChange={handleChange} InputProps={{ inputProps: { step: 0.01 }, startAdornment: <Typography>$</Typography> }} helperText="Positive for bonus/extra, negative for deduction" />
         </Grid>
         <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Reason for Adjustment *"
-            name="manual_adjustment_reason"
-            value={formData.manual_adjustment_reason}
-            onChange={handleTextChange}
-            required
-            multiline
-            rows={2}
-            placeholder="Explain why this adjustment is needed..."
-            helperText="Minimum 5 characters"
-          />
+          <TextField fullWidth label="Reason for Adjustment *" name="manual_adjustment_reason" value={formData.manual_adjustment_reason} onChange={handleTextChange} required multiline rows={2} placeholder="Explain why this adjustment is needed..." helperText="Minimum 5 characters" />
         </Grid>
         <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Additional Notes"
-            name="override_notes"
-            value={formData.override_notes}
-            onChange={handleTextChange}
-            multiline
-            rows={2}
-            placeholder="Any additional notes..."
-          />
+          <TextField fullWidth label="Additional Notes" name="override_notes" value={formData.override_notes} onChange={handleTextChange} multiline rows={2} placeholder="Any additional notes..." />
         </Grid>
       </Grid>
 
       {item.is_manual_adjusted && (
         <Alert severity="info" sx={{ mt: 2 }}>
-          <Typography variant="body2">
-            <strong>Previously Adjusted:</strong> {formatCurrency(item.manual_adjustment_amount)} 
-            ({item.manual_adjustment_reason})
-          </Typography>
+          <Typography variant="body2"><strong>Previously Adjusted:</strong> {formatCurrency(item.manual_adjustment_amount)} ({item.manual_adjustment_reason})</Typography>
         </Alert>
       )}
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
         <Button onClick={onCancel} disabled={saving}>Cancel</Button>
         {item.is_manual_adjusted && (
-          <Button onClick={onClear} color="error" disabled={saving}>
-            Clear Adjustment
-          </Button>
+          <Button onClick={onClear} color="error" disabled={saving}>Clear Adjustment</Button>
         )}
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={saving || !formData.manual_adjustment_reason}
-        >
+        <Button variant="contained" onClick={handleSubmit} disabled={saving || !formData.manual_adjustment_reason}>
           {saving ? 'Saving...' : 'Apply Adjustment'}
         </Button>
       </Box>

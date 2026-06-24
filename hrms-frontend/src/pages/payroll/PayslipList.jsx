@@ -95,7 +95,6 @@ const PayslipList = () => {
 
   const generatePayslips = async () => {
     if (!window.confirm('Generate payslips for this payroll period?')) return;
-    
     try {
       setGenerating(true);
       const response = await api.post(`/payslips/generate/${payrollId}`);
@@ -126,7 +125,6 @@ const PayslipList = () => {
 
   const deletePayslip = async (id) => {
     if (!window.confirm('Delete this payslip?')) return;
-    
     try {
       await api.delete(`/payslips/${id}`);
       await fetchPayslips();
@@ -182,12 +180,7 @@ const PayslipList = () => {
           )}
         </Box>
         <Box display="flex" gap={1}>
-          <Button
-            variant="contained"
-            startIcon={<ReceiptIcon />}
-            onClick={generatePayslips}
-            disabled={generating || payslips.length > 0}
-          >
+          <Button variant="contained" startIcon={<ReceiptIcon />} onClick={generatePayslips} disabled={generating || payslips.length > 0}>
             {generating ? 'Generating...' : 'Generate Payslips'}
           </Button>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchPayslips}>
@@ -199,11 +192,7 @@ const PayslipList = () => {
         </Box>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
       {payslips.length > 0 && (
         <Paper sx={{ p: 2, mb: 3 }}>
@@ -226,9 +215,7 @@ const PayslipList = () => {
             </Grid>
             <Grid item xs={12} sm={3}>
               <Typography variant="caption" color="textSecondary">Status</Typography>
-              <Typography variant="h6">
-                {payslips.filter(p => p.status === 'generated').length} Generated
-              </Typography>
+              <Typography variant="h6">{payslips.filter(p => p.status === 'generated').length} Generated</Typography>
             </Grid>
           </Grid>
         </Paper>
@@ -243,6 +230,7 @@ const PayslipList = () => {
               <TableCell>Period</TableCell>
               <TableCell align="right">Basic Salary</TableCell>
               <TableCell align="right">Allowances</TableCell>
+              <TableCell align="right">Adjustment</TableCell>
               <TableCell align="right">Tax</TableCell>
               <TableCell align="right">Net Pay</TableCell>
               <TableCell>Status</TableCell>
@@ -252,34 +240,40 @@ const PayslipList = () => {
           <TableBody>
             {payslips.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} align="center">
-                  <Typography color="textSecondary">
-                    No payslips generated yet. Click "Generate Payslips" to create.
-                  </Typography>
+                <TableCell colSpan={10} align="center">
+                  <Typography color="textSecondary">No payslips generated yet. Click "Generate Payslips" to create.</Typography>
                 </TableCell>
               </TableRow>
             ) : (
               payslips.map((payslip) => (
                 <TableRow key={payslip.id} hover>
                   <TableCell>
-                    <Typography variant="body2" fontWeight="medium">
-                      {payslip.employee_name}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      {payslip.employee_code || '-'}
-                    </Typography>
+                    <Typography variant="body2" fontWeight="medium">{payslip.employee_name}</Typography>
+                    <Typography variant="caption" color="textSecondary">{payslip.employee_code || '-'}</Typography>
                   </TableCell>
                   <TableCell>{payslip.position || '-'}</TableCell>
                   <TableCell>
-                    <Typography variant="caption">
-                      {formatDate(payslip.period_start)}
-                    </Typography>
-                    <Typography variant="caption" display="block" color="textSecondary">
-                      to {formatDate(payslip.period_end)}
-                    </Typography>
+                    <Typography variant="caption">{formatDate(payslip.period_start)}</Typography>
+                    <Typography variant="caption" display="block" color="textSecondary">to {formatDate(payslip.period_end)}</Typography>
                   </TableCell>
                   <TableCell align="right">{formatCurrency(payslip.basic_salary)}</TableCell>
                   <TableCell align="right">{formatCurrency(calculateTotalAllowances(payslip))}</TableCell>
+                  <TableCell align="right">
+                    {payslip.is_adjusted ? (
+                      <Box>
+                        <Typography variant="body2" color={payslip.adjustment_amount >= 0 ? 'success.main' : 'error.main'}>
+                          {formatCurrency(payslip.adjustment_amount)}
+                        </Typography>
+                        {payslip.adjustment_reason && (
+                          <Tooltip title={payslip.adjustment_reason}>
+                            <Chip label="Adjusted" size="small" color="warning" sx={{ height: 16, fontSize: '0.6rem' }} />
+                          </Tooltip>
+                        )}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="textSecondary">-</Typography>
+                    )}
+                  </TableCell>
                   <TableCell align="right">{formatCurrency(payslip.tax)}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
                     {formatCurrency(payslip.net_pay)}
@@ -308,10 +302,7 @@ const PayslipList = () => {
       <Dialog open={detailDialog} onClose={() => setDetailDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>
           Payslip - {selectedPayslip?.employee_name}
-          <IconButton
-            sx={{ position: 'absolute', right: 8, top: 8 }}
-            onClick={() => setDetailDialog(false)}
-          >
+          <IconButton sx={{ position: 'absolute', right: 8, top: 8 }} onClick={() => setDetailDialog(false)}>
             <CloseIcon />
           </IconButton>
         </DialogTitle>
@@ -333,78 +324,62 @@ const PayslipList = () => {
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="textSecondary">Period</Typography>
-                  <Typography variant="body1">
-                    {formatDate(selectedPayslip.period_start)} - {formatDate(selectedPayslip.period_end)}
-                  </Typography>
+                  <Typography variant="body1">{formatDate(selectedPayslip.period_start)} - {formatDate(selectedPayslip.period_end)}</Typography>
                 </Grid>
               </Grid>
 
               <Typography variant="h6" fontWeight="bold" gutterBottom>Earnings</Typography>
               <Table size="small">
                 <TableBody>
-                  <TableRow>
-                    <TableCell>Basic Salary</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.basic_salary)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Housing Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.housing_allowance)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Transport Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.transport_allowance)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Meal Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.meal_allowance)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Phone Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.phone_allowance)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Other Allowance</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.other_allowance)}</TableCell>
-                  </TableRow>
-                  <TableRow sx={{ fontWeight: 'bold' }}>
-                    <TableCell>Total Earnings</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.total_earnings)}</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell>Basic Salary</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.basic_salary)}</TableCell></TableRow>
+                  <TableRow><TableCell>Housing Allowance</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.housing_allowance)}</TableCell></TableRow>
+                  <TableRow><TableCell>Transport Allowance</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.transport_allowance)}</TableCell></TableRow>
+                  <TableRow><TableCell>Meal Allowance</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.meal_allowance)}</TableCell></TableRow>
+                  <TableRow><TableCell>Phone Allowance</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.phone_allowance)}</TableCell></TableRow>
+                  <TableRow><TableCell>Other Allowance</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.other_allowance)}</TableCell></TableRow>
+                  <TableRow sx={{ fontWeight: 'bold' }}><TableCell>Total Earnings</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.total_earnings)}</TableCell></TableRow>
                 </TableBody>
               </Table>
+
+              {selectedPayslip.is_adjusted && (
+                <>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ mt: 3 }}>Adjustment</Typography>
+                  <Box sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: 1, border: '1px solid #f59e0b' }}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary">Adjustment Amount</Typography>
+                        <Typography variant="body1" fontWeight="bold" color={selectedPayslip.adjustment_amount >= 0 ? 'success.main' : 'error.main'}>
+                          {formatCurrency(selectedPayslip.adjustment_amount)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary">Reason</Typography>
+                        <Typography variant="body2">{selectedPayslip.adjustment_reason || 'No reason provided'}</Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </>
+              )}
 
               <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ mt: 3 }}>Deductions</Typography>
               <Table size="small">
                 <TableBody>
-                  <TableRow>
-                    <TableCell>Tax</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.tax)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Social Security (NSSF)</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.social_security)}</TableCell>
-                  </TableRow>
-                  <TableRow sx={{ fontWeight: 'bold' }}>
-                    <TableCell>Total Deductions</TableCell>
-                    <TableCell align="right">{formatCurrency(selectedPayslip.total_deductions)}</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell>Tax</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.tax)}</TableCell></TableRow>
+                  <TableRow><TableCell>Social Security (NSSF)</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.social_security)}</TableCell></TableRow>
+                  <TableRow sx={{ fontWeight: 'bold' }}><TableCell>Total Deductions</TableCell><TableCell align="right">{formatCurrency(selectedPayslip.total_deductions)}</TableCell></TableRow>
                 </TableBody>
               </Table>
 
               <Box sx={{ mt: 3, p: 2, bgcolor: '#f0fdf4', borderRadius: 1, border: '1px solid #86efac' }}>
                 <Grid container justifyContent="space-between">
                   <Typography variant="h6" fontWeight="bold">Net Pay</Typography>
-                  <Typography variant="h5" fontWeight="bold" color="success.main">
-                    {formatCurrency(selectedPayslip.net_pay)}
-                  </Typography>
+                  <Typography variant="h5" fontWeight="bold" color="success.main">{formatCurrency(selectedPayslip.net_pay)}</Typography>
                 </Grid>
               </Box>
 
               <Typography variant="caption" color="textSecondary" display="block" sx={{ mt: 2 }}>
-                Working Days: {selectedPayslip.working_days || 0} | 
-                Present: {selectedPayslip.present_days || 0} | 
-                Absent: {selectedPayslip.absent_days || 0} | 
-                Leave: {selectedPayslip.leave_days || 0}
+                Working Days: {selectedPayslip.working_days || 0} | Present: {selectedPayslip.present_days || 0} | 
+                Absent: {selectedPayslip.absent_days || 0} | Leave: {selectedPayslip.leave_days || 0}
               </Typography>
             </Box>
           )}

@@ -79,13 +79,11 @@ const PayrollCreate = () => {
     const start = new Date(formData.start_date);
     const month = start.toLocaleString('default', { month: 'long' });
     const year = start.getFullYear();
-    
     let cycleLabel = '';
     if (formData.payroll_type === 'semi_monthly') {
       const day = start.getDate();
       cycleLabel = day <= 15 ? ' (1st Half)' : ' (2nd Half)';
     }
-    
     const name = `${month} ${year} Payroll${cycleLabel}`;
     setFormData(prev => ({ ...prev, name }));
   };
@@ -155,58 +153,27 @@ const PayrollCreate = () => {
   return (
     <Box>
       <Box display="flex" alignItems="center" mb={3} gap={2}>
-        <IconButton onClick={() => navigate('/payroll')}>
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h4" component="h1" fontWeight="bold">
-          Create Payroll (USD)
-        </Typography>
+        <IconButton onClick={() => navigate('/payroll')}><ArrowBackIcon /></IconButton>
+        <Typography variant="h4" component="h1" fontWeight="bold">Create Payroll (USD)</Typography>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-      
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          ✅ Payroll created successfully! Redirecting...
-        </Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>✅ Payroll created successfully! Redirecting...</Alert>}
 
       <Paper sx={{ p: 3 }}>
         <form onSubmit={handleSubmit}>
-          <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">
-            Payroll Information
-          </Typography>
+          <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">Payroll Information</Typography>
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Payroll Period Name *"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-                disabled={saving}
-                helperText="Auto-generated based on dates and type"
-              />
+              <TextField fullWidth label="Payroll Period Name *" name="name" value={formData.name} onChange={handleChange} required disabled={saving} helperText="Auto-generated based on dates and type" />
             </Grid>
 
             <Grid item xs={12} md={4}>
               <FormControl fullWidth>
                 <InputLabel>Payroll Type *</InputLabel>
-                <Select
-                  name="payroll_type"
-                  value={formData.payroll_type}
-                  onChange={handleChange}
-                  label="Payroll Type *"
-                  required
-                  disabled={saving}
-                >
+                <Select name="payroll_type" value={formData.payroll_type} onChange={handleChange} label="Payroll Type *" required disabled={saving}>
                   <MenuItem value="monthly">Monthly</MenuItem>
                   <MenuItem value="semi_monthly">Semi-Monthly (2x/month)</MenuItem>
                   <MenuItem value="weekly">Weekly</MenuItem>
@@ -217,14 +184,7 @@ const PayrollCreate = () => {
             <Grid item xs={12} md={4}>
               <FormControl fullWidth>
                 <InputLabel>Payroll Cycle *</InputLabel>
-                <Select
-                  name="payroll_cycle"
-                  value={formData.payroll_cycle}
-                  onChange={handleChange}
-                  label="Payroll Cycle *"
-                  required
-                  disabled={saving}
-                >
+                <Select name="payroll_cycle" value={formData.payroll_cycle} onChange={handleChange} label="Payroll Cycle *" required disabled={saving}>
                   <MenuItem value="first">First Cycle</MenuItem>
                   <MenuItem value="second">Second Cycle</MenuItem>
                   <MenuItem value="third">Third Cycle</MenuItem>
@@ -234,66 +194,26 @@ const PayrollCreate = () => {
             </Grid>
 
             <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                type="date"
-                label="Payment Date"
-                name="payment_date"
-                value={formData.payment_date}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                disabled={saving}
-              />
+              <TextField fullWidth type="date" label="Payment Date" name="payment_date" value={formData.payment_date} onChange={handleChange} InputLabelProps={{ shrink: true }} disabled={saving} />
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                type="date"
-                label="Start Date *"
-                name="start_date"
-                value={formData.start_date}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                required
-                disabled={saving}
-              />
+              <TextField fullWidth type="date" label="Start Date *" name="start_date" value={formData.start_date} onChange={handleChange} InputLabelProps={{ shrink: true }} required disabled={saving} />
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                type="date"
-                label="End Date *"
-                name="end_date"
-                value={formData.end_date}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                required
-                disabled={saving}
-              />
+              <TextField fullWidth type="date" label="End Date *" name="end_date" value={formData.end_date} onChange={handleChange} InputLabelProps={{ shrink: true }} required disabled={saving} />
             </Grid>
 
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Notes"
-                name="notes"
-                multiline
-                rows={2}
-                value={formData.notes}
-                onChange={handleChange}
-                disabled={saving}
-                placeholder="Additional notes..."
-              />
+              <TextField fullWidth label="Notes" name="notes" multiline rows={2} value={formData.notes} onChange={handleChange} disabled={saving} placeholder="Additional notes..." />
             </Grid>
 
             {formData.payroll_type === 'semi_monthly' && (
               <Grid item xs={12}>
                 <Alert severity="info">
                   <Typography variant="body2">
-                    <strong>Semi-Monthly Payroll:</strong> This will process 
-                    {formData.start_date && new Date(formData.start_date).getDate() <= 15 ? ' First Half' : ' Second Half'} of the month.
+                    <strong>Semi-Monthly Payroll:</strong> This will process {formData.start_date && new Date(formData.start_date).getDate() <= 15 ? ' First Half' : ' Second Half'} of the month.
                     Prorated calculations will be applied for employees who joined or left mid-period.
                   </Typography>
                 </Alert>
@@ -301,23 +221,13 @@ const PayrollCreate = () => {
             )}
 
             <Grid item xs={12}>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Select Employees ({selectedEmployees.length} selected)
-              </Typography>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Select Employees ({selectedEmployees.length} selected)</Typography>
               <Divider sx={{ mb: 2 }} />
-              
               <Box display="flex" gap={1} mb={2}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={handleSelectAll}
-                  disabled={saving}
-                >
+                <Button variant="outlined" size="small" onClick={handleSelectAll} disabled={saving}>
                   {selectedEmployees.length === employees.length ? 'Deselect All' : 'Select All'}
                 </Button>
-                <Typography variant="caption" color="textSecondary" sx={{ ml: 2, alignSelf: 'center' }}>
-                  {employees.length} employees available
-                </Typography>
+                <Typography variant="caption" color="textSecondary" sx={{ ml: 2, alignSelf: 'center' }}>{employees.length} employees available</Typography>
               </Box>
 
               <Grid container spacing={1}>
@@ -329,9 +239,7 @@ const PayrollCreate = () => {
                         cursor: 'pointer',
                         bgcolor: selectedEmployees.includes(emp.id) ? '#f0fdf4' : 'transparent',
                         borderColor: selectedEmployees.includes(emp.id) ? '#86efac' : '#e5e7eb',
-                        '&:hover': {
-                          bgcolor: selectedEmployees.includes(emp.id) ? '#dcfce7' : '#f9fafb',
-                        },
+                        '&:hover': { bgcolor: selectedEmployees.includes(emp.id) ? '#dcfce7' : '#f9fafb' },
                       }}
                       onClick={() => handleToggleEmployee(emp.id)}
                     >
@@ -339,16 +247,10 @@ const PayrollCreate = () => {
                         <Box display="flex" alignItems="center" gap={1}>
                           <PersonIcon fontSize="small" color="action" />
                           <Box>
-                            <Typography variant="body2" fontWeight="medium">
-                              {emp.first_name} {emp.last_name}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary">
-                              {emp.position?.title || 'No Position'}
-                            </Typography>
+                            <Typography variant="body2" fontWeight="medium">{emp.first_name} {emp.last_name}</Typography>
+                            <Typography variant="caption" color="textSecondary">{emp.position?.title || 'No Position'}</Typography>
                           </Box>
-                          {selectedEmployees.includes(emp.id) && (
-                            <CheckCircleIcon fontSize="small" color="success" sx={{ ml: 'auto' }} />
-                          )}
+                          {selectedEmployees.includes(emp.id) && <CheckCircleIcon fontSize="small" color="success" sx={{ ml: 'auto' }} />}
                         </Box>
                       </CardContent>
                     </Card>
@@ -359,19 +261,8 @@ const PayrollCreate = () => {
           </Grid>
 
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4 }}>
-            <Button
-              variant="outlined"
-              onClick={() => navigate('/payroll')}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={saving || selectedEmployees.length === 0}
-              startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
-            >
+            <Button variant="outlined" onClick={() => navigate('/payroll')} disabled={saving}>Cancel</Button>
+            <Button type="submit" variant="contained" disabled={saving || selectedEmployees.length === 0} startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}>
               {saving ? 'Creating...' : 'Create Payroll'}
             </Button>
           </Box>

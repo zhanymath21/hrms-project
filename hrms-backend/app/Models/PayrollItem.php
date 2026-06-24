@@ -339,4 +339,52 @@ class PayrollItem extends Model
 
         return $this;
     }
+
+    // app/Models/PayrollItem.php
+
+    // ✅ Tambahkan accessor untuk adjustment details
+    public function getAdjustmentDetailsAttribute()
+    {
+        if (!$this->is_manual_adjusted) {
+            return null;
+        }
+
+        return [
+            'amount' => $this->manual_adjustment_amount,
+            'reason' => $this->manual_adjustment_reason,
+            'adjusted_at' => $this->manual_adjusted_at,
+            'adjusted_by' => $this->manualAdjustedBy ?
+                $this->manualAdjustedBy->first_name . ' ' . $this->manualAdjustedBy->last_name :
+                'System',
+            'override_present_days' => $this->override_present_days,
+            'override_absent_days' => $this->override_absent_days,
+            'override_leave_days' => $this->override_leave_days,
+            'notes' => $this->override_notes,
+        ];
+    }
+
+    // ✅ Get adjustment display text
+    public function getAdjustmentDisplayAttribute()
+    {
+        if (!$this->is_manual_adjusted) {
+            return null;
+        }
+
+        $parts = [];
+        if ($this->manual_adjustment_amount != 0) {
+            $parts[] = ($this->manual_adjustment_amount > 0 ? '+' : '') .
+                number_format($this->manual_adjustment_amount, 2);
+        }
+        if ($this->override_present_days !== null) {
+            $parts[] = "Present: {$this->override_present_days} (was {$this->present_days})";
+        }
+        if ($this->override_absent_days !== null) {
+            $parts[] = "Absent: {$this->override_absent_days} (was {$this->absent_days})";
+        }
+        if ($this->override_leave_days !== null) {
+            $parts[] = "Leave: {$this->override_leave_days} (was {$this->leave_days})";
+        }
+
+        return implode(' | ', $parts);
+    }
 }

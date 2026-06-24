@@ -24,23 +24,29 @@ class PayslipController extends Controller
             DB::beginTransaction();
 
             $payroll = PayrollPeriod::with(['items.employee'])->findOrFail($payrollPeriodId);
+            $currency = $payroll->currency ?? 'USD';
 
-            // Delete existing payslips
             Payslip::where('payroll_period_id', $payrollPeriodId)->delete();
 
             $payslips = [];
-            $currency = $payroll->currency ?? 'USD';
 
             foreach ($payroll->items as $item) {
                 $employee = $item->employee;
                 $salarySetting = EmployeeSalarySetting::where('employee_id', $employee->id)->first();
 
-                // Get allowance breakdown
+                // ✅ Get adjustment details
+                $adjustmentAmount = $item->manual_adjustment_amount ?? 0;
+                $adjustmentReason = $item->manual_adjustment_reason ?? null;
+                $isAdjusted = $item->is_manual_adjusted ?? false;
+
+                // Calculate allowances
                 $housingAllowance = $salarySetting->housing_allowance ?? 0;
                 $transportAllowance = $salarySetting->transport_allowance ?? 0;
                 $mealAllowance = $salarySetting->meal_allowance ?? 0;
                 $phoneAllowance = $salarySetting->phone_allowance ?? 0;
                 $otherAllowance = $salarySetting->other_allowance ?? 0;
+
+                $totalAllowance = $housingAllowance + $transportAllowance + $mealAllowance + $phoneAllowance + $otherAllowance;
 
                 $payslip = Payslip::create([
                     'payroll_period_id' => $payrollPeriodId,
@@ -55,42 +61,42 @@ class PayslipController extends Controller
                     'payment_date' => $payroll->payment_date,
 
                     // Earnings
-                    'basic_salary' => $item->basic_salary,
-                    'housing_allowance' => $housingAllowance,
-                    'transport_allowance' => $transportAllowance,
-                    'meal_allowance' => $mealAllowance,
-                    'phone_allowance' => $phoneAllowance,
-                    'other_allowance' => $otherAllowance,
-                    'overtime' => $item->overtime,
-                    'bonus' => $item->bonus,
-                    'commission' => $item->commission,
-                    'other_earnings' => $item->other_earnings,
-                    'total_earnings' => $item->total_earnings,
+                    'basic_salary' => (float) ($item->basic_salary ?? 0),
+                    'housing_allowance' => (float) $housingAllowance,
+                    'transport_allowance' => (float) $transportAllowance,
+                    'meal_allowance' => (float) $mealAllowance,
+                    'phone_allowance' => (float) $phoneAllowance,
+                    'other_allowance' => (float) $otherAllowance,
+                    'overtime' => (float) ($item->overtime ?? 0),
+                    'bonus' => (float) ($item->bonus ?? 0),
+                    'commission' => (float) ($item->commission ?? 0),
+                    'other_earnings' => (float) ($item->other_earnings ?? 0),
+                    'total_earnings' => (float) ($item->total_earnings ?? 0),
+
+                    // ✅ Adjustment
+                    'adjustment_amount' => (float) $adjustmentAmount,
+                    'adjustment_reason' => $adjustmentReason,
+                    'is_adjusted' => $isAdjusted,
 
                     // Deductions
-                    'tax' => $item->tax,
-                    'social_security' => $item->social_security,
-                    'health_insurance' => $item->health_insurance,
-                    'loan' => $item->loan,
-                    'advance' => $item->advance,
-                    'other_deductions' => $item->other_deductions,
-                    'total_deductions' => $item->total_deductions,
+                    'tax' => (float) ($item->tax ?? 0),
+                    'social_security' => (float) ($item->social_security ?? 0),
+                    'health_insurance' => (float) ($item->health_insurance ?? 0),
+                    'loan' => (float) ($item->loan ?? 0),
+                    'advance' => (float) ($item->advance ?? 0),
+                    'other_deductions' => (float) ($item->other_deductions ?? 0),
+                    'total_deductions' => (float) ($item->total_deductions ?? 0),
 
-                    // Net Pay
-                    'net_pay' => $item->net_pay,
-
-                    // Working Days
-                    'working_days' => $item->working_days,
-                    'present_days' => $item->present_days,
-                    'absent_days' => $item->absent_days,
-                    'leave_days' => $item->leave_days,
-                    'holiday_days' => $item->holiday_days,
-                    'overtime_hours' => $item->overtime_hours,
-
-                    'currency' => $item->currency,
-                    'status' => 'generated',
+                    'net_pay' => (float) ($item->net_pay ?? 0),
+                    'working_days' => (int) ($item->working_days ?? 0),
+                    'present_days' => (int) ($item->present_days ?? 0),
+                    'absent_days' => (int) ($item->absent_days ?? 0),
+                    'leave_days' => (int) ($item->leave_days ?? 0),
+                    'holiday_days' => (int) ($item->holiday_days ?? 0),
+                    'overtime_hours' => (int) ($item->overtime_hours ?? 0),
                     'currency' => $currency,
-                    'notes' => 'Payslip generated from payroll',
+                    'status' => 'generated',
+                    'notes' => $isAdjusted ? "Manual adjustment applied: {$adjustmentReason}" : 'Payslip generated from payroll',
                 ]);
 
                 $payslips[] = $payslip;
@@ -103,6 +109,7 @@ class PayslipController extends Controller
                 'message' => 'Payslips generated successfully',
                 'data' => [
                     'total' => count($payslips),
+                    'currency' => $currency,
                     'payslips' => $payslips,
                 ],
             ]);

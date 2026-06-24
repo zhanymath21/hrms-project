@@ -436,7 +436,8 @@ class PayrollController extends Controller
 
         return $payrollItem;
     }
-    // ============ GET SINGLE PAYROLL ============
+    // app/Http/Controllers/Api/PayrollController.php - show method
+
     public function show($id)
     {
         try {
@@ -447,6 +448,12 @@ class PayrollController extends Controller
                 'createdBy',
                 'approvedBy'
             ])->findOrFail($id);
+
+            // ✅ Add adjustment details to each item
+            $payroll->items->each(function ($item) {
+                $item->adjustment_details = $item->adjustment_details;
+                $item->adjustment_display = $item->adjustment_display;
+            });
 
             return response()->json([
                 'status' => 'success',

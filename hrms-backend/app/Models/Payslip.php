@@ -49,6 +49,9 @@ class Payslip extends Model
         'status',
         'pdf_path',
         'notes',
+        'adjustment_amount',
+        'adjustment_reason',
+        'is_adjusted',
     ];
 
     // ✅ Tambahkan default values
@@ -80,6 +83,8 @@ class Payslip extends Model
         'overtime_hours' => 0,
         'currency' => 'USD',
         'status' => 'draft',
+        'adjustment_amount' => 'decimal:2',
+        'is_adjusted' => 'boolean',
     ];
 
     public function payrollPeriod()
@@ -161,5 +166,23 @@ class Payslip extends Model
     public function getFormattedNetPayKhrAttribute()
     {
         return ExchangeRate::format($this->net_pay_khr, 'KHR');
+    }
+
+    public function getAdjustmentDisplayAttribute()
+    {
+        if (!$this->is_adjusted) {
+            return null;
+        }
+
+        $parts = [];
+        if ($this->adjustment_amount != 0) {
+            $parts[] = ($this->adjustment_amount > 0 ? '+' : '') .
+                number_format($this->adjustment_amount, 2);
+        }
+        if ($this->adjustment_reason) {
+            $parts[] = $this->adjustment_reason;
+        }
+
+        return implode(' - ', $parts);
     }
 }
