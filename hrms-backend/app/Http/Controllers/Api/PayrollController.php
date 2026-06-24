@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollItem;
 use App\Models\TaxSetting;
 use App\Models\EmployeeSalarySetting;
+use App\Models\Leave;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +58,9 @@ class PayrollController extends Controller
     public function store(Request $request)
     {
         try {
+            // ============================================
+            // 1. VALIDATION
+            // ============================================
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'start_date' => 'required|date',
@@ -76,14 +81,23 @@ class PayrollController extends Controller
                 ], 422);
             }
 
+            // ============================================
+            // 2. BEGIN TRANSACTION
+            // ============================================
             DB::beginTransaction();
 
             $currency = $request->currency ?? 'USD';
+            $startDate = Carbon::parse($request->start_date);
+            $endDate = Carbon::parse($request->end_date);
+
+            // ============================================
+            // 3. CREATE PAYROLL PERIOD
+            // ============================================
             $payroll = PayrollPeriod::create([
                 'name' => $request->name,
-                'start_date' => $request->start_date,
-                'end_date' => $request->end_date,
-                'payment_date' => $request->payment_date,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'payment_date' => $request->payment_date ? Carbon::parse($request->payment_date) : null,
                 'payroll_type' => $request->payroll_type,
                 'payroll_cycle' => $request->payroll_cycle,
                 'currency' => $currency,
@@ -92,44 +106,82 @@ class PayrollController extends Controller
                 'created_by' => auth()->id(),
             ]);
 
-            $totalDays = $this->calculateWorkingDays($request->start_date, $request->end_date);
-            $totalDaysInMonth = Carbon::parse($request->start_date)->daysInMonth;
+            // ============================================
+            // 4. GET TAX SETTINGS
+            // ============================================
             $taxSettings = TaxSetting::getActive();
 
+            // ============================================
+            // 5. VARIABLES FOR TOTALS
+            // ============================================
             $totalEmployees = 0;
             $totalGross = 0;
             $totalDeductions = 0;
             $totalNet = 0;
             $totalTax = 0;
 
+            // ============================================
+            // 6. PROCESS EACH EMPLOYEE
+            // ============================================
             foreach ($request->employee_ids as $employeeId) {
+                // 6a. Get Salary Settings
                 $salarySetting = EmployeeSalarySetting::where('employee_id', $employeeId)->first();
 
                 if (!$salarySetting) {
+                    Log::warning("No salary setting found for employee ID: {$employeeId}");
                     continue;
                 }
 
-                // Check prorated
+                // 6b. Get Employee Working Days
+                $monthlyWorkingDays = $salarySetting->working_days_per_month ?? 22;
+
+                // 6c. Calculate Working Days for Period
+                $totalWorkingDays = $this->calculateWorkingDaysForPeriod(
+                    $salarySetting,
+                    $startDate,
+                    $endDate
+                );
+
+                // 6d. Check Prorated Status
                 $isProrated = false;
-                $proratedDays = $totalDays;
+                $proratedDays = $totalWorkingDays;
                 $actualSalary = $salarySetting->basic_salary;
 
                 $joinDate = $salarySetting->employee->join_date ?? null;
                 $leaveDate = $salarySetting->employee->leave_date ?? null;
 
-                if ($joinDate && $joinDate > $request->start_date) {
-                    $proratedDays = $this->calculateWorkingDays($joinDate, $request->end_date);
+                if ($joinDate && Carbon::parse($joinDate) > $startDate) {
+                    $proratedDays = $this->calculateWorkingDaysForPeriod(
+                        $salarySetting,
+                        Carbon::parse($joinDate),
+                        $endDate
+                    );
                     $isProrated = true;
-                } elseif ($leaveDate && $leaveDate < $request->end_date) {
-                    $proratedDays = $this->calculateWorkingDays($request->start_date, $leaveDate);
+                } elseif ($leaveDate && Carbon::parse($leaveDate) < $endDate) {
+                    $proratedDays = $this->calculateWorkingDaysForPeriod(
+                        $salarySetting,
+                        $startDate,
+                        Carbon::parse($leaveDate)
+                    );
                     $isProrated = true;
                 }
 
                 if ($isProrated) {
-                    $dailyRate = $salarySetting->basic_salary / $totalDaysInMonth;
+                    $dailyRate = $monthlyWorkingDays > 0 ? $salarySetting->basic_salary / $monthlyWorkingDays : 0;
                     $actualSalary = $dailyRate * $proratedDays;
                 }
 
+                // 6e. Calculate Allowance
+                $totalAllowance = $salarySetting->housing_allowance +
+                    $salarySetting->transport_allowance +
+                    $salarySetting->meal_allowance +
+                    $salarySetting->phone_allowance +
+                    $salarySetting->other_allowance;
+
+                $dailyAllowance = $monthlyWorkingDays > 0 ? $totalAllowance / $monthlyWorkingDays : 0;
+                $actualAllowance = $dailyAllowance * ($isProrated ? $proratedDays : $totalWorkingDays);
+
+                // 6f. Create Payroll Item
                 $payrollItem = PayrollItem::create([
                     'payroll_period_id' => $payroll->id,
                     'employee_id' => $employeeId,
@@ -148,7 +200,7 @@ class PayrollController extends Controller
                     'other_deductions' => 0,
                     'total_deductions' => 0,
                     'net_pay' => 0,
-                    'working_days' => $totalDays,
+                    'working_days' => $totalWorkingDays,
                     'present_days' => 0,
                     'absent_days' => 0,
                     'leave_days' => 0,
@@ -161,11 +213,19 @@ class PayrollController extends Controller
                     'actual_salary' => $actualSalary,
                 ]);
 
-                // Update attendance & leave
-                $payrollItem->updateAttendance($request->start_date, $request->end_date);
-                $payrollItem->updateLeave($request->start_date, $request->end_date);
-                $payrollItem->calculateSalaryFromAttendance();
+                // 6g. Update Attendance Data
+                $this->updateAttendanceForPayrollItem($payrollItem, $startDate, $endDate);
 
+                // 6h. Update Leave Data
+                $this->updateLeaveForPayrollItem($payrollItem, $startDate, $endDate);
+
+                // 6i. Calculate Salary from Attendance
+                $this->calculateSalaryFromAttendance($payrollItem, $salarySetting, $monthlyWorkingDays);
+
+                // 6j. Calculate Tax and Deductions
+                $this->calculateTaxAndDeductions($payrollItem, $salarySetting, $taxSettings);
+
+                // 6k. Update Totals
                 $totalEmployees++;
                 $totalGross += $payrollItem->total_earnings;
                 $totalDeductions += $payrollItem->total_deductions;
@@ -173,6 +233,9 @@ class PayrollController extends Controller
                 $totalTax += $payrollItem->tax;
             }
 
+            // ============================================
+            // 7. UPDATE PAYROLL TOTALS
+            // ============================================
             $payroll->update([
                 'total_employees' => $totalEmployees,
                 'total_gross' => $totalGross,
@@ -181,16 +244,27 @@ class PayrollController extends Controller
                 'total_tax' => $totalTax,
             ]);
 
+            // ============================================
+            // 8. COMMIT TRANSACTION
+            // ============================================
             DB::commit();
 
+            // ============================================
+            // 9. RETURN RESPONSE
+            // ============================================
             return response()->json([
                 'status' => 'success',
                 'message' => 'Payroll created successfully',
-                'data' => $payroll->load(['items.employee']),
+                'data' => $payroll->load(['items.employee', 'items.employee.position']),
             ], 201);
         } catch (\Exception $e) {
+            // ============================================
+            // 10. ROLLBACK ON ERROR
+            // ============================================
             DB::rollBack();
             Log::error('Error creating payroll: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to create payroll: ' . $e->getMessage(),
@@ -198,6 +272,170 @@ class PayrollController extends Controller
         }
     }
 
+    // ============================================
+    // HELPER METHODS
+    // ============================================
+
+    /**
+     * Calculate working days for a period based on employee settings
+     */
+    private function calculateWorkingDaysForPeriod($salarySetting, $startDate, $endDate)
+    {
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+
+        // If employee has custom working days per month
+        if ($salarySetting->working_days_per_month) {
+            $daysInMonth = $start->daysInMonth;
+            $workingDaysPerMonth = $salarySetting->working_days_per_month;
+            $ratio = $workingDaysPerMonth / $daysInMonth;
+
+            // Count actual days in period
+            $totalDays = $start->diffInDays($end) + 1;
+
+            // Apply ratio to get working days
+            $workingDays = round($totalDays * $ratio);
+
+            return max(1, $workingDays);
+        }
+
+        // Default: count weekdays (Mon-Fri)
+        $workingDays = 0;
+        for ($date = $start->copy(); $date <= $end; $date->addDay()) {
+            if ($date->isWeekday()) {
+                $workingDays++;
+            }
+        }
+
+        return $workingDays;
+    }
+
+    /**
+     * Update attendance for payroll item
+     */
+    private function updateAttendanceForPayrollItem($payrollItem, $startDate, $endDate)
+    {
+        $attendances = Attendance::where('employee_id', $payrollItem->employee_id)
+            ->whereBetween('date', [$startDate, $endDate])
+            ->get();
+
+        $presentDays = $attendances->where('status', 'present')->count();
+        $absentDays = $attendances->where('status', 'absent')->count();
+        $leaveDays = $attendances->where('status', 'leave')->count();
+        $holidayDays = $attendances->where('status', 'holiday')->count();
+        $lateDays = $attendances->where('status', 'late')->count();
+        $halfDay = $attendances->where('status', 'half_day')->count();
+
+        $payrollItem->update([
+            'present_days' => $presentDays,
+            'absent_days' => $absentDays,
+            'leave_days' => $leaveDays,
+            'holiday_days' => $holidayDays,
+        ]);
+
+        return $payrollItem;
+    }
+
+    /**
+     * Update leave for payroll item
+     */
+    private function updateLeaveForPayrollItem($payrollItem, $startDate, $endDate)
+    {
+        $leaves = Leave::where('employee_id', $payrollItem->employee_id)
+            ->where('status', 'approved')
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('start_date', [$startDate, $endDate])
+                    ->orWhereBetween('end_date', [$startDate, $endDate]);
+            })
+            ->get();
+
+        $totalLeaveDays = 0;
+        foreach ($leaves as $leave) {
+            $start = max($leave->start_date, $startDate);
+            $end = min($leave->end_date, $endDate);
+            $days = Carbon::parse($start)->diffInWeekdays(Carbon::parse($end)) + 1;
+            $totalLeaveDays += $days;
+        }
+
+        $payrollItem->update([
+            'leave_days' => $totalLeaveDays,
+        ]);
+
+        return $payrollItem;
+    }
+
+    /**
+     * Calculate salary from attendance
+     */
+    private function calculateSalaryFromAttendance($payrollItem, $salarySetting, $monthlyWorkingDays)
+    {
+        // Use effective days (with overrides)
+        $presentDays = $payrollItem->effective_present_days;
+        $leaveDays = $payrollItem->effective_leave_days;
+
+        // Calculate daily rate
+        $dailyRate = $monthlyWorkingDays > 0 ? $salarySetting->basic_salary / $monthlyWorkingDays : 0;
+        $actualSalary = $dailyRate * ($presentDays + $leaveDays);
+
+        // Calculate allowance
+        $totalAllowance = $salarySetting->housing_allowance +
+            $salarySetting->transport_allowance +
+            $salarySetting->meal_allowance +
+            $salarySetting->phone_allowance +
+            $salarySetting->other_allowance;
+
+        $dailyAllowance = $monthlyWorkingDays > 0 ? $totalAllowance / $monthlyWorkingDays : 0;
+        $actualAllowance = $dailyAllowance * ($presentDays + $leaveDays);
+
+        // Total earnings with manual adjustment
+        $totalEarnings = $actualSalary + $actualAllowance + $payrollItem->manual_adjustment_amount;
+
+        $payrollItem->update([
+            'basic_salary' => $actualSalary,
+            'allowance' => $actualAllowance,
+            'total_earnings' => $totalEarnings,
+        ]);
+
+        return $payrollItem;
+    }
+
+    /**
+     * Calculate tax and deductions
+     */
+    private function calculateTaxAndDeductions($payrollItem, $salarySetting, $taxSettings)
+    {
+        $totalEarnings = $payrollItem->total_earnings;
+
+        // Calculate tax
+        $tax = 0;
+        if ($taxSettings && !$salarySetting->is_tax_exempt) {
+            $tax = $taxSettings->calculateTax($totalEarnings, $salarySetting->dependents);
+        }
+
+        // Calculate NSSF
+        $nssf = 0;
+        if ($taxSettings) {
+            $nssfCalculation = $taxSettings->calculateNSSF($payrollItem->basic_salary);
+            $nssf = $nssfCalculation['employee'] ?? 0;
+        }
+
+        // Calculate total deductions
+        $totalDeductions = $tax + $nssf;
+        $netPay = $totalEarnings - $totalDeductions;
+
+        $payrollItem->update([
+            'tax' => $tax,
+            'social_security' => $nssf,
+            'health_insurance' => 0,
+            'loan' => 0,
+            'advance' => 0,
+            'other_deductions' => 0,
+            'total_deductions' => $totalDeductions,
+            'net_pay' => $netPay,
+        ]);
+
+        return $payrollItem;
+    }
     // ============ GET SINGLE PAYROLL ============
     public function show($id)
     {

@@ -236,8 +236,11 @@ class PayrollItem extends Model
         $leaveDays = $this->effective_leave_days;
         $workingDays = $this->working_days;
 
-        // Basic salary calculation
-        $dailyRate = $workingDays > 0 ? $salarySetting->basic_salary / $workingDays : 0;
+        // ✅ Get employee's monthly working days
+        $monthlyWorkingDays = $salarySetting->working_days_per_month ?? 22;
+
+        // ✅ Calculate daily rate based on monthly working days
+        $dailyRate = $monthlyWorkingDays > 0 ? $salarySetting->basic_salary / $monthlyWorkingDays : 0;
         $actualSalary = $dailyRate * ($presentDays + $leaveDays);
 
         // Allowance calculation (prorated)
@@ -247,19 +250,18 @@ class PayrollItem extends Model
             $salarySetting->phone_allowance +
             $salarySetting->other_allowance;
 
-        $dailyAllowance = $workingDays > 0 ? $totalAllowance / $workingDays : 0;
+        $dailyAllowance = $monthlyWorkingDays > 0 ? $totalAllowance / $monthlyWorkingDays : 0;
         $actualAllowance = $dailyAllowance * ($presentDays + $leaveDays);
 
         $totalEarnings = $actualSalary + $actualAllowance + $this->manual_adjustment_amount;
 
-        // Calculate tax
+        // Calculate tax & NSSF
         $taxSettings = TaxSetting::getActive();
         $tax = 0;
         if ($taxSettings && !$salarySetting->is_tax_exempt) {
             $tax = $taxSettings->calculateTax($totalEarnings, $salarySetting->dependents);
         }
 
-        // Calculate NSSF
         $nssf = 0;
         if ($taxSettings) {
             $nssf = $taxSettings->calculateNSSF($actualSalary)['employee'];
@@ -281,7 +283,6 @@ class PayrollItem extends Model
 
         return $this;
     }
-
     // Apply manual adjustment
     public function applyManualAdjustment($data)
     {
