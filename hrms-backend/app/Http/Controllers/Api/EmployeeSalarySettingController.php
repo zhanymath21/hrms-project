@@ -89,7 +89,10 @@ class EmployeeSalarySettingController extends Controller
                 'bank_name' => 'nullable|string|max:255',
                 'bank_account_number' => 'nullable|string|max:255',
                 'bank_account_name' => 'nullable|string|max:255',
-                'currency' => 'nullable|string|in:KHR,USD',
+                'currency' => 'nullable|string|in:USD,KHR',
+                'working_days_per_month' => 'nullable|integer|min:1|max:31',
+                'working_days_type' => 'nullable|string|in:standard,shift,flexible',
+                'include_weekends' => 'nullable|boolean',
             ]);
 
             if ($validator->fails()) {
@@ -99,40 +102,30 @@ class EmployeeSalarySettingController extends Controller
                 ], 422);
             }
 
-            // ✅ Set default values for nullable fields
-            $data = $request->all();
-            $data['housing_allowance'] = $data['housing_allowance'] ?? 0;
-            $data['transport_allowance'] = $data['transport_allowance'] ?? 0;
-            $data['meal_allowance'] = $data['meal_allowance'] ?? 0;
-            $data['phone_allowance'] = $data['phone_allowance'] ?? 0;
-            $data['other_allowance'] = $data['other_allowance'] ?? 0;
-            $data['dependents'] = $data['dependents'] ?? 0;
-            $data['is_tax_exempt'] = $data['is_tax_exempt'] ?? false;
-            $data['payment_method'] = $data['payment_method'] ?? 'bank_transfer';
-            $data['currency'] = $data['currency'] ?? 'KHR';
-
-            // Check if setting already exists
+            // ✅ Check if setting already exists
             $existing = EmployeeSalarySetting::where('employee_id', $request->employee_id)->first();
 
             if ($existing) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Salary setting already exists for this employee. Use PUT to update.',
-                ], 409);
+                // ✅ Update existing
+                $existing->update($request->all());
+                $setting = $existing;
+                $message = 'Salary setting updated successfully';
+            } else {
+                // ✅ Create new
+                $setting = EmployeeSalarySetting::create($request->all());
+                $message = 'Salary setting created successfully';
             }
-
-            $setting = EmployeeSalarySetting::create($data);
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Salary setting created successfully',
+                'message' => $message,
                 'data' => $setting->load('employee'),
-            ], 201);
+            ]);
         } catch (\Exception $e) {
-            Log::error('Error creating salary setting: ' . $e->getMessage());
+            Log::error('Error saving salary setting: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to create salary setting: ' . $e->getMessage(),
+                'message' => 'Failed to save salary setting: ' . $e->getMessage(),
             ], 500);
         }
     }

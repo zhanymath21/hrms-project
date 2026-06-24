@@ -214,17 +214,30 @@ const EmployeeSalarySettings = () => {
         working_days_per_month: parseInt(settings.working_days_per_month) || 22,
       };
 
+      console.log('📤 Saving salary settings:', submitData);
+
+      // ✅ Gunakan POST (backend akan handle create atau update)
       const response = await api.post('/employee-salary-settings', submitData);
       
       if (response.data?.status === 'success') {
         setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
-        // Refresh data
+        setError(null);
+        // Update data setelah save
         await fetchSalarySettings(selectedEmployee);
+        setTimeout(() => setSuccess(false), 3000);
       }
     } catch (err) {
-      console.error('Error saving settings:', err);
-      setError(err.response?.data?.message || 'Failed to save settings');
+      console.error('❌ Error saving settings:', err);
+      console.error('❌ Error response:', err.response?.data);
+      
+      let errorMessage = 'Failed to save settings';
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.errors) {
+        const errors = Object.values(err.response.data.errors).flat().join('\n');
+        errorMessage = errors;
+      }
+      setError(errorMessage);
     } finally {
       setSaving(false);
     }
