@@ -5,7 +5,7 @@ import {
   DialogContent, DialogActions, TextField, Chip, IconButton,
   MenuItem, Stack, Alert, Skeleton, Card, CardContent,
   Tooltip, Avatar, Divider, InputAdornment, FormControl, InputLabel,
-  Select, Pagination
+  Select, Pagination, Popover
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -22,6 +22,8 @@ import ShieldIcon from '@mui/icons-material/Shield';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloseIcon from '@mui/icons-material/Close';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import DateRangeIcon from '@mui/icons-material/DateRange';
 import ppeService from '../../services/ppeService';
 
 // ========== CONSTANTS ==========
@@ -50,6 +52,99 @@ const WRITE_OFF_REASONS = [
   { value: 'replaced', label: 'Replaced' },
   { value: 'other', label: 'Other' },
 ];
+
+// ========== EXPORT DIALOG ==========
+function ExportDialog({ open, onClose, onExport, loading }) {
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [format, setFormat] = useState('xlsx');
+  const [error, setError] = useState('');
+
+  const handleExport = () => {
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      setError('Start date must be before end date');
+      return;
+    }
+    setError('');
+    onExport({ startDate, endDate, format });
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        📤 Export PPE Data
+        <IconButton onClick={onClose} sx={{ position: 'absolute', right: 8, top: 8 }}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">Export PPE data with date filter. Leave dates empty to export all data.</Typography>
+        </Alert>
+
+        <Grid container spacing={2} sx={{ mt: 0.5 }}>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              type="date"
+              label="Start Date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              type="date"
+              label="End Date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>Export Format</InputLabel>
+              <Select
+                label="Export Format"
+                value={format}
+                onChange={e => setFormat(e.target.value)}
+              >
+                <MenuItem value="xlsx">Excel (.xlsx)</MenuItem>
+                <MenuItem value="csv">CSV (.csv)</MenuItem>
+                <MenuItem value="pdf">PDF (.pdf)</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          {error && (
+            <Grid item xs={12}>
+              <Alert severity="error">{error}</Alert>
+            </Grid>
+          )}
+          {startDate && endDate && (
+            <Grid item xs={12}>
+              <Alert severity="success">
+                Exporting data from {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+              </Alert>
+            </Grid>
+          )}
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button 
+          variant="contained" 
+          onClick={handleExport} 
+          disabled={loading}
+          startIcon={<FileDownloadIcon />}
+        >
+          {loading ? 'Exporting...' : 'Export'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
 
 // ========== IMPORT DIALOG ==========
 function ImportDialog({ open, onClose, onDownloadTemplate, onImport, importFile, setImportFile, importing, importResult }) {
@@ -476,6 +571,10 @@ export default function PPEListPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
 
+  // Export dialog states
+  const [exportDialog, setExportDialog] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
   useEffect(() => { loadInitialData(); }, []);
   useEffect(() => { loadItems(); }, [filters, page]);
 
@@ -514,7 +613,6 @@ export default function PPEListPage() {
       setImportResult(result.data || result);
       showMsg('Import completed!');
       refreshAll();
-      // Close dialog after successful import
       setTimeout(() => {
         setImportDialog(false);
         setImportFile(null);
@@ -528,6 +626,42 @@ export default function PPEListPage() {
       });
     } finally {
       setImporting(false);
+    }
+  };
+
+  // Export handler
+  const handleExport = async ({ startDate, endDate, format }) => {
+    setExporting(true);
+    try {
+      const params = {};
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (format) params.format = format;
+      
+      const response = await ppeService.exportItems(params);
+      
+      // Create download link
+      const blob = new Blob([response.data], { 
+        type: format === 'csv' ? 'text/csv' : 
+              format === 'pdf' ? 'application/pdf' : 
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.download = `ppe_export_${dateStr}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      showMsg('Export completed successfully!');
+      setExportDialog(false);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Export failed');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -551,6 +685,7 @@ export default function PPEListPage() {
         <Box><Typography variant="h4" fontWeight="bold">🛡️ PPE List</Typography><Typography variant="body2" color="textSecondary">Personal Protective Equipment Management</Typography></Box>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={refreshAll}>Refresh</Button>
+          <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={() => setExportDialog(true)}>Export</Button>
           <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setImportDialog(true)}>Import Excel</Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormDialog({ open: true, editData: null })}>Add PPE</Button>
         </Stack>
@@ -614,6 +749,13 @@ export default function PPEListPage() {
         setImportFile={setImportFile}
         importing={importing}
         importResult={importResult}
+      />
+
+      <ExportDialog
+        open={exportDialog}
+        onClose={() => setExportDialog(false)}
+        onExport={handleExport}
+        loading={exporting}
       />
 
       <PPEFormDialog 
