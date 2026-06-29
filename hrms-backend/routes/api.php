@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\PayrollController;
 use App\Http\Controllers\Api\PayslipController;
 use App\Http\Controllers\Api\PPECategoryController;
 use App\Http\Controllers\Api\PPEController;
+use App\Http\Controllers\Api\PPEImportController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TaxSettingController;
 use App\Http\Controllers\Api\TurnoverReportController;
@@ -205,6 +206,8 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/ppe/categories', [PPECategoryController::class, 'store']);
     Route::put('/ppe/categories/{id}', [PPECategoryController::class, 'update']);
     Route::delete('/ppe/categories/{id}', [PPECategoryController::class, 'destroy']);
+    Route::get('/ppe/import/template', [PPEImportController::class, 'downloadTemplate']);
+    Route::post('/ppe/import', [PPEImportController::class, 'import']);
 
     // ==========================================
     // 🔥 RECRUITMENT ROUTES - Ikuti Format Leaves

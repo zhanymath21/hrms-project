@@ -81,6 +81,28 @@ const ppeService = {
     const res = await api.get('/employees', { params: { per_page: 1000, status: 'active' } });
     return res.data.data?.data || res.data.data || [];
   },
+  /** Download import template */
+downloadTemplate: async () => {
+  const res = await api.get('/ppe/import/template', { responseType: 'blob' });
+  const url = window.URL.createObjectURL(new Blob([res.data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', 'PPE_Import_Template.xlsx');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+},
+
+/** Import PPE from Excel */
+importPPE: async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await api.post('/ppe/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return res.data;
+},
 };
 
 export default ppeService;

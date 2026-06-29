@@ -51,6 +51,67 @@ const WRITE_OFF_REASONS = [
   { value: 'other', label: 'Other' },
 ];
 
+// ========== IMPORT DIALOG ==========
+function ImportDialog({ open, onClose, onDownloadTemplate, onImport, importFile, setImportFile, importing, importResult }) {
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>📥 Import PPE from Excel</DialogTitle>
+      <DialogContent>
+        {/* Step 1: Download Template */}
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2" fontWeight="bold">Step 1: Download Template</Typography>
+          <Typography variant="body2">Download the template, fill in your PPE data, then upload.</Typography>
+          <Button variant="outlined" onClick={onDownloadTemplate} sx={{ mt: 1 }} size="small">
+            📥 Download Template
+          </Button>
+        </Alert>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Step 2: Upload File */}
+        <Typography variant="body2" fontWeight="bold" gutterBottom>Step 2: Upload Filled Template</Typography>
+        <Button variant="outlined" component="label" fullWidth sx={{ py: 2, borderStyle: 'dashed' }} disabled={importing}>
+          {importFile ? `✅ ${importFile.name}` : '📁 Choose Excel File (.xlsx)'}
+          <input type="file" hidden accept=".xlsx,.xls,.csv" onChange={e => setImportFile(e.target.files[0])} />
+        </Button>
+
+        {/* Import Result */}
+        {importResult && (
+          <Box sx={{ mt: 2 }}>
+            {importResult.status === 'success' || importResult.success_count !== undefined ? (
+              <Alert severity="success">
+                <Typography variant="body2"><strong>Import Complete!</strong></Typography>
+                <Typography variant="body2">✅ Success: {importResult.success_count || 0}</Typography>
+                <Typography variant="body2">❌ Failed: {importResult.fail_count || 0}</Typography>
+                {importResult.errors?.length > 0 && (
+                  <Box sx={{ mt: 1, maxHeight: 150, overflow: 'auto' }}>
+                    {importResult.errors.map((err, i) => (
+                      <Typography key={i} variant="caption" color="error" display="block">{err}</Typography>
+                    ))}
+                  </Box>
+                )}
+              </Alert>
+            ) : (
+              <Alert severity="error">
+                <Typography variant="body2">{importResult.message}</Typography>
+                {importResult.errors?.map((err, i) => (
+                  <Typography key={i} variant="caption" display="block">• {err}</Typography>
+                ))}
+              </Alert>
+            )}
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={importing}>Close</Button>
+        <Button variant="contained" onClick={onImport} disabled={!importFile || importing}>
+          {importing ? 'Importing...' : 'Import Now'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ========== STAT CARD ==========
 function StatCard({ icon, title, value, color }) {
   return (
@@ -408,6 +469,12 @@ export default function PPEListPage() {
   const [writeOffDialog, setWriteOffDialog] = useState({ open: false, item: null });
   const [historyDialog, setHistoryDialog] = useState({ open: false, histories: [] });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, item: null });
+  
+  // Import dialog states
+  const [importDialog, setImportDialog] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   useEffect(() => { loadInitialData(); }, []);
   useEffect(() => { loadItems(); }, [filters, page]);
@@ -433,6 +500,37 @@ export default function PPEListPage() {
   const refreshAll = async () => { await loadInitialData(); await loadItems(); };
   const showMsg = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
 
+  // Import handlers
+  const handleDownloadTemplate = () => {
+    ppeService.downloadTemplate();
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const result = await ppeService.importPPE(importFile);
+      setImportResult(result.data || result);
+      showMsg('Import completed!');
+      refreshAll();
+      // Close dialog after successful import
+      setTimeout(() => {
+        setImportDialog(false);
+        setImportFile(null);
+        setImportResult(null);
+      }, 1500);
+    } catch (err) {
+      setImportResult({
+        status: 'error',
+        message: err.response?.data?.message || 'Import failed',
+        errors: err.response?.data?.errors || [],
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleCreate = async (data) => { await ppeService.createItem(data); showMsg('PPE created!'); refreshAll(); };
   const handleUpdate = async (data) => { await ppeService.updateItem(formDialog.editData.id, data); showMsg('PPE updated!'); refreshAll(); };
   const handleDelete = async () => { await ppeService.deleteItem(deleteDialog.item.id); showMsg('PPE deleted!'); setDeleteDialog({ open: false }); refreshAll(); };
@@ -451,7 +549,11 @@ export default function PPEListPage() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1 }}>
         <Box><Typography variant="h4" fontWeight="bold">🛡️ PPE List</Typography><Typography variant="body2" color="textSecondary">Personal Protective Equipment Management</Typography></Box>
-        <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<RefreshIcon />} onClick={refreshAll}>Refresh</Button><Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormDialog({ open: true, editData: null })}>Add PPE</Button></Stack>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={refreshAll}>Refresh</Button>
+          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setImportDialog(true)}>Import Excel</Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormDialog({ open: true, editData: null })}>Add PPE</Button>
+        </Stack>
       </Box>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
@@ -498,12 +600,67 @@ export default function PPEListPage() {
       </TableContainer>
       {totalPages > 1 && <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}><Pagination count={totalPages} page={page} onChange={(e, v) => setPage(v)} color="primary" /></Box>}
 
-      <PPEFormDialog open={formDialog.open} onClose={() => setFormDialog({ open: false, editData: null })} onSubmit={formDialog.editData ? handleUpdate : handleCreate} categories={categories} employees={employees} editData={formDialog.editData} />
-      <AssignDialog open={assignDialog.open} onClose={() => setAssignDialog({ open: false, item: null })} onSubmit={handleAssign} item={assignDialog.item} employees={employees} />
-      <MoveDialog open={moveDialog.open} onClose={() => setMoveDialog({ open: false, item: null })} onSubmit={handleMove} item={moveDialog.item} />
-      <WriteOffDialog open={writeOffDialog.open} onClose={() => setWriteOffDialog({ open: false, item: null })} onSubmit={handleWriteOff} item={writeOffDialog.item} />
-      <HistoryDialog open={historyDialog.open} onClose={() => setHistoryDialog({ open: false, histories: [] })} histories={historyDialog.histories} />
-      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false })}><DialogTitle>Delete {deleteDialog.item?.name}?</DialogTitle><DialogContent><Typography>This action cannot be undone.</Typography></DialogContent><DialogActions><Button onClick={() => setDeleteDialog({ open: false })}>Cancel</Button><Button variant="contained" color="error" onClick={handleDelete}>Delete</Button></DialogActions></Dialog>
+      {/* Dialogs */}
+      <ImportDialog
+        open={importDialog}
+        onClose={() => {
+          setImportDialog(false);
+          setImportFile(null);
+          setImportResult(null);
+        }}
+        onDownloadTemplate={handleDownloadTemplate}
+        onImport={handleImport}
+        importFile={importFile}
+        setImportFile={setImportFile}
+        importing={importing}
+        importResult={importResult}
+      />
+
+      <PPEFormDialog 
+        open={formDialog.open} 
+        onClose={() => setFormDialog({ open: false, editData: null })} 
+        onSubmit={formDialog.editData ? handleUpdate : handleCreate} 
+        categories={categories} 
+        employees={employees} 
+        editData={formDialog.editData} 
+      />
+      
+      <AssignDialog 
+        open={assignDialog.open} 
+        onClose={() => setAssignDialog({ open: false, item: null })} 
+        onSubmit={handleAssign} 
+        item={assignDialog.item} 
+        employees={employees} 
+      />
+      
+      <MoveDialog 
+        open={moveDialog.open} 
+        onClose={() => setMoveDialog({ open: false, item: null })} 
+        onSubmit={handleMove} 
+        item={moveDialog.item} 
+      />
+      
+      <WriteOffDialog 
+        open={writeOffDialog.open} 
+        onClose={() => setWriteOffDialog({ open: false, item: null })} 
+        onSubmit={handleWriteOff} 
+        item={writeOffDialog.item} 
+      />
+      
+      <HistoryDialog 
+        open={historyDialog.open} 
+        onClose={() => setHistoryDialog({ open: false, histories: [] })} 
+        histories={historyDialog.histories} 
+      />
+      
+      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false })}>
+        <DialogTitle>Delete {deleteDialog.item?.name}?</DialogTitle>
+        <DialogContent><Typography>This action cannot be undone.</Typography></DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialog({ open: false })}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={handleDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
