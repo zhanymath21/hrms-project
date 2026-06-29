@@ -106,24 +106,36 @@ const ppeService = {
 
 
 
-  /** Export PPE items with filters */
+  /** Export PPE to Excel */
   exportItems: async (params = {}) => {
-    const token = localStorage.getItem('token');
-    const queryParams = new URLSearchParams();
-  
-    if (params.start_date) queryParams.append('start_date', params.start_date);
-    if (params.end_date) queryParams.append('end_date', params.end_date);
-    if (params.format) queryParams.append('format', params.format);
-  
-    const queryString = queryParams.toString();
-    const url = '/ppe/export' + (queryString ? '?' + queryString : '');
-  
-    return await api.get(url, {
-      responseType: 'blob',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      }
-    });
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Build URL with params
+      const queryParams = new URLSearchParams();
+      if (params.start_date) queryParams.append('start_date', params.start_date);
+      if (params.end_date) queryParams.append('end_date', params.end_date);
+      if (params.category_id) queryParams.append('category_id', params.category_id);
+      if (params.status) queryParams.append('status', params.status);
+      if (params.condition) queryParams.append('condition', params.condition);
+      
+      const queryString = queryParams.toString();
+      const url = '/ppe/export' + (queryString ? '?' + queryString : '');
+      
+      console.log('Export URL:', url);
+      
+      const response = await api.get(url, {
+        responseType: 'blob',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Export error:', error);
+      throw error;
+    }
   },
 };
 

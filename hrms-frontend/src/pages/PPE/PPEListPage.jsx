@@ -5,7 +5,7 @@ import {
   DialogContent, DialogActions, TextField, Chip, IconButton,
   MenuItem, Stack, Alert, Skeleton, Card, CardContent,
   Tooltip, Avatar, Divider, InputAdornment, FormControl, InputLabel,
-  Select, Pagination, Popover
+  Select, Pagination, Popover, LinearProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -23,7 +23,7 @@ import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloseIcon from '@mui/icons-material/Close';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import DateRangeIcon from '@mui/icons-material/DateRange';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import ppeService from '../../services/ppeService';
 
 // ========== CONSTANTS ==========
@@ -54,43 +54,124 @@ const WRITE_OFF_REASONS = [
 ];
 
 // ========== EXPORT DIALOG ==========
-function ExportDialog({ open, onClose, onExport, loading }) {
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [format, setFormat] = useState('xlsx');
+function ExportDialog({ 
+  open, 
+  onClose, 
+  onExport, 
+  loading, 
+  categories = [], 
+  filters = {}, 
+  setFilters 
+}) {
+  const [localFilters, setLocalFilters] = useState({
+    start_date: '',
+    end_date: '',
+    category_id: '',
+    status: '',
+    condition: '',
+  });
   const [error, setError] = useState('');
 
-  const handleExport = () => {
-    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
-      setError('Start date must be before end date');
-      return;
+  useEffect(() => {
+    if (open) {
+      setLocalFilters({
+        start_date: filters.start_date || '',
+        end_date: filters.end_date || '',
+        category_id: filters.category_id || '',
+        status: filters.status || '',
+        condition: filters.condition || '',
+      });
+      setError('');
+    }
+  }, [open, filters]);
+
+  const handleApplyFilters = () => {
+    // Validate dates
+    if (localFilters.start_date && localFilters.end_date) {
+      if (new Date(localFilters.start_date) > new Date(localFilters.end_date)) {
+        setError('Start date must be before end date');
+        return;
+      }
     }
     setError('');
-    onExport({ startDate, endDate, format });
+    setFilters(localFilters);
   };
 
+  const handleClearFilters = () => {
+    const emptyFilters = {
+      start_date: '',
+      end_date: '',
+      category_id: '',
+      status: '',
+      condition: '',
+    };
+    setLocalFilters(emptyFilters);
+    setFilters(emptyFilters);
+    setError('');
+  };
+
+  const handleExport = () => {
+    // Validate dates before exporting
+    if (localFilters.start_date && localFilters.end_date) {
+      if (new Date(localFilters.start_date) > new Date(localFilters.end_date)) {
+        setError('Start date must be before end date');
+        return;
+      }
+    }
+    setError('');
+    onExport(localFilters);
+  };
+
+  // Count active filters
+  const activeFilterCount = Object.values(localFilters).filter(v => v !== '').length;
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        📤 Export PPE Data
-        <IconButton onClick={onClose} sx={{ position: 'absolute', right: 8, top: 8 }}>
-          <CloseIcon />
-        </IconButton>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box display="flex" alignItems="center" gap={1}>
+            <FileDownloadIcon color="primary" />
+            <Typography variant="h6">Export PPE Data</Typography>
+            {activeFilterCount > 0 && (
+              <Chip 
+                label={`${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active`} 
+                size="small" 
+                color="primary" 
+              />
+            )}
+          </Box>
+          <IconButton onClick={onClose} size="small">
+            <CloseIcon />
+          </IconButton>
+        </Box>
       </DialogTitle>
-      <DialogContent>
-        <Alert severity="info" sx={{ mb: 2 }}>
-          <Typography variant="body2">Export PPE data with date filter. Leave dates empty to export all data.</Typography>
+      
+      <DialogContent dividers>
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>Export PPE data</strong> with filters. Leave fields empty to export all data.
+            <br />
+            <small>Available formats: Excel (.xlsx), CSV (.csv), PDF (.pdf)</small>
+          </Typography>
         </Alert>
 
-        <Grid container spacing={2} sx={{ mt: 0.5 }}>
+        <Grid container spacing={2}>
+          {/* Date Range */}
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DateRangeIcon fontSize="small" />
+              Date Range (Optional)
+            </Typography>
+          </Grid>
           <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
               type="date"
               label="Start Date"
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
+              value={localFilters.start_date}
+              onChange={e => setLocalFilters({ ...localFilters, start_date: e.target.value })}
               InputLabelProps={{ shrink: true }}
+              size="small"
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -98,49 +179,149 @@ function ExportDialog({ open, onClose, onExport, loading }) {
               fullWidth
               type="date"
               label="End Date"
-              value={endDate}
-              onChange={e => setEndDate(e.target.value)}
+              value={localFilters.end_date}
+              onChange={e => setLocalFilters({ ...localFilters, end_date: e.target.value })}
               InputLabelProps={{ shrink: true }}
+              size="small"
             />
           </Grid>
+
+          {/* Additional Filters */}
           <Grid item xs={12}>
-            <FormControl fullWidth>
-              <InputLabel>Export Format</InputLabel>
+            <Divider sx={{ my: 1 }}>
+              <Chip label="Additional Filters" size="small" icon={<FilterListIcon />} />
+            </Divider>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Category</InputLabel>
               <Select
-                label="Export Format"
-                value={format}
-                onChange={e => setFormat(e.target.value)}
+                label="Category"
+                value={localFilters.category_id}
+                onChange={e => setLocalFilters({ ...localFilters, category_id: e.target.value })}
               >
-                <MenuItem value="xlsx">Excel (.xlsx)</MenuItem>
-                <MenuItem value="csv">CSV (.csv)</MenuItem>
-                <MenuItem value="pdf">PDF (.pdf)</MenuItem>
+                <MenuItem value="">All Categories</MenuItem>
+                {(categories || []).map(c => (
+                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Status</InputLabel>
+              <Select
+                label="Status"
+                value={localFilters.status}
+                onChange={e => setLocalFilters({ ...localFilters, status: e.target.value })}
+              >
+                <MenuItem value="">All Status</MenuItem>
+                {STATUS_OPTIONS.map(o => (
+                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Condition</InputLabel>
+              <Select
+                label="Condition"
+                value={localFilters.condition}
+                onChange={e => setLocalFilters({ ...localFilters, condition: e.target.value })}
+              >
+                <MenuItem value="">All Condition</MenuItem>
+                {CONDITION_OPTIONS.map(o => (
+                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          {/* Preview of selected filters */}
+          {activeFilterCount > 0 && (
+            <Grid item xs={12}>
+              <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f5f5f5' }}>
+                <Typography variant="caption" color="textSecondary" display="block" gutterBottom>
+                  <strong>Active Filters:</strong>
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {localFilters.start_date && (
+                    <Chip 
+                      label={`From: ${new Date(localFilters.start_date).toLocaleDateString()}`} 
+                      size="small" 
+                      onDelete={() => setLocalFilters({ ...localFilters, start_date: '' })}
+                    />
+                  )}
+                  {localFilters.end_date && (
+                    <Chip 
+                      label={`To: ${new Date(localFilters.end_date).toLocaleDateString()}`} 
+                      size="small" 
+                      onDelete={() => setLocalFilters({ ...localFilters, end_date: '' })}
+                    />
+                  )}
+                  {localFilters.category_id && (
+                    <Chip 
+                      label={`Category: ${categories.find(c => c.id === localFilters.category_id)?.name || ''}`} 
+                      size="small" 
+                      onDelete={() => setLocalFilters({ ...localFilters, category_id: '' })}
+                    />
+                  )}
+                  {localFilters.status && (
+                    <Chip 
+                      label={`Status: ${STATUS_OPTIONS.find(o => o.value === localFilters.status)?.label || ''}`} 
+                      size="small" 
+                      onDelete={() => setLocalFilters({ ...localFilters, status: '' })}
+                    />
+                  )}
+                  {localFilters.condition && (
+                    <Chip 
+                      label={`Condition: ${CONDITION_OPTIONS.find(o => o.value === localFilters.condition)?.label || ''}`} 
+                      size="small" 
+                      onDelete={() => setLocalFilters({ ...localFilters, condition: '' })}
+                    />
+                  )}
+                </Stack>
+              </Paper>
+            </Grid>
+          )}
+
           {error && (
             <Grid item xs={12}>
               <Alert severity="error">{error}</Alert>
             </Grid>
           )}
-          {startDate && endDate && (
+
+          {loading && (
             <Grid item xs={12}>
-              <Alert severity="success">
-                Exporting data from {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
-              </Alert>
+              <LinearProgress />
+              <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                Generating export file...
+              </Typography>
             </Grid>
           )}
         </Grid>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button 
-          variant="contained" 
-          onClick={handleExport} 
-          disabled={loading}
-          startIcon={<FileDownloadIcon />}
-        >
-          {loading ? 'Exporting...' : 'Export'}
+
+      <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
+        <Button onClick={handleClearFilters} disabled={loading || activeFilterCount === 0}>
+          Clear Filters
         </Button>
+        <Box>
+          <Button onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleExport} 
+            disabled={loading}
+            startIcon={<FileDownloadIcon />}
+            sx={{ ml: 1 }}
+          >
+            {loading ? 'Exporting...' : 'Export Now'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   );
@@ -152,7 +333,6 @@ function ImportDialog({ open, onClose, onDownloadTemplate, onImport, importFile,
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>📥 Import PPE from Excel</DialogTitle>
       <DialogContent>
-        {/* Step 1: Download Template */}
         <Alert severity="info" sx={{ mb: 2 }}>
           <Typography variant="body2" fontWeight="bold">Step 1: Download Template</Typography>
           <Typography variant="body2">Download the template, fill in your PPE data, then upload.</Typography>
@@ -163,14 +343,12 @@ function ImportDialog({ open, onClose, onDownloadTemplate, onImport, importFile,
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Step 2: Upload File */}
         <Typography variant="body2" fontWeight="bold" gutterBottom>Step 2: Upload Filled Template</Typography>
         <Button variant="outlined" component="label" fullWidth sx={{ py: 2, borderStyle: 'dashed' }} disabled={importing}>
           {importFile ? `✅ ${importFile.name}` : '📁 Choose Excel File (.xlsx)'}
           <input type="file" hidden accept=".xlsx,.xls,.csv" onChange={e => setImportFile(e.target.files[0])} />
         </Button>
 
-        {/* Import Result */}
         {importResult && (
           <Box sx={{ mt: 2 }}>
             {importResult.status === 'success' || importResult.success_count !== undefined ? (
@@ -573,6 +751,13 @@ export default function PPEListPage() {
 
   // Export dialog states
   const [exportDialog, setExportDialog] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
+    start_date: '',
+    end_date: '',
+    category_id: '',
+    status: '',
+    condition: '',
+  });
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => { loadInitialData(); }, []);
@@ -630,27 +815,30 @@ export default function PPEListPage() {
   };
 
   // Export handler
-  const handleExport = async ({ startDate, endDate, format }) => {
+  const handleExport = async (filters) => {
     setExporting(true);
     try {
+      // Remove empty filters
       const params = {};
-      if (startDate) params.start_date = startDate;
-      if (endDate) params.end_date = endDate;
-      if (format) params.format = format;
+      if (filters.start_date) params.start_date = filters.start_date;
+      if (filters.end_date) params.end_date = filters.end_date;
+      if (filters.category_id) params.category_id = filters.category_id;
+      if (filters.status) params.status = filters.status;
+      if (filters.condition) params.condition = filters.condition;
       
       const response = await ppeService.exportItems(params);
       
-      // Create download link
-      const blob = new Blob([response.data], { 
-        type: format === 'csv' ? 'text/csv' : 
-              format === 'pdf' ? 'application/pdf' : 
-              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
+      // Determine content type based on response or default to Excel
+      const contentType = response.headers?.['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      const extension = contentType.includes('csv') ? 'csv' : 
+                       contentType.includes('pdf') ? 'pdf' : 'xlsx';
+      
+      const blob = new Blob([response.data], { type: contentType });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       const dateStr = new Date().toISOString().slice(0, 10);
-      link.download = `ppe_export_${dateStr}.${format}`;
+      link.download = `PPE_Export_${dateStr}.${extension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -658,8 +846,17 @@ export default function PPEListPage() {
       
       showMsg('Export completed successfully!');
       setExportDialog(false);
+      // Reset export filters after successful export
+      setExportFilters({
+        start_date: '',
+        end_date: '',
+        category_id: '',
+        status: '',
+        condition: '',
+      });
     } catch (err) {
-      setError(err.response?.data?.message || 'Export failed');
+      console.error('Export error:', err);
+      setError('Export failed: ' + (err.response?.data?.message || err.message));
     } finally {
       setExporting(false);
     }
@@ -690,6 +887,7 @@ export default function PPEListPage() {
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormDialog({ open: true, editData: null })}>Add PPE</Button>
         </Stack>
       </Box>
+      
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
@@ -753,9 +951,21 @@ export default function PPEListPage() {
 
       <ExportDialog
         open={exportDialog}
-        onClose={() => setExportDialog(false)}
+        onClose={() => {
+          setExportDialog(false);
+          setExportFilters({
+            start_date: '',
+            end_date: '',
+            category_id: '',
+            status: '',
+            condition: '',
+          });
+        }}
         onExport={handleExport}
         loading={exporting}
+        categories={categories}
+        filters={exportFilters}
+        setFilters={setExportFilters}
       />
 
       <PPEFormDialog 
