@@ -25,6 +25,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ppeService from '../../services/ppeService';
+import DateRangeIcon from '@mui/icons-material/DateRange';
 
 // ========== CONSTANTS ==========
 const STATUS_OPTIONS = [

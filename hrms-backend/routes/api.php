@@ -58,6 +58,7 @@ Route::post('/attendance/card/check-out', [AttendanceController::class, 'checkOu
 Route::get('/export/leaves', [ReportController::class, 'exportLeaveCSV']);
 Route::get('/export/attendance/daily', [ReportController::class, 'exportDailyAttendanceCSV']);
 Route::get('/export/attendance/monthly', [ReportController::class, 'exportMonthlyAttendanceCSV']);
+Route::get('/ppe/export', [PPEExportController::class, 'export']);
 
 // ==========================================
 // PROTECTED
@@ -209,7 +210,6 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/ppe/categories/{id}', [PPECategoryController::class, 'destroy']);
     Route::get('/ppe/import/template', [PPEImportController::class, 'downloadTemplate']);
     Route::post('/ppe/import', [PPEImportController::class, 'import']);
-    Route::get('/ppe/export', [PPEExportController::class, 'export']);
 
     // ==========================================
     // 🔥 RECRUITMENT ROUTES - Ikuti Format Leaves
