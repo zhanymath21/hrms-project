@@ -6,140 +6,22 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\Department;
 use App\Models\Position;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class EmployeeImportExportService
 {
-    public function processImport(UploadedFile $file): array
-    {
-        Log::info('📤 Starting employee import...');
-
-        try {
-            $spreadsheet = IOFactory::load($file);
-        } catch (\Exception $e) {
-            Log::error('❌ Failed to load file: ' . $e->getMessage());
-            return [
-                'success_count' => 0,
-                'fail_count' => 1,
-                'errors' => ['Failed to read file: ' . $e->getMessage()]
-            ];
-        }
-
-        $sheet = $spreadsheet->getActiveSheet();
-        $rows = $sheet->toArray();
-
-        if (empty($rows) || count($rows) < 2) {
-            return [
-                'success_count' => 0,
-                'fail_count' => 1,
-                'errors' => ['File is empty.']
-            ];
-        }
-
-        // Remove header
-        array_shift($rows);
-
-        $successCount = 0;
-        $failCount = 0;
-        $errors = [];
-
-        foreach ($rows as $index => $row) {
-            try {
-                // Skip empty rows
-                if (empty(array_filter($row))) {
-                    continue;
-                }
-
-                // Extract data
-                $data = [
-                    'first_name' => trim($row[0] ?? ''),
-                    'last_name' => trim($row[1] ?? ''),
-                    'email' => trim($row[2] ?? ''),
-                    'password' => trim($row[3] ?? 'password123'),
-                    'hire_date' => trim($row[9] ?? ''),
-                    'department' => trim($row[11] ?? ''),
-                    'position' => trim($row[12] ?? ''),
-                    'employment_type' => trim($row[14] ?? 'full_time'),
-                    'status' => trim($row[15] ?? 'active'),
-                ];
-
-                Log::info('📝 Row ' . ($index + 2) . ':', $data);
-
-                // Check required fields
-                if (
-                    empty($data['first_name']) || empty($data['last_name']) ||
-                    empty($data['email']) || empty($data['hire_date']) ||
-                    empty($data['department']) || empty($data['position'])
-                ) {
-                    $errors[] = "Row " . ($index + 2) . ": Missing required fields";
-                    $failCount++;
-                    continue;
-                }
-
-                // Check if employee exists
-                if (Employee::where('email', $data['email'])->exists()) {
-                    $errors[] = "Row " . ($index + 2) . ": Email already exists";
-                    $failCount++;
-                    continue;
-                }
-
-                DB::beginTransaction();
-
-                // Find or create department
-                $department = Department::firstOrCreate(
-                    ['name' => $data['department']],
-                    ['code' => strtoupper(substr($data['department'], 0, 3))]
-                );
-
-                // Find or create position
-                $position = Position::firstOrCreate(
-                    ['title' => $data['position']],
-                    ['department_id' => $department->id]
-                );
-
-                // Generate employee ID
-                $employeeId = $this->generateEmployeeId();
-
-                // Create employee
-                Employee::create([
-                    'employee_id' => $employeeId,
-                    'first_name' => $data['first_name'],
-                    'last_name' => $data['last_name'],
-                    'email' => $data['email'],
-                    'password' => bcrypt($data['password']),
-                    'hire_date' => $data['hire_date'],
-                    'department_id' => $department->id,
-                    'position_id' => $position->id,
-                    'employment_type' => $data['employment_type'],
-                    'status' => $data['status'],
-                ]);
-
-                DB::commit();
-                $successCount++;
-                Log::info('✅ Row ' . ($index + 2) . ' imported successfully');
-            } catch (\Exception $e) {
-                DB::rollBack();
-                $failCount++;
-                $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
-                Log::error('❌ Row ' . ($index + 2) . ' error: ' . $e->getMessage());
-            }
-        }
-
-        Log::info('✅ Import completed - Success: ' . $successCount . ', Failed: ' . $failCount);
-
-        return [
-            'success_count' => $successCount,
-            'fail_count' => $failCount,
-            'errors' => $errors,
-        ];
-    }
-
-    private function generateEmployeeId(): string
+    /**
+     * Generate employee ID
+     */
+    public function generateEmployeeId(): string
     {
         $year = date('Y');
         $lastEmployee = Employee::where('employee_id', 'like', "EMP-{$year}-%")
@@ -156,52 +38,268 @@ class EmployeeImportExportService
         return "EMP-{$year}-{$newNumber}";
     }
 
+    /**
+     * Create import template
+     */
     public function createTemplate(): Spreadsheet
     {
-        // ... simplified template ...
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setCellValue('A1', 'First Name*');
-        $sheet->setCellValue('B1', 'Last Name*');
-        $sheet->setCellValue('C1', 'Email*');
-        $sheet->setCellValue('D1', 'Password*');
-        $sheet->setCellValue('E1', 'Phone');
-        $sheet->setCellValue('F1', 'Date of Birth');
-        $sheet->setCellValue('G1', 'Gender');
-        $sheet->setCellValue('H1', 'National ID');
-        $sheet->setCellValue('I1', 'Address');
-        $sheet->setCellValue('J1', 'Hire Date (YYYY-MM-DD)*');
-        $sheet->setCellValue('K1', 'Probation End Date');
-        $sheet->setCellValue('L1', 'Department*');
-        $sheet->setCellValue('M1', 'Position*');
-        $sheet->setCellValue('N1', 'Default Office');
-        $sheet->setCellValue('O1', 'Employment Type*');
-        $sheet->setCellValue('P1', 'Status*');
-        $sheet->setCellValue('Q1', 'Employment Status');
-        $sheet->setCellValue('R1', 'Salary');
-        $sheet->setCellValue('S1', 'Manager Email');
-        $sheet->setCellValue('T1', 'Emergency Contact Name');
-        $sheet->setCellValue('U1', 'Emergency Contact Phone');
-        $sheet->setCellValue('V1', 'Emergency Contact Relation');
-        $sheet->setCellValue('W1', 'Card Number');
-        $sheet->setCellValue('X1', 'Card Type');
-        $sheet->setCellValue('Y1', 'Use Card (YES/NO)');
+        $sheet->setTitle('Employee Template');
+
+        // Headers
+        $headers = [
+            'A1' => 'First Name*',
+            'B1' => 'Last Name*',
+            'C1' => 'Email*',
+            'D1' => 'Phone',
+            'E1' => 'Department*',
+            'F1' => 'Position*',
+            'G1' => 'Employment Type*',
+            'H1' => 'Status*',
+            'I1' => 'Hire Date (YYYY-MM-DD)*',
+            'J1' => 'Salary',
+        ];
+
+        foreach ($headers as $cell => $value) {
+            $sheet->setCellValue($cell, $value);
+        }
+
+        // Style headers
+        $headerStyle = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1A73E8']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+        ];
+        $sheet->getStyle('A1:J1')->applyFromArray($headerStyle);
 
         // Example data
-        $sheet->setCellValue('A2', 'John');
-        $sheet->setCellValue('B2', 'Doe');
-        $sheet->setCellValue('C2', 'john@test.com');
-        $sheet->setCellValue('D2', 'password123');
-        $sheet->setCellValue('J2', date('Y-m-d'));
-        $sheet->setCellValue('L2', 'Information Technology');
-        $sheet->setCellValue('M2', 'Developer');
-        $sheet->setCellValue('O2', 'full_time');
-        $sheet->setCellValue('P2', 'active');
+        $exampleData = [
+            'John',
+            'Doe',
+            'john.doe@company.com',
+            '08123456789',
+            'IT',
+            'Developer',
+            'full_time',
+            'active',
+            '2024-01-01',
+            '5000000'
+        ];
+        $col = 'A';
+        foreach ($exampleData as $value) {
+            $sheet->setCellValue($col . '2', $value);
+            $col++;
+        }
+
+        // Auto-size columns
+        foreach (range('A', 'J') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
 
         return $spreadsheet;
     }
 
-    public function saveSpreadsheet($spreadsheet, string $fileName): string
+    /**
+     * Process import file
+     */
+    public function processImport(UploadedFile $file): array
+    {
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file);
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray();
+
+        // Remove header
+        array_shift($rows);
+
+        $successCount = 0;
+        $failCount = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            try {
+                $data = [
+                    'first_name' => $row[0] ?? null,
+                    'last_name' => $row[1] ?? null,
+                    'email' => $row[2] ?? null,
+                    'phone' => $row[3] ?? null,
+                    'department' => $row[4] ?? null,
+                    'position' => $row[5] ?? null,
+                    'employment_type' => $row[6] ?? null,
+                    'status' => $row[7] ?? null,
+                    'hire_date' => $row[8] ?? null,
+                    'salary' => $row[9] ?? null,
+                ];
+
+                // Validate required fields
+                if (
+                    empty($data['first_name']) || empty($data['last_name']) ||
+                    empty($data['email']) || empty($data['department']) ||
+                    empty($data['position']) || empty($data['hire_date'])
+                ) {
+                    $errors[] = "Row " . ($index + 2) . ": Missing required fields";
+                    $failCount++;
+                    continue;
+                }
+
+                // Find or create department
+                $department = Department::firstOrCreate(
+                    ['name' => $data['department']],
+                    ['code' => strtoupper(substr($data['department'], 0, 3))]
+                );
+
+                // Find or create position
+                $position = Position::firstOrCreate(
+                    ['title' => $data['position']],
+                    ['department_id' => $department->id]
+                );
+
+                // Create employee
+                Employee::create([
+                    'employee_id' => $this->generateEmployeeId(),
+                    'first_name' => $data['first_name'],
+                    'last_name' => $data['last_name'],
+                    'email' => $data['email'],
+                    'phone' => $data['phone'] ?? null,
+                    'department_id' => $department->id,
+                    'position_id' => $position->id,
+                    'employment_type' => $data['employment_type'] ?? 'full_time',
+                    'status' => $data['status'] ?? 'active',
+                    'hire_date' => $data['hire_date'],
+                    'salary' => $data['salary'] ?? 0,
+                ]);
+
+                $successCount++;
+            } catch (Exception $e) {
+                $failCount++;
+                $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
+                Log::error('Import row error: ' . $e->getMessage());
+            }
+        }
+
+        return [
+            'success_count' => $successCount,
+            'fail_count' => $failCount,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Create export file
+     */
+    public function createExport($employees, array $filters = []): Spreadsheet
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Employees');
+
+        // Title
+        $sheet->mergeCells('A1:K1');
+        $sheet->setCellValue('A1', 'EMPLOYEE LIST REPORT');
+        $sheet->getStyle('A1')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 16, 'color' => ['rgb' => '1A73E8']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+
+        // Filter info
+        $row = 3;
+        $filterTexts = [];
+        if (!empty($filters['start_date']) || !empty($filters['end_date'])) {
+            $filterTexts[] = 'Period: ' . ($filters['start_date'] ?? '...') . ' → ' . ($filters['end_date'] ?? '...');
+        }
+        if (!empty($filters['status'])) {
+            $filterTexts[] = 'Status: ' . ucfirst($filters['status']);
+        }
+        if (!empty($filters['employment_type'])) {
+            $filterTexts[] = 'Type: ' . str_replace('_', ' ', $filters['employment_type']);
+        }
+        if (!empty($filterTexts)) {
+            $sheet->mergeCells("A{$row}:K{$row}");
+            $sheet->setCellValue("A{$row}", 'Filters: ' . implode(' | ', $filterTexts));
+            $sheet->getStyle("A{$row}")->getFont()->setItalic(true)->setSize(10)->setColor(new Color('666666'));
+            $row++;
+        }
+
+        // Export info
+        $sheet->mergeCells("A{$row}:K{$row}");
+        $sheet->setCellValue("A{$row}", 'Exported: ' . now()->format('d M Y H:i') . ' | Total: ' . $employees->count());
+        $sheet->getStyle("A{$row}")->getFont()->setSize(9)->setColor(new Color('999999'));
+        $row += 2;
+
+        // Headers
+        $headers = [
+            'A' => 'No',
+            'B' => 'Employee ID',
+            'C' => 'First Name',
+            'D' => 'Last Name',
+            'E' => 'Email',
+            'F' => 'Phone',
+            'G' => 'Department',
+            'H' => 'Position',
+            'I' => 'Employment Type',
+            'J' => 'Status',
+            'K' => 'Hire Date',
+        ];
+
+        $headerStyle = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1A73E8']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CCCCCC']]],
+        ];
+
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue($col . $row, $header);
+            $sheet->getStyle($col . $row)->applyFromArray($headerStyle);
+        }
+        $sheet->getRowDimension($row)->setRowHeight(22);
+        $row++;
+
+        // Data
+        $statusColors = [
+            'active' => 'C6EFCE',
+            'inactive' => 'FFC7CE',
+            'suspended' => 'FFEB9C',
+            'terminated' => 'FFC7CE',
+            'resigned' => 'FFEB9C',
+        ];
+
+        foreach ($employees as $index => $employee) {
+            $sheet->setCellValue('A' . $row, $index + 1);
+            $sheet->setCellValue('B' . $row, $employee->employee_id);
+            $sheet->setCellValue('C' . $row, $employee->first_name);
+            $sheet->setCellValue('D' . $row, $employee->last_name);
+            $sheet->setCellValue('E' . $row, $employee->email);
+            $sheet->setCellValue('F' . $row, $employee->phone ?? '-');
+            $sheet->setCellValue('G' . $row, $employee->department->name ?? '-');
+            $sheet->setCellValue('H' . $row, $employee->position->title ?? '-');
+            $sheet->setCellValue('I' . $row, str_replace('_', ' ', $employee->employment_type ?? '-'));
+            $sheet->setCellValue('J' . $row, ucfirst($employee->status ?? '-'));
+            $sheet->setCellValue('K' . $row, $employee->hire_date ? date('d M Y', strtotime($employee->hire_date)) : '-');
+
+            // Status coloring
+            if (isset($statusColors[$employee->status])) {
+                $sheet->getStyle('J' . $row)->applyFromArray([
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $statusColors[$employee->status]]]
+                ]);
+            }
+
+            $sheet->getRowDimension($row)->setRowHeight(18);
+            $row++;
+        }
+
+        // Auto-size columns
+        foreach (range('A', 'K') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return $spreadsheet;
+    }
+
+    /**
+     * Save spreadsheet to file and return path
+     */
+    public function saveSpreadsheet(Spreadsheet $spreadsheet, string $fileName): string
     {
         $tempDir = storage_path('app/temp');
         if (!is_dir($tempDir)) {
@@ -215,6 +313,17 @@ class EmployeeImportExportService
         return $filePath;
     }
 
+    /**
+     * Get file name for export
+     */
+    public function getExportFileName(string $prefix = 'Employees'): string
+    {
+        return $prefix . '_Export_' . now()->format('Ymd_His') . '.xlsx';
+    }
+
+    /**
+     * Get file name for template
+     */
     public function getTemplateFileName(): string
     {
         return 'Employee_Import_Template.xlsx';
