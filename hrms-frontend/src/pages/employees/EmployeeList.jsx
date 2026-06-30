@@ -10,11 +10,11 @@ import {
 } from '@mui/icons-material';
 import { useEmployee } from '../contexts/EmployeeContext';
 import { useNavigate } from 'react-router-dom';
-import { EmployeeStatCard } from '../../components/employees/EmployeeStatCard';
-import { EmployeeFilterBar } from '../../components/employees/EmployeeFilterBar';
-import { EmployeeTable } from '../../components/employees/EmployeeTable';
-import { ImportDialog } from '../../components/employees/ImportDialog';
-import { ExportDialog } from '../../components/employees/ExportDialog';
+import EmployeeStatCard from '../../components/employees/EmployeeStatCard'; // <-- default import
+import EmployeeFilterBar from '../../components/employees/EmployeeFilterBar'; // <-- default import
+import EmployeeTable from '../../components/employees/EmployeeTable'; // <-- default import
+import ImportDialog from '../../components/employees/ImportDialog'; // <-- default import
+import ExportDialog from '../../components/employees/ExportDialog'; // <-- default import
 import { formatCurrency } from '../../utils/employeeUtils';
 import employeeService from '../../services/employeeService';
 

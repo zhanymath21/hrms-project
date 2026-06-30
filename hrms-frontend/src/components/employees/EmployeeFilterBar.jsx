@@ -14,7 +14,7 @@ import {
 import { DATE_FILTER_OPTIONS, STATUS_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '../../constants/employeeConstants';
 import { calculateDateRange } from '../../utils/employeeUtils';
 
-export const EmployeeFilterBar = ({
+const EmployeeFilterBar = ({
   filters,
   onFilterChange,
   onClearFilters,
@@ -61,7 +61,6 @@ export const EmployeeFilterBar = ({
   return (
     <Paper sx={{ p: 2, mb: 3 }}>
       <Grid container spacing={2}>
-        {/* Search */}
         <Grid item xs={12} md={4}>
           <TextField
             fullWidth
@@ -86,7 +85,6 @@ export const EmployeeFilterBar = ({
           />
         </Grid>
 
-        {/* Status */}
         <Grid item xs={12} sm={6} md={2}>
           <FormControl fullWidth size="small">
             <InputLabel>Status</InputLabel>
@@ -105,7 +103,6 @@ export const EmployeeFilterBar = ({
           </FormControl>
         </Grid>
 
-        {/* Employment Type */}
         <Grid item xs={12} sm={6} md={2}>
           <FormControl fullWidth size="small">
             <InputLabel>Employment Type</InputLabel>
@@ -124,7 +121,6 @@ export const EmployeeFilterBar = ({
           </FormControl>
         </Grid>
 
-        {/* Department */}
         <Grid item xs={12} sm={6} md={2}>
           <TextField
             fullWidth
@@ -136,7 +132,6 @@ export const EmployeeFilterBar = ({
           />
         </Grid>
 
-        {/* Date Filter Button */}
         <Grid item xs={12} sm={6} md={1}>
           <Button
             fullWidth
@@ -150,7 +145,6 @@ export const EmployeeFilterBar = ({
           </Button>
         </Grid>
 
-        {/* Clear Button */}
         <Grid item xs={12} sm={6} md={1}>
           <Button
             fullWidth
@@ -165,7 +159,6 @@ export const EmployeeFilterBar = ({
         </Grid>
       </Grid>
 
-      {/* Date Filter Section */}
       <Collapse in={showDateFilter}>
         <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e0e0e0' }}>
           <Grid container spacing={2} alignItems="center">
@@ -254,7 +247,6 @@ export const EmployeeFilterBar = ({
         </Box>
       </Collapse>
 
-      {/* Active Filters Summary */}
       {hasActiveFilters && (
         <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid #f0f0f0' }}>
           <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
@@ -306,3 +298,5 @@ export const EmployeeFilterBar = ({
     </Paper>
   );
 };
+
+export default EmployeeFilterBar; // <-- PASTIKAN INI

@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardContent, Typography, CircularProgress } from '@mui/material';
 
-export const EmployeeStatCard = ({ title, value, color = 'primary', loading }) => (
+const EmployeeStatCard = ({ title, value, color = 'primary', loading }) => (
   <Card>
     <CardContent>
       <Typography color="textSecondary" gutterBottom variant="body2">
@@ -19,3 +19,5 @@ export const EmployeeStatCard = ({ title, value, color = 'primary', loading }) =
     </CardContent>
   </Card>
 );
+
+export default EmployeeStatCard; // <-- PASTIKAN INI

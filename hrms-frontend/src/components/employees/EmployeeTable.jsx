@@ -14,7 +14,7 @@ import {
 import { formatDate } from '../../utils/dateFormat';
 import { formatCurrency, getStatusColor, getStatusLabel, getEmploymentTypeLabel } from '../../utils/employeeUtils';
 
-export const EmployeeTable = ({
+const EmployeeTable = ({
   employees,
   loading,
   pagination,
@@ -163,3 +163,5 @@ export const EmployeeTable = ({
     </Paper>
   );
 };
+
+export default EmployeeTable; // <-- PASTIKAN INI

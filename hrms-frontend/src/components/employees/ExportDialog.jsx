@@ -15,7 +15,7 @@ import {
 } from '@mui/icons-material';
 import { STATUS_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '../../constants/employeeConstants';
 
-export const ExportDialog = ({ open, onClose, onExport, loading, filters = {}, setFilters }) => {
+const ExportDialog = ({ open, onClose, onExport, loading, filters = {}, setFilters }) => {
   const [localFilters, setLocalFilters] = useState({
     start_date: '',
     end_date: '',
@@ -93,7 +93,6 @@ export const ExportDialog = ({ open, onClose, onExport, loading, filters = {}, s
         </Alert>
 
         <Grid container spacing={2}>
-          {/* Date Range */}
           <Grid item xs={12}>
             <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <DateRangeIcon fontSize="small" />
@@ -123,7 +122,6 @@ export const ExportDialog = ({ open, onClose, onExport, loading, filters = {}, s
             />
           </Grid>
 
-          {/* Additional Filters */}
           <Grid item xs={12}>
             <Divider sx={{ my: 1 }}>
               <Chip label="Additional Filters" size="small" icon={<FilterListIcon />} />
@@ -177,7 +175,6 @@ export const ExportDialog = ({ open, onClose, onExport, loading, filters = {}, s
             />
           </Grid>
 
-          {/* Active Filters Preview */}
           {activeFilterCount > 0 && (
             <Grid item xs={12}>
               <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f5f5f5' }}>
@@ -262,3 +259,5 @@ export const ExportDialog = ({ open, onClose, onExport, loading, filters = {}, s
     </Dialog>
   );
 };
+
+export default ExportDialog; // <-- PASTIKAN INI
