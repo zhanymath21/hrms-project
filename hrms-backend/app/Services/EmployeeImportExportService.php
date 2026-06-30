@@ -339,10 +339,16 @@ class EmployeeImportExportService
                 ];
             }
 
-            // Load spreadsheet
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file);
             $sheet = $spreadsheet->getActiveSheet();
             $rows = $sheet->toArray();
+
+            // LOG: Jumlah baris yang terbaca
+            Log::info('📊 Total rows in file:', [
+                'total_rows' => count($rows),
+                'header' => $rows[0] ?? 'No header',
+                'sample_data' => $rows[1] ?? 'No data',
+            ]);
 
             if (empty($rows) || count($rows) < 2) {
                 return [
@@ -355,7 +361,13 @@ class EmployeeImportExportService
             }
 
             // Remove header
-            array_shift($rows);
+            $header = array_shift($rows);
+
+            // LOG: Header dan mapping
+            Log::info('📋 Header mapping:', [
+                'header' => $header,
+                'expected_fields' => $this->getExpectedFields(),
+            ]);
 
             $successCount = 0;
             $failCount = 0;
@@ -368,13 +380,25 @@ class EmployeeImportExportService
             try {
                 foreach ($rows as $index => $row) {
                     try {
+                        // LOG: Data row yang diproses
+                        Log::info('📝 Processing row ' . ($index + 2), [
+                            'row_data' => $row,
+                            'row_number' => $index + 2,
+                        ]);
+
                         // Skip empty rows
                         if (empty(array_filter($row))) {
+                            Log::info('⏭️ Skipping empty row ' . ($index + 2));
                             continue;
                         }
 
                         $rowNumber = $index + 2;
                         $data = $this->extractRowData($row);
+
+                        // LOG: Data yang diextract
+                        Log::info('📦 Extracted data for row ' . $rowNumber, [
+                            'extracted_data' => $data,
+                        ]);
 
                         // Validate row data
                         $validationResult = $this->validateRowData($data, $rowNumber);
@@ -386,10 +410,13 @@ class EmployeeImportExportService
                         if (!$validationResult['valid']) {
                             $errors = array_merge($errors, $validationResult['errors']);
                             $failCount++;
+                            Log::warning('❌ Row ' . $rowNumber . ' validation failed:', [
+                                'errors' => $validationResult['errors'],
+                            ]);
                             continue;
                         }
 
-                        // Create employee - SESUAI DENGAN STORE
+                        // Create employee
                         $result = $this->createEmployeeFromData($data);
                         if ($result['success']) {
                             $successCount++;
@@ -398,28 +425,32 @@ class EmployeeImportExportService
                                 'email' => $data['email'],
                                 'employee_id' => $result['employee']->employee_id ?? null,
                             ];
+                            Log::info('✅ Row ' . $rowNumber . ' imported successfully', [
+                                'email' => $data['email'],
+                                'employee_id' => $result['employee']->employee_id ?? null,
+                            ]);
                         } else {
                             $failCount++;
                             $errors[] = "Row {$rowNumber}: " . $result['message'];
+                            Log::error('❌ Row ' . $rowNumber . ' import failed:', [
+                                'error' => $result['message'],
+                            ]);
                         }
                     } catch (Exception $e) {
                         $failCount++;
                         $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
-                        Log::error('Import row error:', [
-                            'row' => $index + 2,
+                        Log::error('❌ Row ' . ($index + 2) . ' error:', [
                             'error' => $e->getMessage(),
                             'trace' => $e->getTraceAsString(),
                         ]);
                     }
                 }
 
-                // Commit if there are successful imports
                 if ($successCount > 0) {
                     DB::commit();
                     Log::info('✅ Import completed successfully', [
                         'success' => $successCount,
                         'failed' => $failCount,
-                        'warnings' => count($warnings),
                         'total' => $successCount + $failCount,
                     ]);
                 } else {
@@ -435,7 +466,7 @@ class EmployeeImportExportService
             return [
                 'success' => $successCount > 0,
                 'message' => $successCount > 0
-                    ? 'Import completed with ' . count($warnings) . ' warnings'
+                    ? "✅ Import completed! Success: {$successCount}, Failed: {$failCount}"
                     : 'No records were imported',
                 'success_count' => $successCount,
                 'fail_count' => $failCount,
@@ -458,6 +489,37 @@ class EmployeeImportExportService
         }
     }
 
+    /**
+     * Get expected fields for validation
+     */
+    protected function getExpectedFields(): array
+    {
+        return [
+            'first_name',
+            'last_name',
+            'email',
+            'password',
+            'phone',
+            'date_of_birth',
+            'gender',
+            'national_id',
+            'address',
+            'hire_date',
+            'probation_end_date',
+            'department',
+            'position',
+            'employment_type',
+            'status',
+            'salary',
+            'manager_email',
+            'emergency_contact_name',
+            'emergency_contact_phone',
+            'emergency_contact_relation',
+            'card_number',
+            'card_type',
+            'use_card'
+        ];
+    }
     /**
      * Extract row data - SESUAI DENGAN STORE
      */
