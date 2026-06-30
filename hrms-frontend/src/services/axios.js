@@ -1,31 +1,36 @@
 // src/services/axios.js
+
 import axios from 'axios';
 
+// Gunakan IP yang benar (192.168.0.13)
+const BASE_URL = 'http://192.168.0.13:8000/api';
+
+console.log('🔗 API BASE URL:', BASE_URL);
+
 const axiosInstance = axios.create({
-  baseURL: 'http://192.168.0.13:8000/api',
+  baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
   withCredentials: false,
+  timeout: 30000,
 });
 
-// Request interceptor - Pastikan token selalu terkirim
+// Request interceptor
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
-    console.log('Axios interceptor - Token exists:', !!token);
+    console.log('📡 Request:', config.method?.toUpperCase(), config.url);
+    console.log('🔑 Token exists:', !!token);
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log(`Making ${config.method?.toUpperCase()} request to: ${config.url}`);
-    } else {
-      console.warn('No token found in localStorage');
     }
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
+    console.error('❌ Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -33,19 +38,20 @@ axiosInstance.interceptors.request.use(
 // Response interceptor
 axiosInstance.interceptors.response.use(
   (response) => {
-    console.log(`Response from ${response.config.url}:`, response.status);
+    console.log(`✅ ${response.status} ${response.config.url}`);
     return response;
   },
   (error) => {
-    console.error('Response error:', error.response?.status, error.response?.data);
+    console.error('❌ Response error:', error);
+    
+    if (error.code === 'ERR_NETWORK') {
+      console.error('💥 Cannot connect to server at:', BASE_URL);
+    }
     
     if (error.response?.status === 401) {
-      console.log('Unauthorized - redirecting to login');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('device_type');
-      
-      // Redirect to login if not already there
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
