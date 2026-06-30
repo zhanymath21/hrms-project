@@ -58,31 +58,40 @@ const ImportDialog = ({ open, onClose, onImport, loading }) => {
     }
   };
 
-  const handleImport = async () => {
+  // src/components/employees/ImportDialog.jsx
+
+    const handleImport = async () => {
     if (!file) {
-      setError('Please select a file');
-      return;
+        setError('Please select a file');
+        return;
     }
     
     setImportResult(null);
     setError('');
     
     try {
-      const result = await onImport(file);
-      setImportResult(result);
-      
-      // Auto close on success
-      if (result.success_count > 0 && result.fail_count === 0) {
+        const result = await onImport(file);
+        setImportResult(result);
+        
+        // Cek jika success_count 0
+        if (result.success_count === 0 && result.errors && result.errors.length > 0) {
+        setError(`Import failed: ${result.errors.join(', ')}`);
+        } else if (result.success_count === 0) {
+        setError('No data was imported. Please check the file format and data.');
+        }
+        
+        // Auto close on success
+        if (result.success_count > 0 && result.fail_count === 0) {
         setTimeout(() => {
-          onClose();
-          setFile(null);
-          setImportResult(null);
+            onClose();
+            setFile(null);
+            setImportResult(null);
         }, 3000);
-      }
+        }
     } catch (err) {
-      setError(err.message || 'Import failed');
+        setError(err.message || 'Import failed');
     }
-  };
+    };
 
   const handleClose = () => {
     setFile(null);

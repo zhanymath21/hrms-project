@@ -346,13 +346,6 @@ class EmployeeController extends Controller
         ]);
     }
 
-    // ==========================================
-    // IMPORT & EXPORT METHODS
-    // ==========================================
-
-    /**
-     * Download import template
-     */
     public function downloadTemplate()
     {
         try {
@@ -394,6 +387,9 @@ class EmployeeController extends Controller
 
             $result = $this->importExportService->processImport($request->file('file'));
 
+            // Log detail result
+            Log::info('📊 Import result:', $result);
+
             if ($result['success'] || $result['success_count'] > 0) {
                 $message = "✅ Import completed!\n";
                 $message .= "✅ Success: {$result['success_count']}\n";
@@ -418,6 +414,8 @@ class EmployeeController extends Controller
 
                 if (!empty($result['errors'])) {
                     $errorMessage .= "\n\nErrors:\n" . implode("\n", $result['errors']);
+                } else if (!empty($result['message'])) {
+                    $errorMessage .= "\n\nMessage: " . $result['message'];
                 }
 
                 return response()->json([
