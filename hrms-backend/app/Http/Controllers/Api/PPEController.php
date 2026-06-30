@@ -55,6 +55,7 @@ class PPEController extends Controller
     /**
      * Get all PPE items with filters & pagination
      */
+
     public function index(Request $request): JsonResponse
     {
         try {
@@ -73,15 +74,29 @@ class PPEController extends Controller
                 });
             }
 
+            // Basic filters
             if ($request->filled('category_id')) $query->where('category_id', $request->category_id);
             if ($request->filled('status')) $query->where('status', $request->status);
             if ($request->filled('condition')) $query->where('condition', $request->condition);
             if ($request->filled('location')) $query->where('location', 'like', "%{$request->location}%");
 
+            // ========== DATE FILTERS - TAMBAHKAN INI ==========
+            if ($request->filled('start_date')) {
+                $query->whereDate('created_at', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('created_at', '<=', $request->end_date);
+            }
+
+            // Jika ada filter date_preset, bisa digunakan untuk logging saja
+            if ($request->filled('date_preset')) {
+                \Log::info('Date preset used:', ['preset' => $request->date_preset]);
+            }
+
             $perPage = min((int) $request->input('per_page', 15), 100);
             $items = $query->orderBy('name')->paginate($perPage);
 
-            // ✅ Fix holder_name jika kosong
+            // Fix holder_name jika kosong
             $items->getCollection()->transform(function ($item) {
                 if ($item->current_holder_id && !$item->current_holder_name) {
                     $employee = Employee::find($item->current_holder_id);
@@ -101,7 +116,6 @@ class PPEController extends Controller
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
-
     /**
      * Get single PPE item
      */
