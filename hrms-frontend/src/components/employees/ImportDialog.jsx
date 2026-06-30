@@ -4,14 +4,13 @@ import React, { useState } from 'react';
 import {
   Box, Button, Typography, Dialog, DialogTitle, DialogContent,
   DialogActions, Alert, Divider, LinearProgress, IconButton,
-  Paper, List, ListItem, ListItemText, ListItemIcon, Chip,CircularProgress
+  Paper, List, ListItem, ListItemText, ListItemIcon, Chip, CircularProgress
 } from '@mui/material';
 import {
   Upload as UploadIcon,
   Close as CloseIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Info as InfoIcon,
   Download as DownloadIcon
 } from '@mui/icons-material';
 import employeeService from '../../services/employeeService';
@@ -32,7 +31,6 @@ const ImportDialog = ({ open, onClose, onImport, loading }) => {
         return;
       }
       
-      // Check file size (max 10MB)
       if (selectedFile.size > 10 * 1024 * 1024) {
         setError('File size exceeds 10MB limit');
         return;
@@ -58,40 +56,36 @@ const ImportDialog = ({ open, onClose, onImport, loading }) => {
     }
   };
 
-  // src/components/employees/ImportDialog.jsx
-
-    const handleImport = async () => {
+  const handleImport = async () => {
     if (!file) {
-        setError('Please select a file');
-        return;
+      setError('Please select a file');
+      return;
     }
     
     setImportResult(null);
     setError('');
     
     try {
-        const result = await onImport(file);
-        setImportResult(result);
-        
-        // Cek jika success_count 0
-        if (result.success_count === 0 && result.errors && result.errors.length > 0) {
+      const result = await onImport(file);
+      setImportResult(result);
+      
+      if (result.success_count === 0 && result.errors && result.errors.length > 0) {
         setError(`Import failed: ${result.errors.join(', ')}`);
-        } else if (result.success_count === 0) {
+      } else if (result.success_count === 0) {
         setError('No data was imported. Please check the file format and data.');
-        }
-        
-        // Auto close on success
-        if (result.success_count > 0 && result.fail_count === 0) {
+      }
+      
+      if (result.success_count > 0 && result.fail_count === 0) {
         setTimeout(() => {
-            onClose();
-            setFile(null);
-            setImportResult(null);
+          onClose();
+          setFile(null);
+          setImportResult(null);
         }, 3000);
-        }
+      }
     } catch (err) {
-        setError(err.message || 'Import failed');
+      setError(err.message || 'Import failed');
     }
-    };
+  };
 
   const handleClose = () => {
     setFile(null);
@@ -122,7 +116,6 @@ const ImportDialog = ({ open, onClose, onImport, loading }) => {
       </DialogTitle>
 
       <DialogContent dividers>
-        {/* Instructions */}
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2" fontWeight="bold">
             📋 Import Instructions:
@@ -140,7 +133,6 @@ const ImportDialog = ({ open, onClose, onImport, loading }) => {
           </Typography>
         </Alert>
 
-        {/* Download Template */}
         <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: '#f8f9fa' }}>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Box display="flex" alignItems="center" gap={1}>
@@ -168,7 +160,6 @@ const ImportDialog = ({ open, onClose, onImport, loading }) => {
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Upload File */}
         <Box>
           <Typography variant="body2" fontWeight="bold" gutterBottom>
             Step 2: Upload Filled Template
@@ -212,14 +203,12 @@ const ImportDialog = ({ open, onClose, onImport, loading }) => {
           </Button>
         </Box>
 
-        {/* Error Display */}
         {error && (
           <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
 
-        {/* Import Result Display */}
         {importResult && (
           <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
             <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
@@ -283,7 +272,6 @@ const ImportDialog = ({ open, onClose, onImport, loading }) => {
           </Paper>
         )}
 
-        {/* Loading */}
         {loading && (
           <Box sx={{ mt: 2 }}>
             <LinearProgress />

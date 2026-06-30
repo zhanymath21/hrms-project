@@ -30,7 +30,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get list of employees
+     * Get list of employees with filters
      */
     public function index(Request $request): JsonResponse
     {
@@ -107,7 +107,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get single employee
+     * Get single employee details
      */
     public function show($id): JsonResponse
     {
@@ -119,6 +119,9 @@ class EmployeeController extends Controller
                 'leaveBalances' => function ($q) {
                     $q->where('year', date('Y'))
                         ->with(['leaveType:id,name,code']);
+                },
+                'activeSchedule' => function ($q) {
+                    $q->with(['workSchedule:id,name,code']);
                 },
             ])->find($id);
 
@@ -171,6 +174,7 @@ class EmployeeController extends Controller
             'card_type' => 'nullable|in:RFID,NFC,Barcode,QR',
             'use_card' => 'nullable|boolean',
             'generate_card' => 'nullable|boolean',
+            'employment_status' => 'nullable|in:probation,permanent,contract',
         ]);
 
         if ($validator->fails()) {
@@ -211,6 +215,7 @@ class EmployeeController extends Controller
                 'position_id' => $request->position_id,
                 'employment_type' => $request->employment_type,
                 'status' => $request->status ?? 'active',
+                'employment_status' => $request->employment_status ?? 'probation',
                 'salary' => $request->salary,
                 'manager_id' => $request->manager_id,
                 'emergency_contact_name' => $request->emergency_contact_name,
@@ -288,6 +293,8 @@ class EmployeeController extends Controller
             'position_id' => 'required|exists:positions,id',
             'employment_type' => 'required|in:full_time,part_time,contract,intern',
             'salary' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:active,inactive,suspended,terminated,resigned',
+            'employment_status' => 'nullable|in:probation,permanent,contract',
         ]);
 
         if ($validator->fails()) {
@@ -309,11 +316,15 @@ class EmployeeController extends Controller
             'position_id',
             'employment_type',
             'status',
+            'employment_status',
             'salary',
             'manager_id',
             'emergency_contact_name',
             'emergency_contact_phone',
             'emergency_contact_relation',
+            'card_number',
+            'card_type',
+            'use_card',
         ]));
 
         CacheService::clearEmployee($id);
@@ -321,7 +332,7 @@ class EmployeeController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Employee updated successfully',
-            'data' => $employee->fresh()->load(['department:id,name', 'position:id,title']),
+            'data' => $employee->fresh()->load(['department:id,name,code', 'position:id,title']),
         ]);
     }
 
@@ -346,6 +357,65 @@ class EmployeeController extends Controller
         ]);
     }
 
+    /**
+     * Restore deleted employee
+     */
+    public function restore(int $id): JsonResponse
+    {
+        $employee = Employee::withTrashed()->find($id);
+        if (!$employee) {
+            return response()->json(['status' => 'error', 'message' => 'Employee not found'], 404);
+        }
+
+        $employee->restore();
+        $employee->update(['status' => 'active']);
+
+        CacheService::clearEmployee($id);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Employee restored successfully',
+            'data' => $employee,
+        ]);
+    }
+
+    /**
+     * Get employee statistics
+     */
+    public function stats(): JsonResponse
+    {
+        try {
+            $stats = [
+                'total' => Employee::count(),
+                'active' => Employee::where('status', 'active')->count(),
+                'inactive' => Employee::where('status', 'inactive')->count(),
+                'suspended' => Employee::where('status', 'suspended')->count(),
+                'terminated' => Employee::where('status', 'terminated')->count(),
+                'resigned' => Employee::where('status', 'resigned')->count(),
+                'full_time' => Employee::where('employment_type', 'full_time')->count(),
+                'part_time' => Employee::where('employment_type', 'part_time')->count(),
+                'contract' => Employee::where('employment_type', 'contract')->count(),
+                'intern' => Employee::where('employment_type', 'intern')->count(),
+                'probation' => Employee::where('employment_status', 'probation')->count(),
+                'permanent' => Employee::where('employment_status', 'permanent')->count(),
+            ];
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $stats,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Employee stats error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch stats: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Download import template
+     */
     public function downloadTemplate()
     {
         try {
@@ -364,7 +434,7 @@ class EmployeeController extends Controller
                 'Access-Control-Allow-Origin' => '*',
                 'Access-Control-Expose-Headers' => 'Content-Disposition',
             ])->deleteFileAfterSend(true);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('❌ Download template error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
@@ -387,7 +457,6 @@ class EmployeeController extends Controller
 
             $result = $this->importExportService->processImport($request->file('file'));
 
-            // Log detail result
             Log::info('📊 Import result:', $result);
 
             if ($result['success'] || $result['success_count'] > 0) {
@@ -443,7 +512,7 @@ class EmployeeController extends Controller
     public function export(Request $request)
     {
         try {
-            Log::info('📤 ===== START EXPORT =====');
+            Log::info('📤 Starting employee export...');
 
             $query = Employee::with(['department', 'position']);
 
@@ -488,7 +557,7 @@ class EmployeeController extends Controller
                 'Access-Control-Allow-Origin' => '*',
                 'Access-Control-Expose-Headers' => 'Content-Disposition',
             ])->deleteFileAfterSend(true);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('❌ Export error: ' . $e->getMessage());
             Log::error('❌ Stack trace: ' . $e->getTraceAsString());
 
@@ -496,6 +565,127 @@ class EmployeeController extends Controller
                 'status' => 'error',
                 'message' => 'Export failed: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    // ==========================================
+    // PRIVATE HELPER METHODS
+    // ==========================================
+
+    /**
+     * Create leave balances for employee
+     */
+    private function createLeaveBalances(Employee $employee): array
+    {
+        $currentYear = date('Y');
+        $leaveTypes = LeaveType::where('is_active', true)->get();
+        $hireDate = Carbon::parse($employee->hire_date);
+        $probationEndDate = $employee->probation_end_date
+            ? Carbon::parse($employee->probation_end_date)
+            : $hireDate->copy()->addMonths(3);
+
+        $today = Carbon::now();
+        $isOnProbation = $today->lt($probationEndDate);
+        $createdBalances = [];
+
+        foreach ($leaveTypes as $leaveType) {
+            $totalDays = $this->calculateLeaveDays($leaveType, $hireDate, $currentYear, $isOnProbation);
+
+            $balance = LeaveBalance::updateOrCreate(
+                [
+                    'employee_id' => $employee->id,
+                    'leave_type_id' => $leaveType->id,
+                    'year' => $currentYear,
+                ],
+                [
+                    'total_days' => $totalDays,
+                    'earned_days' => $totalDays,
+                    'used_days' => 0,
+                    'pending_days' => 0,
+                    'remaining_days' => $totalDays,
+                    'carry_forward_days' => 0,
+                    'seniority_bonus_days' => 0,
+                    'replacement_days' => 0,
+                    'expiry_date' => Carbon::create($currentYear + 1, 3, 31)->format('Y-m-d'),
+                ]
+            );
+
+            $createdBalances[] = [
+                'type' => $leaveType->name,
+                'code' => $leaveType->code,
+                'total_days' => $totalDays,
+                'remaining_days' => $totalDays,
+            ];
+        }
+
+        return $createdBalances;
+    }
+
+    /**
+     * Calculate leave days based on type
+     */
+    private function calculateLeaveDays($leaveType, $hireDate, int $currentYear, bool $isOnProbation): float
+    {
+        $totalDays = 0;
+
+        switch ($leaveType->code) {
+            case 'AL': // Annual Leave
+                if (!$isOnProbation) {
+                    if ($hireDate->year == $currentYear) {
+                        $monthsWorked = max(0, 12 - $hireDate->month + 1);
+                        $totalDays = round(1.5 * $monthsWorked, 1);
+                    } else {
+                        $totalDays = $leaveType->days_per_year;
+                    }
+                }
+                break;
+            case 'SL': // Sick Leave
+                if ($hireDate->year == $currentYear) {
+                    $monthsWorked = max(0, 12 - $hireDate->month + 1);
+                    $totalDays = round(($leaveType->days_per_year / 12) * $monthsWorked);
+                } else {
+                    $totalDays = $leaveType->days_per_year;
+                }
+                break;
+            case 'SPL': // Special Leave
+                if (!$isOnProbation) {
+                    if ($hireDate->year == $currentYear) {
+                        $monthsWorked = max(0, 12 - $hireDate->month + 1);
+                        $totalDays = round(($leaveType->days_per_year / 12) * $monthsWorked);
+                    } else {
+                        $totalDays = $leaveType->days_per_year;
+                    }
+                }
+                break;
+            default:
+                $totalDays = $leaveType->days_per_year;
+                break;
+        }
+
+        return $totalDays;
+    }
+
+    /**
+     * Assign default schedule to employee
+     */
+    private function assignDefaultSchedule(Employee $employee): void
+    {
+        $defaultSchedule = WorkSchedule::where('is_active', true)
+            ->orderBy('is_default', 'desc')
+            ->first();
+
+        if ($defaultSchedule) {
+            EmployeeSchedule::where('employee_id', $employee->id)
+                ->update(['is_active' => false]);
+
+            EmployeeSchedule::create([
+                'employee_id' => $employee->id,
+                'work_schedule_id' => $defaultSchedule->id,
+                'start_date' => $employee->hire_date ?? now()->format('Y-m-d'),
+                'end_date' => null,
+                'is_active' => true,
+                'notes' => 'Auto-assigned on employee creation',
+            ]);
         }
     }
 }

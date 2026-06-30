@@ -24,7 +24,7 @@ use Carbon\Carbon;
 class EmployeeImportExportService
 {
     /**
-     * Valid options for dropdown fields - SESUAI DENGAN STORE
+     * Valid options for dropdown fields
      */
     protected array $validOptions = [
         'gender' => ['male', 'female', 'other'],
@@ -36,7 +36,7 @@ class EmployeeImportExportService
     ];
 
     /**
-     * Required fields for import - SESUAI DENGAN STORE
+     * Required fields for import
      */
     protected array $requiredFields = [
         'first_name',
@@ -71,6 +71,96 @@ class EmployeeImportExportService
     ];
 
     /**
+     * Generate employee ID
+     */
+    public function generateEmployeeId(?int $departmentId = null): string
+    {
+        $year = date('Y');
+        $deptCode = 'EMP';
+
+        if ($departmentId) {
+            $department = Department::find($departmentId);
+            if ($department) {
+                $deptCode = strtoupper(substr($department->code ?? $department->name, 0, 3));
+            }
+        }
+
+        $prefix = $deptCode . '-' . $year . '-';
+        $lastEmployee = Employee::where('employee_id', 'like', $prefix . '%')
+            ->orderBy('employee_id', 'desc')
+            ->first();
+
+        $newNumber = $lastEmployee ? intval(substr($lastEmployee->employee_id, -4)) + 1 : 1;
+
+        return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Generate card number
+     */
+    public function generateCardNumber(Employee $employee): string
+    {
+        return 'CARD-' . str_pad($employee->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Generate department code
+     */
+    protected function generateDepartmentCode(string $name): string
+    {
+        $cleanName = strtoupper(preg_replace('/[^a-zA-Z0-9]/', '', $name));
+        $code = substr($cleanName, 0, 5);
+
+        if (empty($code)) {
+            $code = 'DEPT';
+        }
+
+        $existing = Department::where('code', $code)->first();
+        if ($existing) {
+            $suffix = rand(10, 99);
+            $code = $code . $suffix;
+
+            $existing = Department::where('code', $code)->first();
+            if ($existing) {
+                $code = $code . date('s');
+            }
+        }
+
+        return $code;
+    }
+
+    /**
+     * Generate position code
+     */
+    protected function generatePositionCode(string $positionName, int $departmentId): string
+    {
+        $department = Department::find($departmentId);
+        $deptCode = $department->code ?? 'POS';
+
+        $cleanName = strtoupper(preg_replace('/[^a-zA-Z0-9]/', '', $positionName));
+        $positionCode = substr($cleanName, 0, 10);
+
+        if (empty($positionCode)) {
+            $positionCode = 'POS';
+        }
+
+        $code = $deptCode . '-' . $positionCode;
+
+        $existing = Position::where('code', $code)->first();
+        if ($existing) {
+            $suffix = rand(10, 99);
+            $code = $deptCode . '-' . $positionCode . $suffix;
+
+            $existing = Position::where('code', $code)->first();
+            if ($existing) {
+                $code = $deptCode . '-' . $positionCode . date('is');
+            }
+        }
+
+        return $code;
+    }
+
+    /**
      * Create import template
      */
     public function createTemplate(): Spreadsheet
@@ -82,7 +172,6 @@ class EmployeeImportExportService
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('Employee Template');
 
-            // Headers - SESUAI DENGAN FIELD DI STORE
             $headers = [
                 'A1' => 'First Name*',
                 'B1' => 'Last Name*',
@@ -109,16 +198,14 @@ class EmployeeImportExportService
                 'W1' => 'Use Card (YES/NO)',
             ];
 
-            // Set headers
             foreach ($headers as $cell => $label) {
                 $sheet->setCellValue($cell, $label);
             }
 
-            // Apply header styling
             $this->applyHeaderStyle($sheet, count($headers));
             $sheet->getRowDimension(1)->setRowHeight(35);
 
-            // Add example data - SESUAI DENGAN STORE
+            // Example data
             $exampleData = [
                 'John',
                 'Doe',
@@ -151,25 +238,20 @@ class EmployeeImportExportService
                 $column++;
             }
 
-            // Style example row
             $lastColumn = 'W';
             $sheet->getStyle('A2:' . $lastColumn . '2')->applyFromArray([
                 'font' => ['italic' => true, 'color' => ['rgb' => '666666']],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F5F5F5']],
             ]);
 
-            // Add data validation for dropdown columns
             $this->addDataValidation($sheet);
 
-            // Auto-size columns
             foreach (range('A', 'W') as $col) {
                 $sheet->getColumnDimension($col)->setAutoSize(true);
             }
 
-            // Set column width for long text
-            $sheet->getColumnDimension('I')->setWidth(40); // Address
+            $sheet->getColumnDimension('I')->setWidth(40);
 
-            // Add instruction sheet
             $this->addInstructionSheet($spreadsheet);
 
             Log::info('Employee import template created successfully');
@@ -216,16 +298,16 @@ class EmployeeImportExportService
     }
 
     /**
-     * Add data validation to sheet
+     * Add data validation
      */
     protected function addDataValidation($sheet): void
     {
         $validationColumns = [
-            'G' => 'gender',      // Gender
-            'N' => 'employment_type', // Employment Type
-            'O' => 'status',      // Status
-            'V' => 'card_type',   // Card Type
-            'W' => 'use_card',    // Use Card
+            'G' => 'gender',
+            'N' => 'employment_type',
+            'O' => 'status',
+            'V' => 'card_type',
+            'W' => 'use_card',
         ];
 
         foreach ($validationColumns as $column => $type) {
@@ -236,7 +318,7 @@ class EmployeeImportExportService
     }
 
     /**
-     * Add dropdown validation to a column
+     * Add dropdown validation
      */
     protected function addDropdownValidation($sheet, string $column, array $options): void
     {
@@ -248,10 +330,6 @@ class EmployeeImportExportService
         $validation->setShowErrorMessage(true);
         $validation->setShowDropDown(true);
         $validation->setFormula1('"' . implode(',', $options) . '"');
-        $validation->setErrorTitle('Invalid Option');
-        $validation->setError('Please select from the dropdown list.');
-        $validation->setPromptTitle('Select from list');
-        $validation->setPrompt('Please select a valid option from the dropdown.');
     }
 
     /**
@@ -286,7 +364,6 @@ class EmployeeImportExportService
             ['   • Status: active, inactive, suspended, terminated, resigned'],
             ['   • Salary: Monthly salary in numbers'],
             ['   • Manager Email: Must exist in system'],
-            ['   • Emergency Contact: Name, Phone, Relation'],
             ['   • Card Number: Auto-generated if empty'],
             ['   • Card Type: RFID, NFC, Barcode, QR'],
             ['   • Use Card: YES or NO'],
@@ -294,10 +371,10 @@ class EmployeeImportExportService
             ['📌 IMPORTANT:'],
             ['   • Department and Position will be auto-created if not exist'],
             ['   • Employee ID will be auto-generated (EMP-YYYY-XXXX)'],
+            ['   • Position Code will be auto-generated'],
             ['   • Do not modify the header row'],
             ['   • Maximum file size: 10MB'],
             ['   • Supported formats: .xlsx, .xls, .csv'],
-            ['   • Manager must exist in system before import'],
         ];
 
         $row = 1;
@@ -327,7 +404,6 @@ class EmployeeImportExportService
         ]);
 
         try {
-            // Validate file
             $validation = $this->validateImportFile($file);
             if (!$validation['valid']) {
                 return [
@@ -343,11 +419,9 @@ class EmployeeImportExportService
             $sheet = $spreadsheet->getActiveSheet();
             $rows = $sheet->toArray();
 
-            // LOG: Jumlah baris yang terbaca
             Log::info('📊 Total rows in file:', [
                 'total_rows' => count($rows),
                 'header' => $rows[0] ?? 'No header',
-                'sample_data' => $rows[1] ?? 'No data',
             ]);
 
             if (empty($rows) || count($rows) < 2) {
@@ -360,14 +434,7 @@ class EmployeeImportExportService
                 ];
             }
 
-            // Remove header
-            $header = array_shift($rows);
-
-            // LOG: Header dan mapping
-            Log::info('📋 Header mapping:', [
-                'header' => $header,
-                'expected_fields' => $this->getExpectedFields(),
-            ]);
+            array_shift($rows);
 
             $successCount = 0;
             $failCount = 0;
@@ -380,27 +447,17 @@ class EmployeeImportExportService
             try {
                 foreach ($rows as $index => $row) {
                     try {
-                        // LOG: Data row yang diproses
-                        Log::info('📝 Processing row ' . ($index + 2), [
-                            'row_data' => $row,
-                            'row_number' => $index + 2,
-                        ]);
-
-                        // Skip empty rows
                         if (empty(array_filter($row))) {
-                            Log::info('⏭️ Skipping empty row ' . ($index + 2));
                             continue;
                         }
 
                         $rowNumber = $index + 2;
                         $data = $this->extractRowData($row);
 
-                        // LOG: Data yang diextract
-                        Log::info('📦 Extracted data for row ' . $rowNumber, [
-                            'extracted_data' => $data,
+                        Log::info('📝 Processing row ' . $rowNumber, [
+                            'data' => $data,
                         ]);
 
-                        // Validate row data
                         $validationResult = $this->validateRowData($data, $rowNumber);
 
                         if (!empty($validationResult['warnings'])) {
@@ -416,7 +473,6 @@ class EmployeeImportExportService
                             continue;
                         }
 
-                        // Create employee
                         $result = $this->createEmployeeFromData($data);
                         if ($result['success']) {
                             $successCount++;
@@ -425,10 +481,7 @@ class EmployeeImportExportService
                                 'email' => $data['email'],
                                 'employee_id' => $result['employee']->employee_id ?? null,
                             ];
-                            Log::info('✅ Row ' . $rowNumber . ' imported successfully', [
-                                'email' => $data['email'],
-                                'employee_id' => $result['employee']->employee_id ?? null,
-                            ]);
+                            Log::info('✅ Row ' . $rowNumber . ' imported successfully');
                         } else {
                             $failCount++;
                             $errors[] = "Row {$rowNumber}: " . $result['message'];
@@ -441,7 +494,6 @@ class EmployeeImportExportService
                         $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
                         Log::error('❌ Row ' . ($index + 2) . ' error:', [
                             'error' => $e->getMessage(),
-                            'trace' => $e->getTraceAsString(),
                         ]);
                     }
                 }
@@ -451,7 +503,6 @@ class EmployeeImportExportService
                     Log::info('✅ Import completed successfully', [
                         'success' => $successCount,
                         'failed' => $failCount,
-                        'total' => $successCount + $failCount,
                     ]);
                 } else {
                     DB::rollBack();
@@ -475,9 +526,7 @@ class EmployeeImportExportService
                 'successful_imports' => $successfulImports,
             ];
         } catch (Exception $e) {
-            Log::error('❌ Import process failed: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-            ]);
+            Log::error('❌ Import process failed: ' . $e->getMessage());
 
             return [
                 'success' => false,
@@ -490,38 +539,7 @@ class EmployeeImportExportService
     }
 
     /**
-     * Get expected fields for validation
-     */
-    protected function getExpectedFields(): array
-    {
-        return [
-            'first_name',
-            'last_name',
-            'email',
-            'password',
-            'phone',
-            'date_of_birth',
-            'gender',
-            'national_id',
-            'address',
-            'hire_date',
-            'probation_end_date',
-            'department',
-            'position',
-            'employment_type',
-            'status',
-            'salary',
-            'manager_email',
-            'emergency_contact_name',
-            'emergency_contact_phone',
-            'emergency_contact_relation',
-            'card_number',
-            'card_type',
-            'use_card'
-        ];
-    }
-    /**
-     * Extract row data - SESUAI DENGAN STORE
+     * Extract row data
      */
     protected function extractRowData(array $row): array
     {
@@ -575,7 +593,6 @@ class EmployeeImportExportService
                 $errors[] = "Row {$rowNumber}: Invalid email format '{$data['email']}'";
                 $valid = false;
             } else {
-                // Check if email already exists
                 $existing = Employee::where('email', $data['email'])->first();
                 if ($existing) {
                     $errors[] = "Row {$rowNumber}: Email '{$data['email']}' already exists";
@@ -625,7 +642,7 @@ class EmployeeImportExportService
             $valid = false;
         }
 
-        // Validate manager email - WARNING ONLY, NOT ERROR
+        // Validate manager email - WARNING ONLY
         if (!empty($data['manager_email'])) {
             $manager = Employee::where('email', $data['manager_email'])->first();
             if (!$manager) {
@@ -641,21 +658,30 @@ class EmployeeImportExportService
     }
 
     /**
-     * Create employee from data - SESUAI DENGAN STORE
+     * Create employee from data
      */
     protected function createEmployeeFromData(array $data): array
     {
         try {
+            DB::beginTransaction();
+
             // Find or create department
             $department = Department::firstOrCreate(
                 ['name' => $data['department']],
-                ['code' => strtoupper(substr($data['department'], 0, 3))]
+                [
+                    'code' => $this->generateDepartmentCode($data['department']),
+                    'description' => 'Auto-created from import',
+                ]
             );
 
             // Find or create position
             $position = Position::firstOrCreate(
                 ['title' => $data['position']],
-                ['department_id' => $department->id]
+                [
+                    'department_id' => $department->id,
+                    'code' => $this->generatePositionCode($data['position'], $department->id),
+                    'description' => 'Auto-created from import',
+                ]
             );
 
             // Find manager by email
@@ -679,10 +705,10 @@ class EmployeeImportExportService
             // Generate card number if needed
             $cardNumber = $data['card_number'];
             if ($data['use_card'] && empty($cardNumber)) {
-                $cardNumber = $this->generateCardNumber($employeeId);
+                $cardNumber = $this->generateCardNumberFromId($employeeId);
             }
 
-            // Create employee - SESUAI DENGAN STORE
+            // Create employee
             $employee = Employee::create([
                 'employee_id' => $employeeId,
                 'first_name' => $data['first_name'],
@@ -710,10 +736,11 @@ class EmployeeImportExportService
                 'use_card' => $data['use_card'] ?? false,
             ]);
 
+            DB::commit();
+
             Log::info('✅ Employee created via import', [
                 'employee_id' => $employeeId,
                 'email' => $data['email'],
-                'manager_id' => $managerId,
             ]);
 
             return [
@@ -722,6 +749,7 @@ class EmployeeImportExportService
                 'message' => 'Employee created successfully',
             ];
         } catch (Exception $e) {
+            DB::rollBack();
             Log::error('❌ Failed to create employee from import: ' . $e->getMessage());
             return [
                 'success' => false,
@@ -731,58 +759,114 @@ class EmployeeImportExportService
     }
 
     /**
-     * Generate employee ID
+     * Generate card number from employee ID
      */
-    public function generateEmployeeId(?int $departmentId = null): string
-    {
-        $year = date('Y');
-        $deptCode = 'EMP';
-
-        if ($departmentId) {
-            $department = Department::find($departmentId);
-            if ($department) {
-                $deptCode = strtoupper(substr($department->code ?? $department->name, 0, 3));
-            }
-        }
-
-        $prefix = $deptCode . '-' . $year . '-';
-        $lastEmployee = Employee::where('employee_id', 'like', $prefix . '%')
-            ->orderBy('employee_id', 'desc')
-            ->first();
-
-        $newNumber = $lastEmployee ? intval(substr($lastEmployee->employee_id, -4)) + 1 : 1;
-
-        return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * Generate card number
-     */
-    public function generateCardNumber(string $employeeId): string
+    protected function generateCardNumberFromId(string $employeeId): string
     {
         return 'CARD-' . str_pad(substr($employeeId, -4), 4, '0', STR_PAD_LEFT) . '-' . date('Y');
     }
 
     /**
-     * Validate import file
+     * Create export spreadsheet
      */
-    public function validateImportFile(UploadedFile $file): array
+    public function createExport($employees, array $filters = []): Spreadsheet
     {
-        $validator = Validator::make(['file' => $file], [
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240'
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Employees');
+
+        // Title
+        $sheet->mergeCells('A1:K1');
+        $sheet->setCellValue('A1', 'EMPLOYEE LIST REPORT');
+        $sheet->getStyle('A1')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 16, 'color' => ['rgb' => '1A73E8']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
-        if ($validator->fails()) {
-            return [
-                'valid' => false,
-                'message' => 'Invalid file: ' . $validator->errors()->first()
-            ];
+        // Filter info
+        $row = 3;
+        $filterTexts = [];
+        if (!empty($filters['start_date']) || !empty($filters['end_date'])) {
+            $filterTexts[] = 'Period: ' . ($filters['start_date'] ?? '...') . ' → ' . ($filters['end_date'] ?? '...');
+        }
+        if (!empty($filters['status'])) {
+            $filterTexts[] = 'Status: ' . ucfirst($filters['status']);
+        }
+        if (!empty($filters['employment_type'])) {
+            $filterTexts[] = 'Type: ' . str_replace('_', ' ', $filters['employment_type']);
+        }
+        if (!empty($filterTexts)) {
+            $sheet->mergeCells("A{$row}:K{$row}");
+            $sheet->setCellValue("A{$row}", 'Filters: ' . implode(' | ', $filterTexts));
+            $sheet->getStyle("A{$row}")->getFont()->setItalic(true)->setSize(10)->setColor(new Color('666666'));
+            $row++;
         }
 
-        return [
-            'valid' => true,
-            'message' => 'File is valid'
+        // Export info
+        $sheet->mergeCells("A{$row}:K{$row}");
+        $sheet->setCellValue("A{$row}", 'Exported: ' . now()->format('d M Y H:i') . ' | Total: ' . $employees->count());
+        $sheet->getStyle("A{$row}")->getFont()->setSize(9)->setColor(new Color('999999'));
+        $row += 2;
+
+        // Headers
+        $headers = [
+            'A' => 'No',
+            'B' => 'Employee ID',
+            'C' => 'First Name',
+            'D' => 'Last Name',
+            'E' => 'Email',
+            'F' => 'Phone',
+            'G' => 'Department',
+            'H' => 'Position',
+            'I' => 'Employment Type',
+            'J' => 'Status',
+            'K' => 'Hire Date',
         ];
+
+        $headerStyle = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1A73E8']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CCCCCC']]],
+        ];
+
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue($col . $row, $header);
+            $sheet->getStyle($col . $row)->applyFromArray($headerStyle);
+        }
+        $sheet->getRowDimension($row)->setRowHeight(22);
+        $row++;
+
+        // Data
+        foreach ($employees as $index => $employee) {
+            $sheet->setCellValue('A' . $row, $index + 1);
+            $sheet->setCellValue('B' . $row, $employee->employee_id);
+            $sheet->setCellValue('C' . $row, $employee->first_name);
+            $sheet->setCellValue('D' . $row, $employee->last_name);
+            $sheet->setCellValue('E' . $row, $employee->email);
+            $sheet->setCellValue('F' . $row, $employee->phone ?? '-');
+            $sheet->setCellValue('G' . $row, $employee->department->name ?? '-');
+            $sheet->setCellValue('H' . $row, $employee->position->title ?? '-');
+            $sheet->setCellValue('I' . $row, str_replace('_', ' ', $employee->employment_type ?? '-'));
+            $sheet->setCellValue('J' . $row, ucfirst($employee->status ?? '-'));
+            $sheet->setCellValue('K' . $row, $employee->hire_date ? date('d M Y', strtotime($employee->hire_date)) : '-');
+
+            // Status coloring
+            if (isset($this->statusColors[$employee->status])) {
+                $sheet->getStyle('J' . $row)->applyFromArray([
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $this->statusColors[$employee->status]]]
+                ]);
+            }
+
+            $sheet->getRowDimension($row)->setRowHeight(18);
+            $row++;
+        }
+
+        foreach (range('A', 'K') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return $spreadsheet;
     }
 
     /**
@@ -816,5 +900,27 @@ class EmployeeImportExportService
     public function getTemplateFileName(): string
     {
         return 'Employee_Import_Template.xlsx';
+    }
+
+    /**
+     * Validate import file
+     */
+    public function validateImportFile(UploadedFile $file): array
+    {
+        $validator = Validator::make(['file' => $file], [
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240'
+        ]);
+
+        if ($validator->fails()) {
+            return [
+                'valid' => false,
+                'message' => 'Invalid file: ' . $validator->errors()->first()
+            ];
+        }
+
+        return [
+            'valid' => true,
+            'message' => 'File is valid'
+        ];
     }
 }
