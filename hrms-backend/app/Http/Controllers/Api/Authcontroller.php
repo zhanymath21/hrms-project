@@ -68,6 +68,7 @@ class AuthController extends Controller
         $employeeTitle = $employee->position->title ?? '';
         $isWebAllowed = in_array($employeeTitle, $webAllowedTitles);
 
+        // Jika login dari web, hanya Admin/HR/Manager yang boleh
         if ($deviceType === 'web' && !$isWebAllowed) {
             return response()->json([
                 'status' => 'error',
@@ -76,7 +77,7 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // Create token using the employee guard
+        // Create token
         $tokenName = $deviceType === 'mobile' ? 'mobile-token' : 'web-token';
         $token = $employee->createToken($tokenName)->plainTextToken;
 
@@ -98,7 +99,7 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user('employee')->currentAccessToken()->delete();
+        $request->user()->currentAccessToken()->delete();
 
         return response()->json([
             'status' => 'success',
@@ -111,7 +112,7 @@ class AuthController extends Controller
      */
     public function profile(Request $request): JsonResponse
     {
-        $user = $request->user('employee')->load(['department', 'position', 'manager']);
+        $user = $request->user()->load(['department', 'position', 'manager']);
 
         return response()->json([
             'status' => 'success',

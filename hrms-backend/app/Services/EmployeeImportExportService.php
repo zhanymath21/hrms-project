@@ -271,16 +271,70 @@ class EmployeeImportExportService
     /**
      * Process import file - SESUAI DENGAN FORM CREATE
      */
+    // app/Services/EmployeeImportExportService.php - Tambahkan validasi lebih detail
+
     public function processImport(UploadedFile $file): array
     {
         Log::info('📤 Starting employee import...');
 
-        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file);
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file);
+        } catch (\Exception $e) {
+            Log::error('❌ Failed to load file: ' . $e->getMessage());
+            return [
+                'success_count' => 0,
+                'fail_count' => 1,
+                'errors' => ['Failed to read file. Please make sure it\'s a valid Excel file.']
+            ];
+        }
+
         $sheet = $spreadsheet->getActiveSheet();
         $rows = $sheet->toArray();
 
+        // Check if file is empty
+        if (empty($rows) || count($rows) < 2) {
+            return [
+                'success_count' => 0,
+                'fail_count' => 1,
+                'errors' => ['File is empty. Please fill in the data.']
+            ];
+        }
+
         // Remove header
-        array_shift($rows);
+        $header = array_shift($rows);
+
+        // Check if header matches expected columns
+        $expectedHeaders = [
+            'First Name*',
+            'Last Name*',
+            'Email*',
+            'Password*',
+            'Phone',
+            'Date of Birth (YYYY-MM-DD)',
+            'Gender',
+            'National ID',
+            'Address',
+            'Hire Date (YYYY-MM-DD)*',
+            'Probation End Date (YYYY-MM-DD)',
+            'Department*',
+            'Position*',
+            'Default Office',
+            'Employment Type*',
+            'Status*',
+            'Employment Status',
+            'Salary',
+            'Manager Email',
+            'Emergency Contact Name',
+            'Emergency Contact Phone',
+            'Emergency Contact Relation',
+            'Card Number',
+            'Card Type',
+            'Use Card (YES/NO)'
+        ];
+
+        // Log the header for debugging
+        Log::info('📋 Header row:', $header);
+        Log::info('📋 Expected headers:', $expectedHeaders);
 
         $successCount = 0;
         $failCount = 0;
@@ -293,7 +347,17 @@ class EmployeeImportExportService
                     continue;
                 }
 
+                // Check if row has enough columns
+                if (count($row) < 25) {
+                    $errors[] = "Row " . ($index + 2) . ": Insufficient columns. Expected 25, got " . count($row);
+                    $failCount++;
+                    continue;
+                }
+
                 $data = $this->extractRowData($row);
+
+                // Log data for debugging
+                Log::info('📝 Row ' . ($index + 2) . ' data:', $data);
 
                 // Validate row data
                 $validationResult = $this->validateRowData($data, $index);
@@ -307,14 +371,16 @@ class EmployeeImportExportService
                 $result = $this->createEmployeeFromData($data);
                 if ($result['success']) {
                     $successCount++;
+                    Log::info('✅ Row ' . ($index + 2) . ' imported successfully');
                 } else {
                     $failCount++;
                     $errors[] = "Row " . ($index + 2) . ": " . $result['message'];
+                    Log::error('❌ Row ' . ($index + 2) . ' failed: ' . $result['message']);
                 }
             } catch (Exception $e) {
                 $failCount++;
                 $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
-                Log::error('Import row error: ' . $e->getMessage());
+                Log::error('❌ Row ' . ($index + 2) . ' error: ' . $e->getMessage());
             }
         }
 
@@ -326,7 +392,6 @@ class EmployeeImportExportService
             'errors' => $errors,
         ];
     }
-
     /**
      * Extract row data - SESUAI DENGAN FIELD DI TEMPLATE
      */
