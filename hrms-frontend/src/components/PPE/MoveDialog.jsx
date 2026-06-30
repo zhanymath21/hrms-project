@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Alert } from '@mui/material';
 
+// PASTIKAN ADA export default
 export default function MoveDialog({ open, onClose, onSubmit, item }) {
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,11 +33,18 @@ export default function MoveDialog({ open, onClose, onSubmit, item }) {
           <strong>Item:</strong> {item?.name}<br />
           <strong>Current:</strong> {item?.location || 'N/A'}
         </Alert>
-        <TextField fullWidth label="New Location *" value={location} onChange={e => setLocation(e.target.value)} />
+        <TextField 
+          fullWidth 
+          label="New Location *" 
+          value={location} 
+          onChange={e => setLocation(e.target.value)} 
+        />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSubmit} disabled={loading}>Move</Button>
+        <Button variant="contained" onClick={handleSubmit} disabled={loading}>
+          Move
+        </Button>
       </DialogActions>
     </Dialog>
   );

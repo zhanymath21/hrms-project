@@ -1,33 +1,27 @@
-// src/components/PPE/ExportDialog.jsx
+// src/components/employees/ExportDialog.jsx
 
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Box, Button, Typography,
-  Grid, TextField, FormControl, InputLabel, Select, MenuItem, Chip,
-  IconButton, Stack, Alert, Divider, Paper, LinearProgress
+  Box, Button, Typography, Dialog, DialogTitle, DialogContent,
+  DialogActions, Grid, TextField, FormControl, InputLabel, Select,
+  MenuItem, Chip, IconButton, Stack, Alert, Divider, Paper,
+  LinearProgress
 } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import DateRangeIcon from '@mui/icons-material/DateRange';
-import { STATUS_OPTIONS, CONDITION_OPTIONS, DATE_FILTER_OPTIONS } from '../../constants/ppeConstants';
+import {
+  FileDownload as FileDownloadIcon,
+  FilterList as FilterListIcon,
+  DateRange as DateRangeIcon,
+  Close as CloseIcon
+} from '@mui/icons-material';
+import { STATUS_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '../../constants/employeeConstants';
 
-// PASTIKAN ADA export default
-export default function ExportDialog({ 
-  open, 
-  onClose, 
-  onExport, 
-  loading, 
-  categories = [], 
-  filters = {}, 
-  setFilters 
-}) {
+export const ExportDialog = ({ open, onClose, onExport, loading, filters = {}, setFilters }) => {
   const [localFilters, setLocalFilters] = useState({
     start_date: '',
     end_date: '',
-    category_id: '',
     status: '',
-    condition: '',
+    employment_type: '',
+    department_id: '',
   });
   const [error, setError] = useState('');
 
@@ -36,9 +30,9 @@ export default function ExportDialog({
       setLocalFilters({
         start_date: filters.start_date || '',
         end_date: filters.end_date || '',
-        category_id: filters.category_id || '',
         status: filters.status || '',
-        condition: filters.condition || '',
+        employment_type: filters.employment_type || '',
+        department_id: filters.department_id || '',
       });
       setError('');
     }
@@ -59,9 +53,9 @@ export default function ExportDialog({
     const empty = {
       start_date: '',
       end_date: '',
-      category_id: '',
       status: '',
-      condition: '',
+      employment_type: '',
+      department_id: '',
     };
     setLocalFilters(empty);
     setFilters(empty);
@@ -73,15 +67,15 @@ export default function ExportDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
+        <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box display="flex" alignItems="center" gap={1}>
             <FileDownloadIcon color="primary" />
-            <Typography variant="h6">Export PPE Data</Typography>
+            <Typography variant="h6">Export Employees</Typography>
             {activeFilterCount > 0 && (
-              <Chip 
-                label={`${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active`} 
-                size="small" 
-                color="primary" 
+              <Chip
+                label={`${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active`}
+                size="small"
+                color="primary"
               />
             )}
           </Box>
@@ -90,15 +84,16 @@ export default function ExportDialog({
           </IconButton>
         </Box>
       </DialogTitle>
-      
+
       <DialogContent dividers>
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2">
-            <strong>Export PPE data</strong> with filters. Leave fields empty to export all data.
+            Export employee data with filters. Leave fields empty to export all data.
           </Typography>
         </Alert>
 
         <Grid container spacing={2}>
+          {/* Date Range */}
           <Grid item xs={12}>
             <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <DateRangeIcon fontSize="small" />
@@ -128,26 +123,11 @@ export default function ExportDialog({
             />
           </Grid>
 
+          {/* Additional Filters */}
           <Grid item xs={12}>
             <Divider sx={{ my: 1 }}>
               <Chip label="Additional Filters" size="small" icon={<FilterListIcon />} />
             </Divider>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={4}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Category</InputLabel>
-              <Select
-                label="Category"
-                value={localFilters.category_id}
-                onChange={e => setLocalFilters({ ...localFilters, category_id: e.target.value })}
-              >
-                <MenuItem value="">All Categories</MenuItem>
-                {(categories || []).map(c => (
-                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
           </Grid>
 
           <Grid item xs={12} sm={6} md={4}>
@@ -159,8 +139,10 @@ export default function ExportDialog({
                 onChange={e => setLocalFilters({ ...localFilters, status: e.target.value })}
               >
                 <MenuItem value="">All Status</MenuItem>
-                {STATUS_OPTIONS.map(o => (
-                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                {STATUS_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -168,60 +150,74 @@ export default function ExportDialog({
 
           <Grid item xs={12} sm={6} md={4}>
             <FormControl fullWidth size="small">
-              <InputLabel>Condition</InputLabel>
+              <InputLabel>Employment Type</InputLabel>
               <Select
-                label="Condition"
-                value={localFilters.condition}
-                onChange={e => setLocalFilters({ ...localFilters, condition: e.target.value })}
+                label="Employment Type"
+                value={localFilters.employment_type}
+                onChange={e => setLocalFilters({ ...localFilters, employment_type: e.target.value })}
               >
-                <MenuItem value="">All Condition</MenuItem>
-                {CONDITION_OPTIONS.map(o => (
-                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                <MenuItem value="">All Types</MenuItem>
+                {EMPLOYMENT_TYPE_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
           </Grid>
 
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Department"
+              placeholder="Search department..."
+              value={localFilters.department_id}
+              onChange={e => setLocalFilters({ ...localFilters, department_id: e.target.value })}
+            />
+          </Grid>
+
+          {/* Active Filters Preview */}
           {activeFilterCount > 0 && (
             <Grid item xs={12}>
               <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f5f5f5' }}>
                 <Typography variant="caption" color="textSecondary" display="block" gutterBottom>
                   <strong>Active Filters:</strong>
                 </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                   {localFilters.start_date && (
-                    <Chip 
-                      label={`From: ${new Date(localFilters.start_date).toLocaleDateString()}`} 
-                      size="small" 
+                    <Chip
+                      label={`From: ${new Date(localFilters.start_date).toLocaleDateString()}`}
+                      size="small"
                       onDelete={() => setLocalFilters({ ...localFilters, start_date: '' })}
                     />
                   )}
                   {localFilters.end_date && (
-                    <Chip 
-                      label={`To: ${new Date(localFilters.end_date).toLocaleDateString()}`} 
-                      size="small" 
+                    <Chip
+                      label={`To: ${new Date(localFilters.end_date).toLocaleDateString()}`}
+                      size="small"
                       onDelete={() => setLocalFilters({ ...localFilters, end_date: '' })}
                     />
                   )}
-                  {localFilters.category_id && (
-                    <Chip 
-                      label={`Category: ${categories.find(c => c.id === localFilters.category_id)?.name || ''}`} 
-                      size="small" 
-                      onDelete={() => setLocalFilters({ ...localFilters, category_id: '' })}
-                    />
-                  )}
                   {localFilters.status && (
-                    <Chip 
-                      label={`Status: ${STATUS_OPTIONS.find(o => o.value === localFilters.status)?.label || ''}`} 
-                      size="small" 
+                    <Chip
+                      label={`Status: ${localFilters.status}`}
+                      size="small"
                       onDelete={() => setLocalFilters({ ...localFilters, status: '' })}
                     />
                   )}
-                  {localFilters.condition && (
-                    <Chip 
-                      label={`Condition: ${CONDITION_OPTIONS.find(o => o.value === localFilters.condition)?.label || ''}`} 
-                      size="small" 
-                      onDelete={() => setLocalFilters({ ...localFilters, condition: '' })}
+                  {localFilters.employment_type && (
+                    <Chip
+                      label={`Type: ${localFilters.employment_type.replace('_', ' ')}`}
+                      size="small"
+                      onDelete={() => setLocalFilters({ ...localFilters, employment_type: '' })}
+                    />
+                  )}
+                  {localFilters.department_id && (
+                    <Chip
+                      label={`Department: ${localFilters.department_id}`}
+                      size="small"
+                      onDelete={() => setLocalFilters({ ...localFilters, department_id: '' })}
                     />
                   )}
                 </Stack>
@@ -252,9 +248,9 @@ export default function ExportDialog({
         </Button>
         <Box>
           <Button onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button 
-            variant="contained" 
-            onClick={handleExport} 
+          <Button
+            variant="contained"
+            onClick={handleExport}
             disabled={loading}
             startIcon={<FileDownloadIcon />}
             sx={{ ml: 1 }}
@@ -265,4 +261,4 @@ export default function ExportDialog({
       </DialogActions>
     </Dialog>
   );
-}
+};

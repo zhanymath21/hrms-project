@@ -9,6 +9,7 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveType;
 use App\Models\WorkSchedule;
 use App\Services\CacheService;
+use App\Services\EmployeeImportExportService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,16 +20,17 @@ use Illuminate\Support\Facades\Log;
 
 class EmployeeController extends Controller
 {
-    /**
-     * Get all employees with filters and pagination
-     * OPTIMIZED: Eager loading + select only needed columns
-     */
+    protected EmployeeImportExportService $importExportService;
+
+    public function __construct(EmployeeImportExportService $importExportService)
+    {
+        $this->importExportService = $importExportService;
+    }
     public function index(Request $request): JsonResponse
     {
         $cacheKey = 'employees_list_' . md5(json_encode($request->all()));
 
         $data = CacheService::remember($cacheKey, function () use ($request) {
-            // EAGER LOAD dengan select columns untuk hindari N+1
             $query = Employee::query()
                 ->with([
                     'department:id,name,code',
@@ -79,10 +81,18 @@ class EmployeeController extends Controller
                 $query->where('employment_type', $request->employment_type);
             }
 
+            // ========== DATE FILTERS - TAMBAHKAN INI ==========
+            if ($request->filled('start_date')) {
+                $query->whereDate('hire_date', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('hire_date', '<=', $request->end_date);
+            }
+
             $perPage = min((int) $request->input('per_page', 15), 50);
 
             return $query->orderBy('first_name')->paginate($perPage);
-        }, 1); // Cache 1 menit
+        }, 1);
 
         return response()->json([
             'status' => 'success',
@@ -463,5 +473,103 @@ class EmployeeController extends Controller
     private function generateCardNumber(Employee $employee): string
     {
         return 'EMP-' . str_pad($employee->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Download import template
+     */
+    public function downloadTemplate()
+    {
+        try {
+            $spreadsheet = $this->importExportService->createTemplate();
+            $fileName = $this->importExportService->getTemplateFileName();
+            $filePath = $this->importExportService->saveSpreadsheet($spreadsheet, $fileName);
+
+            return response()->download($filePath, $fileName, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            Log::error('Download template error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to download template: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Import employees from Excel file
+     */
+    public function import(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'file' => 'required|file|mimes:xlsx,xls,csv|max:10240'
+            ]);
+
+            $result = $this->importExportService->processImport($request->file('file'));
+
+            return response()->json([
+                'status' => 'success',
+                'success_count' => $result['success_count'],
+                'fail_count' => $result['fail_count'],
+                'errors' => $result['errors'],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Import employees error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Import failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export employees to Excel
+     */
+    public function export(Request $request)
+    {
+        try {
+            // Build query with filters
+            $query = Employee::with(['department', 'position']);
+
+            if ($request->filled('start_date')) {
+                $query->whereDate('hire_date', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('hire_date', '<=', $request->end_date);
+            }
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+            if ($request->filled('employment_type')) {
+                $query->where('employment_type', $request->employment_type);
+            }
+            if ($request->filled('department_id')) {
+                $query->where('department_id', $request->department_id);
+            }
+
+            $employees = $query->orderBy('first_name')->get();
+
+            // Get filters for display
+            $filters = $request->only(['start_date', 'end_date', 'status', 'employment_type', 'department_id']);
+
+            // Create export
+            $spreadsheet = $this->importExportService->createExport($employees, $filters);
+            $fileName = $this->importExportService->getExportFileName();
+            $filePath = $this->importExportService->saveSpreadsheet($spreadsheet, $fileName);
+
+            return response()->download($filePath, $fileName, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Access-Control-Allow-Origin' => '*',
+                'Access-Control-Expose-Headers' => 'Content-Disposition',
+            ])->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            Log::error('Export employees error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Export failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

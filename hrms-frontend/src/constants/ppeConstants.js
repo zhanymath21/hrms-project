@@ -25,3 +25,15 @@ export const WRITE_OFF_REASONS = [
   { value: 'replaced', label: 'Replaced' },
   { value: 'other', label: 'Other' },
 ];
+
+// TAMBAHKAN INI - DATE FILTER OPTIONS
+export const DATE_FILTER_OPTIONS = [
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'this_week', label: 'This Week' },
+  { value: 'last_week', label: 'Last Week' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'this_year', label: 'This Year' },
+  { value: 'custom', label: 'Custom Range' },
+];

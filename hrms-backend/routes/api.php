@@ -60,6 +60,10 @@ Route::get('/export/attendance/daily', [ReportController::class, 'exportDailyAtt
 Route::get('/export/attendance/monthly', [ReportController::class, 'exportMonthlyAttendanceCSV']);
 Route::get('/ppe/export', [PPEExportController::class, 'export']);
 
+Route::get('/employees/export', [EmployeeController::class, 'export'])->name('employees.export');
+Route::post('/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
+Route::get('/employees/import/template', [EmployeeController::class, 'downloadTemplate'])->name('employees.template');
+
 // ==========================================
 // PROTECTED
 // ==========================================

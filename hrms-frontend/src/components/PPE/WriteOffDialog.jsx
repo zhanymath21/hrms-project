@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, MenuItem, Alert } from '@mui/material';
 import { WRITE_OFF_REASONS } from '../../constants/ppeConstants';
 
+// PASTIKAN ADA export default
 export default function WriteOffDialog({ open, onClose, onSubmit, item }) {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -26,16 +27,37 @@ export default function WriteOffDialog({ open, onClose, onSubmit, item }) {
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>🗑️ Write-off PPE</DialogTitle>
       <DialogContent>
-        <Alert severity="warning" sx={{ mb: 2 }}><strong>Item:</strong> {item?.name} ({item?.code})</Alert>
-        <TextField select fullWidth margin="normal" label="Reason *" value={reason} onChange={e => setReason(e.target.value)}>
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <strong>Item:</strong> {item?.name} ({item?.code})
+        </Alert>
+        <TextField 
+          select 
+          fullWidth 
+          margin="normal" 
+          label="Reason *" 
+          value={reason} 
+          onChange={e => setReason(e.target.value)}
+        >
           <MenuItem value="">Select Reason</MenuItem>
-          {WRITE_OFF_REASONS.map(r => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
+          {WRITE_OFF_REASONS.map(r => (
+            <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>
+          ))}
         </TextField>
-        <TextField fullWidth margin="normal" label="Notes" multiline rows={3} value={notes} onChange={e => setNotes(e.target.value)} />
+        <TextField 
+          fullWidth 
+          margin="normal" 
+          label="Notes" 
+          multiline 
+          rows={3} 
+          value={notes} 
+          onChange={e => setNotes(e.target.value)} 
+        />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" color="error" onClick={handleSubmit} disabled={loading}>Write-off</Button>
+        <Button variant="contained" color="error" onClick={handleSubmit} disabled={loading}>
+          Write-off
+        </Button>
       </DialogActions>
     </Dialog>
   );

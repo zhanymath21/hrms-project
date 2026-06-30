@@ -2,6 +2,7 @@
 
 import { Card, CardContent, Box, Typography } from '@mui/material';
 
+// PASTIKAN ADA export default
 export default function StatCard({ icon, title, value, color }) {
   return (
     <Card sx={{ height: '100%', borderRadius: 2 }}>
