@@ -14,6 +14,10 @@ class Department extends Model
         'name',
         'code',
         'description',
+        'is_active',
+    ];
+    protected $attributes = [
+        'is_active' => true,
     ];
 
     public function positions()

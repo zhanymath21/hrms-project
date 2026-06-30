@@ -14,6 +14,11 @@ class Position extends Model
         'code',
         'department_id',
         'description',
+        'is_active',
+    ];
+
+    protected $attributes = [
+        'is_active' => true,
     ];
 
     public function department()
