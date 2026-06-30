@@ -12,6 +12,7 @@ use App\Models\WorkSchedule;
 use App\Services\CacheService;
 use App\Services\EmployeeImportExportService;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -385,45 +386,55 @@ class EmployeeController extends Controller
     public function import(Request $request): JsonResponse
     {
         try {
-            Log::info('📤 ===== START IMPORT =====');
+            Log::info('📤 Import request received');
 
-            $file = $request->file('file');
-            Log::info('📁 File:', [
-                'name' => $file->getClientOriginalName(),
-                'size' => $file->getSize(),
-                'mime' => $file->getMimeType()
-            ]);
-
-            // Validate file
             $request->validate([
                 'file' => 'required|file|mimes:xlsx,xls,csv|max:10240'
             ]);
 
-            // Process import
-            $result = $this->importExportService->processImport($file);
+            $result = $this->importExportService->processImport($request->file('file'));
 
-            Log::info('📊 Import result:', $result);
+            if ($result['success'] || $result['success_count'] > 0) {
+                $message = "✅ Import completed!\n";
+                $message .= "✅ Success: {$result['success_count']}\n";
+                $message .= "❌ Failed: {$result['fail_count']}";
 
-            return response()->json([
-                'status' => 'success',
-                'success_count' => $result['success_count'],
-                'fail_count' => $result['fail_count'],
-                'errors' => $result['errors'],
+                if (!empty($result['errors'])) {
+                    $message .= "\n\nErrors:\n" . implode("\n", array_slice($result['errors'], 0, 10));
+                    if (count($result['errors']) > 10) {
+                        $message .= "\n... and " . (count($result['errors']) - 10) . " more errors";
+                    }
+                }
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => $message,
+                    'data' => $result,
+                ]);
+            } else {
+                $errorMessage = "❌ Import failed!\n";
+                $errorMessage .= "Success: 0\n";
+                $errorMessage .= "Failed: {$result['fail_count']}";
+
+                if (!empty($result['errors'])) {
+                    $errorMessage .= "\n\nErrors:\n" . implode("\n", $result['errors']);
+                }
+
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $errorMessage,
+                    'data' => $result,
+                ], 422);
+            }
+        } catch (Exception $e) {
+            Log::error('Import employees error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error('❌ Validation error:', $e->errors());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            Log::error('❌ Import error: ' . $e->getMessage());
-            Log::error('❌ Stack trace: ' . $e->getTraceAsString());
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'Import failed: ' . $e->getMessage()
+                'message' => 'Import failed: ' . $e->getMessage(),
+                'data' => null,
             ], 500);
         }
     }
