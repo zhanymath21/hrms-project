@@ -107,7 +107,7 @@ class LeaveController extends Controller
     }
 
     /**
-     * Get all employees leave balances (Admin/HR only)
+     * Get all employees leave balances
      */
     public function allBalances(Request $request): JsonResponse
     {
@@ -320,7 +320,7 @@ class LeaveController extends Controller
     }
 
     /**
-     * Get pending leave requests
+     * Get pending leave requests - INI YANG DIPANGGIL
      */
     public function pendingRequests(Request $request): JsonResponse
     {
@@ -390,9 +390,6 @@ class LeaveController extends Controller
     // REPLACEMENT LEAVE METHODS
     // ==========================================
 
-    /**
-     * Get replacement leaves list
-     */
     public function replacementList(Request $request): JsonResponse
     {
         try {
@@ -419,9 +416,6 @@ class LeaveController extends Controller
         }
     }
 
-    /**
-     * Get pending replacements
-     */
     public function pendingReplacements(Request $request): JsonResponse
     {
         try {
@@ -444,9 +438,6 @@ class LeaveController extends Controller
         }
     }
 
-    /**
-     * Request replacement leave
-     */
     public function requestReplacement(Request $request): JsonResponse
     {
         try {
@@ -476,9 +467,6 @@ class LeaveController extends Controller
         }
     }
 
-    /**
-     * Approve replacement leave
-     */
     public function approveReplacement(Request $request, $id): JsonResponse
     {
         try {
@@ -506,9 +494,6 @@ class LeaveController extends Controller
         }
     }
 
-    /**
-     * Reject replacement leave
-     */
     public function rejectReplacement(Request $request, $id): JsonResponse
     {
         try {
@@ -527,9 +512,6 @@ class LeaveController extends Controller
         }
     }
 
-    /**
-     * Cancel replacement leave
-     */
     public function cancelReplacement(Request $request, $id): JsonResponse
     {
         try {
