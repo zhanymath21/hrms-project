@@ -38,7 +38,7 @@ class ReplacementLeaveService
             'replacement_date' => $replacementDate->format('Y-m-d'),
             'reason' => $data['reason'] ?? null,
             'days_to_add' => $daysToAdd,
-            'status' => LeaveStatusEnum::PENDING->value,
+            'status' => 'pending',
         ]);
     }
 
@@ -53,7 +53,7 @@ class ReplacementLeaveService
 
         $existing = ReplacementLeave::where('employee_id', $employee->id)
             ->where('work_date', $workDate->format('Y-m-d'))
-            ->where('status', '!=', LeaveStatusEnum::REJECTED->value)
+            ->where('status', '!=', 'rejected')
             ->first();
 
         if ($existing) {
@@ -68,14 +68,14 @@ class ReplacementLeaveService
      */
     public function approve(ReplacementLeave $replacement, Employee $approver): void
     {
-        if ($replacement->status !== LeaveStatusEnum::PENDING->value) {
+        if ($replacement->status !== 'pending') {
             throw new \Exception('This request is not pending');
         }
 
         DB::beginTransaction();
         try {
             $replacement->update([
-                'status' => LeaveStatusEnum::APPROVED->value,
+                'status' => 'approved',
                 'approved_by' => $approver->id,
                 'approved_at' => now(),
             ]);
@@ -98,12 +98,12 @@ class ReplacementLeaveService
      */
     public function reject(ReplacementLeave $replacement, ?string $reason = null): void
     {
-        if ($replacement->status !== LeaveStatusEnum::PENDING->value) {
+        if ($replacement->status !== 'pending') {
             throw new \Exception('This request is not pending');
         }
 
         $replacement->update([
-            'status' => LeaveStatusEnum::REJECTED->value,
+            'status' => 'rejected',
             'rejection_reason' => $reason ?? 'Rejected by manager',
         ]);
     }
@@ -117,12 +117,12 @@ class ReplacementLeaveService
             throw new \Exception('You can only cancel your own replacement requests');
         }
 
-        if ($replacement->status !== LeaveStatusEnum::PENDING->value) {
+        if ($replacement->status !== 'pending') {
             throw new \Exception('Only pending replacement requests can be cancelled');
         }
 
         $replacement->update([
-            'status' => LeaveStatusEnum::CANCELLED->value,
+            'status' => 'cancelled',
             'cancelled_at' => now(),
             'cancelled_by' => $canceller->id,
             'cancellation_reason' => $reason ?? 'Cancelled by employee',
