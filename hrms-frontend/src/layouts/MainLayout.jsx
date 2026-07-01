@@ -1,4 +1,5 @@
 // src/layouts/MainLayout.jsx
+
 import React, { useState } from 'react';
 import {
   AppBar,
@@ -18,6 +19,7 @@ import {
   MenuItem,
   Divider,
   Tooltip,
+  Badge,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -56,6 +58,12 @@ import {
   Healing as HealingIcon, 
   WarningAmber as WarningAmberIcon,
   AttachMoney as AttachMoneyIcon,
+  // Leave Icons
+  CalendarToday as CalendarIcon,
+  Balance as BalanceIcon,
+  SwapHoriz as SwapIcon,
+  CheckCircle as CheckCircleIcon,
+  Pending as PendingIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from '../pages/components/NotificationBell';
@@ -77,15 +85,15 @@ const menuItems = [
     ]
   },
   {
-  text: 'Payroll',
-  icon: <AttachMoneyIcon />,
-  color: '#10b981',
-  children: [
-    { text: 'Payroll List', path: '/payroll', icon: <AttachMoneyIcon /> },
-    { text: 'Employee Salary', path: '/employee-salary', icon: <PersonIcon /> },
-    { text: 'Tax Settings', path: '/tax-settings', icon: <SettingsIcon /> },
-  ]
-},
+    text: 'Payroll',
+    icon: <AttachMoneyIcon />,
+    color: '#10b981',
+    children: [
+      { text: 'Payroll List', path: '/payroll', icon: <AttachMoneyIcon /> },
+      { text: 'Employee Salary', path: '/employee-salary', icon: <PersonIcon /> },
+      { text: 'Tax Settings', path: '/tax-settings', icon: <SettingsIcon /> },
+    ]
+  },
   { 
     text: 'Departments', 
     icon: <DepartmentIcon />, 
@@ -105,8 +113,21 @@ const menuItems = [
       { text: 'Attendance Report', icon: <ReportIcon />, path: '/attendance-report', color: '#8b5cf6' },
       { text: 'Work Schedules', icon: <ScheduleIcon />, path: '/schedules', color: '#8b5cf6' },
       { text: 'Office Locations', icon: <LocationOnIcon />, path: '/locations', color: '#f59e0b' },
-      { text: 'Leave', icon: <LeaveIcon />, path: '/leave', color: '#ef4444' },
     ],
+  },
+  // ========== LEAVE MANAGEMENT ==========
+  { 
+    text: 'Leave Management', 
+    icon: <LeaveIcon />, 
+    path: '/leaves', 
+    color: '#ef4444',
+    children: [
+      { text: '📋 Leave Requests', path: '/leaves', icon: <CalendarIcon /> },
+      { text: '➕ Request Leave', path: '/leaves/create', icon: <AddIcon /> },
+      { text: '✅ Approve Leaves', path: '/leaves/approval', icon: <CheckCircleIcon /> },
+      { text: '📊 Leave Balance', path: '/leaves/balance', icon: <BalanceIcon /> },
+      { text: '🔄 Replacement Leave', path: '/leaves/replacement', icon: <SwapIcon /> },
+    ]
   },
   {
     text: 'Recruitment',
@@ -130,7 +151,7 @@ const menuItems = [
       { text: 'PPE Categories', path: '/ppe/categories', icon: <CategoryIcon /> },
     ]
   },
-    { 
+  { 
     text: 'Safety',
     icon: <HealingIcon />,
     color: '#ef4444',
@@ -140,7 +161,7 @@ const menuItems = [
       { text: 'Lost Time Injury', path: '/lost-time-injuries', icon: <HealingIcon /> },
     ]
   },
-  { text: 'Exchange Rates', icon: <AttachMoneyIcon />,path: '/exchange-rates',color: '#8b5cf6',},
+  { text: 'Exchange Rates', icon: <AttachMoneyIcon />, path: '/exchange-rates', color: '#8b5cf6' },
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },
 ];
 
@@ -169,6 +190,10 @@ const MainLayout = ({ children }) => {
 
   const isMenuActive = (item) => {
     if (item.path === '/') return location.pathname === '/';
+    // Check if current path matches item path or any child path
+    if (item.children) {
+      return item.children.some(child => location.pathname === child.path);
+    }
     return location.pathname.startsWith(item.path);
   };
 
@@ -181,7 +206,7 @@ const MainLayout = ({ children }) => {
     return true;
   });
 
-  // 🔥 Safe alpha function
+  // Safe alpha function
   const getAlphaColor = (color, opacity) => {
     if (!color) return `rgba(99, 102, 241, ${opacity})`;
     if (color.startsWith('#')) {
@@ -198,7 +223,7 @@ const MainLayout = ({ children }) => {
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <CssBaseline />
       
-      {/* 🔥 APP BAR - Tanpa styled */}
+      {/* App Bar */}
       <AppBar 
         position="fixed" 
         elevation={0}
@@ -215,15 +240,25 @@ const MainLayout = ({ children }) => {
       >
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton color="inherit" onClick={handleDrawerOpen} edge="start"
-              sx={{ mr: 2, display: { xs: 'block', md: open ? 'none' : 'block' } }}>
+            <IconButton 
+              color="inherit" 
+              onClick={handleDrawerOpen} 
+              edge="start"
+              sx={{ mr: 2, display: { xs: 'block', md: open ? 'none' : 'block' } }}
+            >
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" noWrap sx={{ fontWeight: 700 }}>HRMS System</Typography>
+            <Typography variant="h6" noWrap sx={{ fontWeight: 700 }}>
+              HRMS System
+            </Typography>
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Tooltip title="Search"><IconButton color="inherit"><Search /></IconButton></Tooltip>
+            <Tooltip title="Search">
+              <IconButton color="inherit">
+                <Search />
+              </IconButton>
+            </Tooltip>
             <Tooltip title={darkMode ? 'Light Mode' : 'Dark Mode'}>
               <IconButton color="inherit" onClick={() => setDarkMode(!darkMode)}>
                 {darkMode ? <Brightness7 /> : <Brightness4 />}
@@ -232,25 +267,34 @@ const MainLayout = ({ children }) => {
             <NotificationBell />
             <Tooltip title="Account">
               <IconButton onClick={handleMenuOpen} sx={{ p: 0.5 }}>
-                <Avatar sx={{ width: 40, height: 40, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>A</Avatar>
+                <Avatar sx={{ width: 40, height: 40, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                  A
+                </Avatar>
               </IconButton>
             </Tooltip>
           </Box>
         </Toolbar>
       </AppBar>
 
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}
+      {/* Account Menu */}
+      <Menu 
+        anchorEl={anchorEl} 
+        open={Boolean(anchorEl)} 
+        onClose={handleMenuClose}
         PaperProps={{ sx: { mt: 1.5, width: 200, borderRadius: 2 } }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}>
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
         <MenuItem onClick={() => { navigate('/profile'); handleMenuClose(); }}>
           <AccountCircle sx={{ mr: 1 }} /> Profile
         </MenuItem>
         <Divider />
-        <MenuItem onClick={handleLogout}><Logout sx={{ mr: 1 }} /> Logout</MenuItem>
+        <MenuItem onClick={handleLogout}>
+          <Logout sx={{ mr: 1 }} /> Logout
+        </MenuItem>
       </Menu>
 
-      {/* 🔥 DRAWER - Tanpa styled */}
+      {/* Drawer */}
       <Drawer 
         variant="permanent" 
         open={open}
@@ -410,7 +454,7 @@ const MainLayout = ({ children }) => {
         )}
       </Drawer>
 
-      {/* 🔥 MAIN CONTENT */}
+      {/* Main Content */}
       <Box
         component="main"
         sx={{

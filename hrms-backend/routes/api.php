@@ -144,6 +144,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/leaves/balance/{id}', [LeaveController::class, 'getBalanceDetail']); // Get single balance by ID
     Route::put('/leaves/balance/{id}', [LeaveController::class, 'updateBalance']); // Update balance
     Route::get('/leaves/balance/{employeeId}/history', [LeaveController::class, 'getAdjustmentHistory']);
+    Route::get('/leaves/{id}', [LeaveController::class, 'show']);
+
 
     // Leaves
     Route::get('/leaves', [LeaveController::class, 'index']);
@@ -154,6 +156,8 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/leaves/{id}/approve', [LeaveController::class, 'approve']);
     Route::put('/leaves/{id}/reject', [LeaveController::class, 'reject']);
     Route::get('/leaves/pending', [LeaveController::class, 'pendingRequests']);
+    Route::post('/leaves/generate-balance', [LeaveController::class, 'generateBalance']);
+
 
     // Replacement Leave
     Route::get('/replacement-leaves', [LeaveController::class, 'replacementList']);
@@ -161,6 +165,10 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/replacement-leaves/{id}/approve', [LeaveController::class, 'approveReplacement']);
     Route::put('/replacement-leaves/{id}/reject', [LeaveController::class, 'rejectReplacement']);
     Route::put('/leaves/{id}/cancel', [LeaveController::class, 'cancel']);
+    Route::post('/leaves/process-carry-forward', [LeaveController::class, 'processCarryForward']);
+    Route::get('/replacement-leaves/pending', [LeaveController::class, 'pendingReplacements']);
+    Route::put('/replacement-leaves/{id}/cancel', [LeaveController::class, 'cancelReplacement']);
+
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
