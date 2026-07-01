@@ -20,4 +20,4 @@ const EmployeeStatCard = ({ title, value, color = 'primary', loading }) => (
   </Card>
 );
 
-export default EmployeeStatCard; // <-- PASTIKAN INI
+export default EmployeeStatCard;

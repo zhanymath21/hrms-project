@@ -1,107 +1,104 @@
-import axios from 'axios';
+// src/services/leaveService.js
 
-// ✅ GUNAKAN URL LANGSUNG
-const API_BASE_URL = 'http://192.168.0.13:8000/api';
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-});
-
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-api.interceptors.response.use(
-  response => {
-    if (response.data?.status === 'success' && response.data?.data !== undefined) {
-      response.data = response.data.data;
-    }
-    return response;
-  },
-  error => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+import api from './axios';
 
 const leaveService = {
-  getBalances: async () => {
-    const res = await api.get('/leaves/balance');
-    const d = res.data || {};
-    return {
-      data: {
-        annual: { 
-          total: Number(d.annual?.total || 0), 
-          used: Number(d.annual?.used || 0), 
-          remaining: Number(d.annual?.remaining || 0) 
-        },
-        sick: { 
-          total: Number(d.sick?.total || 0), 
-          used: Number(d.sick?.used || 0), 
-          remaining: Number(d.sick?.remaining || 0) 
-        },
-        special: { 
-          total: Number(d.special?.total || 0), 
-          used: Number(d.special?.used || 0), 
-          remaining: Number(d.special?.remaining || 0) 
-        },
-      }
-    };
-  },
+    // ========== LEAVE TYPES ==========
+    getLeaveTypes: async () => {
+        const response = await api.get('/leaves/types');
+        return response.data.data;
+    },
 
-  getLeaveTypes: async () => {
-    try {
-      const res = await api.get('/leave-types');
-      return { data: res.data || [] };
-    } catch {
-      return {
-        data: [
-          { id: 1, code: 'AL', name: 'Annual Leave' },
-          { id: 2, code: 'SL', name: 'Sick Leave' },
-          { id: 3, code: 'SPL', name: 'Special Leave' },
-        ]
-      };
-    }
-  },
+    // ========== LEAVE BALANCE ==========
+    getBalance: async (employeeId = null) => {
+        const params = employeeId ? { employee_id: employeeId } : {};
+        const response = await api.get('/leaves/balance', { params });
+        return response.data.data;
+    },
 
-  getLeaveRequests: async () => {
-    const res = await api.get('/leaves');
-    return { data: Array.isArray(res.data) ? res.data : (res.data?.data || []) };
-  },
+    getAllBalances: async (params = {}) => {
+        const response = await api.get('/leaves/all-balances', { params });
+        return response.data.data;
+    },
 
-  submitLeave: async (data) => {
-    return api.post('/leaves', {
-      leave_type_id: data.leaveTypeId,
-      start_date: data.startDate,
-      end_date: data.endDate,
-      reason: data.reason,
-      total_days: data.totalDays,
-    });
-  },
+    generateBalance: async (employeeId = null) => {
+        const params = employeeId ? { employee_id: employeeId } : {};
+        const response = await api.post('/leaves/generate-balance', null, { params });
+        return response.data;
+    },
 
-  submitReplacement: async (data) => {
-    return api.post('/replacement-leaves', {
-      work_date: data.workDate,
-      work_day_type: data.workDayType,
-      hours_worked: data.hoursWorked,
-      replacement_date: data.replacementDate,
-      reason: data.reason,
-    });
-  },
+    processCarryForward: async (year = null) => {
+        const params = year ? { year } : {};
+        const response = await api.post('/leaves/process-carry-forward', null, { params });
+        return response.data;
+    },
 
-  approveLeave: async (id) => {
-    return api.put(`/leaves/${id}/approve`);
-  },
+    // ========== LEAVE REQUESTS ==========
+    getLeaves: async (params = {}) => {
+        const response = await api.get('/leaves', { params });
+        return response.data.data;
+    },
 
-  rejectLeave: async (id, reason) => {
-    return api.put(`/leaves/${id}/reject`, { rejection_reason: reason });
-  },
+    getLeave: async (id) => {
+        const response = await api.get(`/leaves/${id}`);
+        return response.data.data;
+    },
+
+    getPendingLeaves: async (params = {}) => {
+        const response = await api.get('/leaves/pending', { params });
+        return response.data.data;
+    },
+
+    createLeave: async (data) => {
+        const response = await api.post('/leaves', data);
+        return response.data.data;
+    },
+
+    approveLeave: async (id) => {
+        const response = await api.put(`/leaves/${id}/approve`);
+        return response.data;
+    },
+
+    rejectLeave: async (id, reason) => {
+        const response = await api.put(`/leaves/${id}/reject`, { reason });
+        return response.data;
+    },
+
+    cancelLeave: async (id) => {
+        const response = await api.put(`/leaves/${id}/cancel`);
+        return response.data;
+    },
+
+    // ========== REPLACEMENT LEAVES ==========
+    getReplacements: async (params = {}) => {
+        const response = await api.get('/replacement-leaves', { params });
+        return response.data.data;
+    },
+
+    getPendingReplacements: async (params = {}) => {
+        const response = await api.get('/replacement-leaves/pending', { params });
+        return response.data.data;
+    },
+
+    createReplacement: async (data) => {
+        const response = await api.post('/replacement-leaves', data);
+        return response.data.data;
+    },
+
+    approveReplacement: async (id) => {
+        const response = await api.put(`/replacement-leaves/${id}/approve`);
+        return response.data;
+    },
+
+    rejectReplacement: async (id, reason) => {
+        const response = await api.put(`/replacement-leaves/${id}/reject`, { reason });
+        return response.data;
+    },
+
+    cancelReplacement: async (id, reason) => {
+        const response = await api.put(`/replacement-leaves/${id}/cancel`, { reason });
+        return response.data;
+    },
 };
 
 export default leaveService;

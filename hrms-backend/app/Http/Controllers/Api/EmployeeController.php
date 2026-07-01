@@ -457,7 +457,18 @@ class EmployeeController extends Controller
 
             $result = $this->importExportService->processImport($request->file('file'));
 
+            if ($result['success_count'] > 0) {
+                // Clear employees list cache
+                CacheService::clearEmployeesList(); // Clear list cache
+                CacheService::clearEmployeeCache(); // Clear all employee cache
+                CacheService::clearPattern('employees_list_*'); // Clear pattern
+
+                Log::info('✅ Cache cleared after import');
+            }
+
             Log::info('📊 Import result:', $result);
+
+
 
             if ($result['success'] || $result['success_count'] > 0) {
                 $message = "✅ Import completed!\n";
@@ -475,6 +486,7 @@ class EmployeeController extends Controller
                     'status' => 'success',
                     'message' => $message,
                     'data' => $result,
+                    'refresh' => true,
                 ]);
             } else {
                 $errorMessage = "❌ Import failed!\n";
