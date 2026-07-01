@@ -5,114 +5,193 @@ import api from './axios';
 const leaveService = {
     // ========== LEAVE TYPES ==========
     getLeaveTypes: async () => {
-        const response = await api.get('/leave-types');
-        return response.data.data;
+        try {
+            console.log('📡 Fetching leave types...');
+            const response = await api.get('/leave-types');
+            console.log('✅ Leave types fetched:', response.data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching leave types:', error);
+            throw error;
+        }
     },
 
     // ========== LEAVE BALANCE ==========
     getBalance: async (employeeId = null) => {
-        const params = employeeId ? { employee_id: employeeId } : {};
-        const response = await api.get('/leaves/balance', { params });
-        return response.data.data;
-    },
-
-    getAllBalances: async (params = {}) => {
-        const response = await api.get('/leaves/all-balances', { params });
-        return response.data.data;
-    },
-
-    getBalanceDetail: async (id) => {
-        const response = await api.get(`/leaves/balance/${id}`);
-        return response.data.data;
-    },
-
-    updateBalance: async (id, data) => {
-        const response = await api.put(`/leaves/balance/${id}`, data);
-        return response.data;
-    },
-
-    getBalanceHistory: async (employeeId) => {
-        const response = await api.get(`/leaves/balance/${employeeId}/history`);
-        return response.data.data;
-    },
-
-    generateBalance: async (employeeId = null) => {
-        const params = employeeId ? { employee_id: employeeId } : {};
-        const response = await api.post('/leaves/generate-balance', null, { params });
-        return response.data;
-    },
-
-    processCarryForward: async (year = null) => {
-        const params = year ? { year } : {};
-        const response = await api.post('/leaves/process-carry-forward', null, { params });
-        return response.data;
+        try {
+            const params = employeeId ? { employee_id: employeeId } : {};
+            console.log('📡 Fetching balance with params:', params);
+            const response = await api.get('/leaves/balance', { params });
+            console.log('✅ Balance fetched:', response.data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching balance:', error);
+            throw error;
+        }
     },
 
     // ========== LEAVE REQUESTS ==========
     getLeaves: async (params = {}) => {
-        const response = await api.get('/leaves', { params });
-        return response.data.data;
-    },
-
-    getLeave: async (id) => {
-        const response = await api.get(`/leaves/${id}`);
-        return response.data.data;
+        try {
+            console.log('📡 Fetching leaves with params:', params);
+            const response = await api.get('/leaves', { params });
+            console.log('✅ Leaves fetched:', response.data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching leaves:', error);
+            throw error;
+        }
     },
 
     getPendingLeaves: async (params = {}) => {
-        const response = await api.get('/leaves/pending', { params });
-        return response.data.data;
+        try {
+            console.log('📡 Fetching pending leaves with params:', params);
+            console.log('🔗 URL:', `/leaves/pending`);
+            
+            const response = await api.get('/leaves/pending', { params });
+            console.log('✅ Pending leaves fetched:', response.data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching pending leaves:', error);
+            console.error('❌ Error details:', {
+                message: error.message,
+                response: error.response,
+                config: error.config,
+            });
+            throw error;
+        }
+    },
+
+    getLeave: async (id) => {
+        try {
+            console.log('📡 Fetching leave:', id);
+            const response = await api.get(`/leaves/${id}`);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching leave:', error);
+            throw error;
+        }
     },
 
     createLeave: async (data) => {
-        const response = await api.post('/leaves', data);
-        return response.data.data;
+        try {
+            console.log('📡 Creating leave with data:', data);
+            const response = await api.post('/leaves', data);
+            console.log('✅ Leave created:', response.data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error creating leave:', error);
+            throw error;
+        }
     },
 
     approveLeave: async (id) => {
-        const response = await api.put(`/leaves/${id}/approve`);
-        return response.data;
+        try {
+            console.log('📡 Approving leave:', id);
+            const response = await api.put(`/leaves/${id}/approve`);
+            console.log('✅ Leave approved:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error approving leave:', error);
+            throw error;
+        }
     },
 
     rejectLeave: async (id, reason) => {
-        const response = await api.put(`/leaves/${id}/reject`, { reason });
-        return response.data;
+        try {
+            console.log('📡 Rejecting leave:', id);
+            const response = await api.put(`/leaves/${id}/reject`, { reason });
+            console.log('✅ Leave rejected:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error rejecting leave:', error);
+            throw error;
+        }
     },
 
     cancelLeave: async (id) => {
-        const response = await api.put(`/leaves/${id}/cancel`);
-        return response.data;
+        try {
+            console.log('📡 Cancelling leave:', id);
+            const response = await api.put(`/leaves/${id}/cancel`);
+            console.log('✅ Leave cancelled:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error cancelling leave:', error);
+            throw error;
+        }
     },
 
     // ========== REPLACEMENT LEAVES ==========
     getReplacements: async (params = {}) => {
-        const response = await api.get('/replacement-leaves', { params });
-        return response.data.data;
+        try {
+            console.log('📡 Fetching replacements with params:', params);
+            const response = await api.get('/replacement-leaves', { params });
+            console.log('✅ Replacements fetched:', response.data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching replacements:', error);
+            throw error;
+        }
     },
 
     getPendingReplacements: async (params = {}) => {
-        const response = await api.get('/replacement-leaves/pending', { params });
-        return response.data.data;
+        try {
+            console.log('📡 Fetching pending replacements with params:', params);
+            const response = await api.get('/replacement-leaves/pending', { params });
+            console.log('✅ Pending replacements fetched:', response.data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching pending replacements:', error);
+            throw error;
+        }
     },
 
     createReplacement: async (data) => {
-        const response = await api.post('/replacement-leaves', data);
-        return response.data.data;
+        try {
+            console.log('📡 Creating replacement with data:', data);
+            const response = await api.post('/replacement-leaves', data);
+            console.log('✅ Replacement created:', response.data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error creating replacement:', error);
+            throw error;
+        }
     },
 
     approveReplacement: async (id) => {
-        const response = await api.put(`/replacement-leaves/${id}/approve`);
-        return response.data;
+        try {
+            console.log('📡 Approving replacement:', id);
+            const response = await api.put(`/replacement-leaves/${id}/approve`);
+            console.log('✅ Replacement approved:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error approving replacement:', error);
+            throw error;
+        }
     },
 
     rejectReplacement: async (id, reason) => {
-        const response = await api.put(`/replacement-leaves/${id}/reject`, { reason });
-        return response.data;
+        try {
+            console.log('📡 Rejecting replacement:', id);
+            const response = await api.put(`/replacement-leaves/${id}/reject`, { reason });
+            console.log('✅ Replacement rejected:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error rejecting replacement:', error);
+            throw error;
+        }
     },
 
     cancelReplacement: async (id, reason) => {
-        const response = await api.put(`/replacement-leaves/${id}/cancel`, { reason });
-        return response.data;
+        try {
+            console.log('📡 Cancelling replacement:', id);
+            const response = await api.put(`/replacement-leaves/${id}/cancel`, { reason });
+            console.log('✅ Replacement cancelled:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error cancelling replacement:', error);
+            throw error;
+        }
     },
 };
 
