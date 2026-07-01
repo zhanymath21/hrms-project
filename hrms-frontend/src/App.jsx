@@ -1,4 +1,5 @@
 // src/App.jsx
+
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
@@ -10,11 +11,11 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { AuthProvider, useAuth } from './pages/contexts/AuthContext';
 import { EmployeeProvider } from './pages/contexts/EmployeeContext';
 import { AttendanceProvider } from './pages/contexts/AttendanceContext';
-import { LeaveProvider } from './pages/contexts/LeaveContext';
 import { NotificationProvider } from './pages/contexts/NotificationContext';
+import { LeaveProvider } from './pages/contexts/LeaveContext';
 import ProtectedRoute from './pages/components/ProtectedRoute';
 
-// Pages
+// Pages - Perbaiki path import
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import EmployeeList from './pages/employees/EmployeeList';
@@ -25,7 +26,15 @@ import Attendance from './pages/attendance/Attendance';
 import WorkSchedules from './pages/schedules/WorkSchedules';
 import OfficeLocations from './pages/locations/OfficeLocations';
 import AttendanceReport from './pages/reports/AttendanceReport';
-import Leave from './pages/leave/Leave';
+
+// Leave Pages - Perbaiki path (gunakan 'leaves' bukan 'leave')
+import LeaveList from './pages/leaves/LeaveList';
+import LeaveCreate from './pages/leaves/LeaveCreate';
+import LeaveBalance from './pages/leaves/LeaveBalance';
+import LeaveApproval from './pages/leaves/LeaveApproval';
+import LeaveDetail from './pages/leaves/LeaveDetail';
+import ReplacementLeave from './pages/leaves/ReplacementLeave';
+
 import DepartmentPage from './pages/Departments/DepartmentPage';
 import TurnoverPage from './pages/Turnover/TurnoverPage';
 import EmployeeAssetPage from './pages/EmployeeAssets/EmployeeAssetPage';
@@ -56,7 +65,7 @@ import LostTimeInjuryCreate from './pages/safety/LostTimeInjuryCreate';
 import LostTimeInjuryDetail from './pages/safety/LostTimeInjuryDetail';
 import LostTimeInjuryEdit from './pages/safety/LostTimeInjuryEdit';
 
-// ✅ Payroll Pages
+// Payroll Pages
 import PayrollList from './pages/payroll/PayrollList';
 import PayrollCreate from './pages/payroll/PayrollCreate';
 import PayrollDetail from './pages/payroll/PayrollDetail';
@@ -66,10 +75,9 @@ import TaxSettings from './pages/payroll/TaxSettings';
 import PayslipList from './pages/payroll/PayslipList';
 import ExchangeRateSettings from './pages/payroll/ExchangeRateSettings';
 
-
 import MainLayout from './layouts/MainLayout';
 
-// 🔥 THEME LENGKAP
+// Theme
 const theme = createTheme({
   palette: {
     primary: {
@@ -147,11 +155,11 @@ const theme = createTheme({
   },
 });
 
-// 🔥 ERROR BOUNDARY
+// Error Boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -159,17 +167,16 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('ERROR OBJECT:', error);
-    console.error('ERROR STACK:', error?.stack);
-    console.error('ERROR INFO:', errorInfo);
-    this.setState({ errorInfo });
+    console.error('ERROR:', error);
+    console.error('STACK:', error?.stack);
+    console.error('INFO:', errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ 
-          padding: '40px 20px', 
+        <div style={{
+          padding: '40px 20px',
           textAlign: 'center',
           minHeight: '100vh',
           display: 'flex',
@@ -182,7 +189,7 @@ class ErrorBoundary extends React.Component {
           <p style={{ color: '#64748b', maxWidth: 500 }}>
             {this.state.error?.message || 'An unexpected error occurred'}
           </p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             style={{
               marginTop: 20,
@@ -205,7 +212,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// 🔥 APP
+// App
 function App() {
   return (
     <ErrorBoundary>
@@ -225,9 +232,9 @@ function App() {
               </EmployeeProvider>
             </AuthProvider>
           </BrowserRouter>
-          <ToastContainer 
-            position="top-right" 
-            autoClose={3000} 
+          <ToastContainer
+            position="top-right"
+            autoClose={3000}
             hideProgressBar={false}
             newestOnTop
             closeOnClick
@@ -243,7 +250,7 @@ function App() {
   );
 }
 
-// 🔥 APP ROUTES
+// App Routes - FIXED
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
 
@@ -251,8 +258,8 @@ function AppRoutes() {
     <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
-      
-      {/* Protected Routes */}
+
+      {/* Protected Routes - SEMUA DALAM SATU Routes */}
       <Route path="/" element={
         <ProtectedRoute>
           <MainLayout>
@@ -260,7 +267,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/dashboard" element={
         <ProtectedRoute>
           <MainLayout>
@@ -268,7 +275,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       {/* ============ EMPLOYEE ROUTES ============ */}
       <Route path="/employees" element={
         <ProtectedRoute>
@@ -277,7 +284,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/employees/create" element={
         <ProtectedRoute>
           <MainLayout>
@@ -285,7 +292,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/employees/:id" element={
         <ProtectedRoute>
           <MainLayout>
@@ -293,11 +300,60 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/employees/:id/edit" element={
         <ProtectedRoute>
           <MainLayout>
             <EmployeeEdit />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* ============ LEAVE ROUTES - FIXED ============ */}
+      <Route path="/leaves" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveCreate />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/balance" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveBalance />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/approval" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveApproval />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/replacement" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ReplacementLeave />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/:id" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveDetail />
           </MainLayout>
         </ProtectedRoute>
       } />
@@ -319,7 +375,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-            
+
       {/* ============ DEPARTMENTS ============ */}
       <Route path="/departments" element={
         <ProtectedRoute>
@@ -328,7 +384,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       {/* ============ ATTENDANCE ============ */}
       <Route path="/attendance" element={
         <ProtectedRoute>
@@ -337,7 +393,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/attendance-report" element={
         <ProtectedRoute>
           <MainLayout>
@@ -345,7 +401,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/schedules" element={
         <ProtectedRoute>
           <MainLayout>
@@ -353,19 +409,11 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/locations" element={
         <ProtectedRoute>
           <MainLayout>
             <OfficeLocations />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-      
-      <Route path="/leave" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <Leave />
           </MainLayout>
         </ProtectedRoute>
       } />
@@ -387,7 +435,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ RECRUITMENT / CANDIDATE ============ */}
+      {/* ============ RECRUITMENT ============ */}
       <Route path="/candidates" element={
         <ProtectedRoute>
           <MainLayout>
@@ -395,7 +443,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/candidates/create" element={
         <ProtectedRoute>
           <MainLayout>
@@ -403,7 +451,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/candidates/:id" element={
         <ProtectedRoute>
           <MainLayout>
@@ -411,7 +459,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/candidates/:id/edit" element={
         <ProtectedRoute>
           <MainLayout>
@@ -419,7 +467,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/candidates/cv" element={
         <ProtectedRoute>
           <MainLayout>
@@ -427,7 +475,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/vacancies" element={
         <ProtectedRoute>
           <MainLayout>
@@ -435,7 +483,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/vacancies/create" element={
         <ProtectedRoute>
           <MainLayout>
@@ -443,7 +491,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/vacancies/:id/edit" element={
         <ProtectedRoute>
           <MainLayout>
@@ -451,7 +499,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/applications" element={
         <ProtectedRoute>
           <MainLayout>
@@ -467,6 +515,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
+
       <Route path="/applications/:id" element={
         <ProtectedRoute>
           <MainLayout>
@@ -474,7 +523,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       <Route path="/onboarding" element={
         <ProtectedRoute>
           <MainLayout>
@@ -589,6 +638,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
+
       <Route path="/payslips/:payrollId" element={
         <ProtectedRoute>
           <MainLayout>
@@ -604,6 +654,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
+
       <Route path="/exchange-rates" element={
         <ProtectedRoute>
           <MainLayout>
@@ -611,6 +662,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
+
       <Route path="/tax-settings" element={
         <ProtectedRoute>
           <MainLayout>
@@ -618,7 +670,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       {/* Settings */}
       <Route path="/settings" element={
         <ProtectedRoute>
@@ -627,7 +679,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       {/* Notifications */}
       <Route path="/notifications" element={
         <ProtectedRoute>
@@ -636,7 +688,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       {/* Profile */}
       <Route path="/profile" element={
         <ProtectedRoute>
@@ -645,7 +697,7 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
-      
+
       {/* Catch all - redirect to login */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

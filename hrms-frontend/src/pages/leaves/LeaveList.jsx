@@ -41,7 +41,7 @@ import {
     Visibility as VisibilityIcon,
     Block as BlockIcon,
 } from '@mui/icons-material';
-import { useLeave } from '../../contexts/LeaveContext';
+import { useLeave } from '../contexts/LeaveContext';
 import { useNavigate } from 'react-router-dom';
 import LeaveStatusBadge from '../../components/leaves/LeaveStatusBadge';
 import { formatDate } from '../../utils/dateFormat';

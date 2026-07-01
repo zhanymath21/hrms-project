@@ -17,7 +17,7 @@ import {
     IconButton,
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, Save as SaveIcon } from '@mui/icons-material';
-import { useLeave } from '../../contexts/LeaveContext';
+import { useLeave } from '../contexts/LeaveContext';
 import { useNavigate } from 'react-router-dom';
 import { DatePicker } from '@mui/x-date-pickers';
 import { format } from 'date-fns';

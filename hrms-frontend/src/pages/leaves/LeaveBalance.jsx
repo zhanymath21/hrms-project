@@ -6,7 +6,7 @@ import {
     Button, Card, CardContent, Paper
 } from '@mui/material';
 import { Refresh as RefreshIcon } from '@mui/icons-material';
-import { useLeave } from '../../contexts/LeaveContext';
+import { useLeave } from '../contexts/LeaveContext';
 import LeaveBalanceCard from '../../components/leaves/LeaveBalanceCard';
 
 const LeaveBalance = () => {
