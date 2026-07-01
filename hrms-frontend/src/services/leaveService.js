@@ -5,7 +5,7 @@ import api from './axios';
 const leaveService = {
     // ========== LEAVE TYPES ==========
     getLeaveTypes: async () => {
-        const response = await api.get('/leaves/types');
+        const response = await api.get('/leave-types');
         return response.data.data;
     },
 
@@ -18,6 +18,21 @@ const leaveService = {
 
     getAllBalances: async (params = {}) => {
         const response = await api.get('/leaves/all-balances', { params });
+        return response.data.data;
+    },
+
+    getBalanceDetail: async (id) => {
+        const response = await api.get(`/leaves/balance/${id}`);
+        return response.data.data;
+    },
+
+    updateBalance: async (id, data) => {
+        const response = await api.put(`/leaves/balance/${id}`, data);
+        return response.data;
+    },
+
+    getBalanceHistory: async (employeeId) => {
+        const response = await api.get(`/leaves/balance/${employeeId}/history`);
         return response.data.data;
     },
 

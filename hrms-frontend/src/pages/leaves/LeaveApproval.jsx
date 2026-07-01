@@ -24,8 +24,6 @@ import {
     DialogActions,
     TextField,
     Avatar,
-    Badge,
-    LinearProgress,
     Table,
     TableBody,
     TableCell,
@@ -79,24 +77,26 @@ const LeaveApproval = () => {
     const [selectedLeaveDetail, setSelectedLeaveDetail] = useState(null);
     const [showDetailDialog, setShowDetailDialog] = useState(false);
 
-    // Load data
+    // Load data - PAKAI SERVICE LANGSUNG
     const loadData = useCallback(async () => {
         setLoadingData(true);
         setError(null);
         try {
-            // Get pending leaves for approval
+            // Get pending leaves
             const pendingResult = await leaveService.getPendingLeaves();
-            setPendingLeaves(pendingResult?.data || []);
+            const pendingData = pendingResult?.data || [];
+            setPendingLeaves(pendingData);
             
             // Get all leaves with pending filter
             const allResult = await leaveService.getLeaves({ status: 'pending', per_page: 100 });
-            const allPending = allResult?.data || [];
+            const allData = allResult?.data || [];
+            setAllLeaves(allData);
             
             // Calculate stats
-            const total = allPending.length;
-            const pending = allPending.filter(l => l.status === 'pending').length;
-            const approved = allPending.filter(l => l.status === 'approved').length;
-            const rejected = allPending.filter(l => l.status === 'rejected').length;
+            const total = allData.length;
+            const pending = allData.filter(l => l.status === 'pending').length;
+            const approved = allData.filter(l => l.status === 'approved').length;
+            const rejected = allData.filter(l => l.status === 'rejected').length;
             
             setStats({
                 total,
@@ -104,9 +104,8 @@ const LeaveApproval = () => {
                 approved,
                 rejected,
             });
-            
-            setAllLeaves(allPending);
         } catch (err) {
+            console.error('Error loading approval data:', err);
             setError('Failed to load approval data: ' + err.message);
         } finally {
             setLoadingData(false);
@@ -157,25 +156,6 @@ const LeaveApproval = () => {
     const handleViewDetail = (leave) => {
         setSelectedLeaveDetail(leave);
         setShowDetailDialog(true);
-    };
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'pending': return 'warning';
-            case 'approved': return 'success';
-            case 'rejected': return 'error';
-            case 'cancelled': return 'default';
-            default: return 'default';
-        }
-    };
-
-    const getStatusIcon = (status) => {
-        switch (status) {
-            case 'pending': return <PendingIcon fontSize="small" />;
-            case 'approved': return <CheckCircleIcon fontSize="small" />;
-            case 'rejected': return <CancelIcon fontSize="small" />;
-            default: return <AccessTimeIcon fontSize="small" />;
-        }
     };
 
     const getTabData = () => {
@@ -521,7 +501,6 @@ const LeaveApproval = () => {
                 <DialogContent dividers>
                     {selectedLeaveDetail && (
                         <Grid container spacing={3}>
-                            {/* Employee Info */}
                             <Grid item xs={12} md={6}>
                                 <Paper variant="outlined" sx={{ p: 2 }}>
                                     <Typography variant="subtitle2" color="textSecondary" gutterBottom>
@@ -546,8 +525,6 @@ const LeaveApproval = () => {
                                     </Box>
                                 </Paper>
                             </Grid>
-
-                            {/* Leave Info */}
                             <Grid item xs={12} md={6}>
                                 <Paper variant="outlined" sx={{ p: 2 }}>
                                     <Typography variant="subtitle2" color="textSecondary" gutterBottom>
@@ -573,8 +550,6 @@ const LeaveApproval = () => {
                                     </Box>
                                 </Paper>
                             </Grid>
-
-                            {/* Date Range */}
                             <Grid item xs={12}>
                                 <Paper variant="outlined" sx={{ p: 2 }}>
                                     <Typography variant="subtitle2" color="textSecondary" gutterBottom>
@@ -597,8 +572,6 @@ const LeaveApproval = () => {
                                     </Box>
                                 </Paper>
                             </Grid>
-
-                            {/* Reason */}
                             <Grid item xs={12}>
                                 <Paper variant="outlined" sx={{ p: 2 }}>
                                     <Typography variant="subtitle2" color="textSecondary" gutterBottom>
@@ -607,48 +580,6 @@ const LeaveApproval = () => {
                                     <Typography variant="body2" sx={{ mt: 1 }}>
                                         {selectedLeaveDetail.reason || 'No reason provided'}
                                     </Typography>
-                                </Paper>
-                            </Grid>
-
-                            {/* Timeline */}
-                            <Grid item xs={12}>
-                                <Paper variant="outlined" sx={{ p: 2 }}>
-                                    <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                                        Timeline
-                                    </Typography>
-                                    <Stack spacing={1} mt={1}>
-                                        <Box display="flex" alignItems="center" gap={2}>
-                                            <CheckCircleIcon fontSize="small" color="success" />
-                                            <Box>
-                                                <Typography variant="body2">Request Created</Typography>
-                                                <Typography variant="caption" color="textSecondary">
-                                                    {formatDate(selectedLeaveDetail.created_at)}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                        {selectedLeaveDetail.approved_at && (
-                                            <Box display="flex" alignItems="center" gap={2}>
-                                                <CheckCircleIcon fontSize="small" color="success" />
-                                                <Box>
-                                                    <Typography variant="body2">Approved</Typography>
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        {formatDate(selectedLeaveDetail.approved_at)}
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                        )}
-                                        {selectedLeaveDetail.cancelled_at && (
-                                            <Box display="flex" alignItems="center" gap={2}>
-                                                <CancelIcon fontSize="small" color="warning" />
-                                                <Box>
-                                                    <Typography variant="body2">Cancelled</Typography>
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        {formatDate(selectedLeaveDetail.cancelled_at)}
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                        )}
-                                    </Stack>
                                 </Paper>
                             </Grid>
                         </Grid>

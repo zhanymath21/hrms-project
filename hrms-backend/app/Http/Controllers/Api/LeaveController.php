@@ -4,7 +4,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
 use App\Models\Leave;
 use App\Models\LeaveBalance;
 use App\Models\LeaveType;
@@ -13,10 +12,8 @@ use App\Services\Leave\LeaveService;
 use App\Services\Leave\LeaveBalanceService;
 use App\Services\Leave\ReplacementLeaveService;
 use App\Traits\ApiResponseTrait;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 
 class LeaveController extends Controller
@@ -46,7 +43,6 @@ class LeaveController extends Controller
             $types = LeaveType::where('is_active', true)->get();
             return $this->success($types, 'Leave types fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching leave types: ' . $e->getMessage());
             return $this->error('Failed to fetch leave types: ' . $e->getMessage(), 500);
         }
     }
@@ -58,7 +54,7 @@ class LeaveController extends Controller
     {
         try {
             $employeeId = $request->employee_id ?? $request->user()->id;
-            $employee = Employee::find($employeeId);
+            $employee = \App\Models\Employee::find($employeeId);
 
             if (!$employee) {
                 return $this->notFound('Employee not found');
@@ -71,37 +67,8 @@ class LeaveController extends Controller
                 ->with('leaveType')
                 ->get();
 
-            $yearsOfService = Carbon::parse($employee->hire_date)->diffInYears(Carbon::now());
-
-            $result = [
-                'balances' => $balances->map(function ($balance) use ($yearsOfService) {
-                    return [
-                        'id' => $balance->id,
-                        'leave_type_id' => $balance->leave_type_id,
-                        'leave_type' => $balance->leaveType->name ?? 'Unknown',
-                        'leave_code' => $balance->leaveType->code ?? 'N/A',
-                        'base_entitlement' => $balance->base_entitlement ?? 0,
-                        'seniority_bonus' => $balance->seniority_bonus ?? 0,
-                        'carry_forward' => $balance->carry_forward ?? 0,
-                        'replacement_days' => $balance->replacement_days ?? 0,
-                        'total_entitlement' => $balance->total_entitlement ?? 0,
-                        'used_days' => $balance->used_days ?? 0,
-                        'pending_days' => $balance->pending_days ?? 0,
-                        'remaining_days' => $balance->remaining_days ?? 0,
-                        'years_of_service' => $yearsOfService,
-                    ];
-                }),
-                'employee' => [
-                    'id' => $employee->id,
-                    'name' => $employee->first_name . ' ' . $employee->last_name,
-                    'hire_date' => $employee->hire_date,
-                    'years_of_service' => $yearsOfService,
-                ],
-            ];
-
-            return $this->success($result, 'Leave balance fetched');
+            return $this->success($balances, 'Leave balance fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching balance: ' . $e->getMessage());
             return $this->error('Failed to load balance: ' . $e->getMessage(), 500);
         }
     }
@@ -112,7 +79,7 @@ class LeaveController extends Controller
     public function allBalances(Request $request): JsonResponse
     {
         try {
-            $query = Employee::with([
+            $query = \App\Models\Employee::with([
                 'department:id,name',
                 'leaveBalances' => function ($query) {
                     $query->where('year', date('Y'))->with('leaveType:id,name,code');
@@ -135,13 +102,8 @@ class LeaveController extends Controller
             $perPage = $request->input('per_page', 20);
             $employees = $query->paginate($perPage);
 
-            foreach ($employees as $employee) {
-                $employee->years_of_service = Carbon::parse($employee->hire_date)->diffInYears(Carbon::now());
-            }
-
             return $this->success($employees, 'All balances fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching all balances: ' . $e->getMessage());
             return $this->error('Failed to fetch balances: ' . $e->getMessage(), 500);
         }
     }
@@ -184,7 +146,6 @@ class LeaveController extends Controller
 
             return $this->success($leaves, 'Leaves fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching leaves: ' . $e->getMessage());
             return $this->error('Failed to fetch leaves: ' . $e->getMessage(), 500);
         }
     }
@@ -208,7 +169,6 @@ class LeaveController extends Controller
 
             return $this->success($leave, 'Leave details fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching leave: ' . $e->getMessage());
             return $this->error('Failed to fetch leave details: ' . $e->getMessage(), 500);
         }
     }
@@ -219,7 +179,7 @@ class LeaveController extends Controller
     public function store(Request $request): JsonResponse
     {
         try {
-            $validator = Validator::make($request->all(), [
+            $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
                 'leave_type_id' => 'required|exists:leave_types,id',
                 'start_date' => 'required|date|after_or_equal:today',
                 'end_date' => 'required|date|after_or_equal:start_date',
@@ -231,17 +191,10 @@ class LeaveController extends Controller
             }
 
             $employee = $request->user();
-
-            if (!$employee) {
-                return $this->error('User not authenticated', 401);
-            }
-
-            $this->balanceService->ensureBalanceExists($employee);
             $leave = $this->leaveService->createLeave($employee, $request->all());
 
             return $this->success($leave->load('leaveType'), 'Leave request submitted!', 201);
         } catch (\Exception $e) {
-            Log::error('Error creating leave: ' . $e->getMessage());
             return $this->error('Failed to submit leave: ' . $e->getMessage(), 500);
         }
     }
@@ -268,7 +221,6 @@ class LeaveController extends Controller
 
             return $this->success(null, 'Leave approved successfully');
         } catch (\Exception $e) {
-            Log::error('Error approving leave: ' . $e->getMessage());
             return $this->error('Failed to approve: ' . $e->getMessage(), 500);
         }
     }
@@ -291,7 +243,6 @@ class LeaveController extends Controller
 
             return $this->success(null, 'Leave rejected successfully');
         } catch (\Exception $e) {
-            Log::error('Error rejecting leave: ' . $e->getMessage());
             return $this->error('Failed to reject: ' . $e->getMessage(), 500);
         }
     }
@@ -314,17 +265,18 @@ class LeaveController extends Controller
 
             return $this->success(null, 'Leave cancelled successfully');
         } catch (\Exception $e) {
-            Log::error('Error cancelling leave: ' . $e->getMessage());
             return $this->error('Failed to cancel: ' . $e->getMessage(), 500);
         }
     }
 
     /**
-     * Get pending leave requests - INI YANG DIPANGGIL
+     * Get pending leave requests - INI METHOD YANG DIPANGGIL
      */
     public function pendingRequests(Request $request): JsonResponse
     {
         try {
+            Log::info('📋 Fetching pending leave requests');
+
             $query = Leave::with([
                 'employee:id,first_name,last_name,employee_id,department_id,manager_id',
                 'employee.department:id,name',
@@ -338,9 +290,11 @@ class LeaveController extends Controller
             $perPage = $request->input('per_page', 15);
             $leaves = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
+            Log::info('✅ Pending requests fetched: ' . $leaves->total());
+
             return $this->success($leaves, 'Pending requests fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching pending requests: ' . $e->getMessage());
+            Log::error('❌ Error fetching pending requests: ' . $e->getMessage());
             return $this->error('Failed to fetch pending requests: ' . $e->getMessage(), 500);
         }
     }
@@ -352,7 +306,7 @@ class LeaveController extends Controller
     {
         try {
             $employeeId = $request->employee_id ?? $request->user()->id;
-            $employee = Employee::find($employeeId);
+            $employee = \App\Models\Employee::find($employeeId);
 
             if (!$employee) {
                 return $this->notFound('Employee not found');
@@ -362,7 +316,6 @@ class LeaveController extends Controller
 
             return $this->success(null, 'Leave balance generated successfully');
         } catch (\Exception $e) {
-            Log::error('Error generating balance: ' . $e->getMessage());
             return $this->error('Failed to generate balance: ' . $e->getMessage(), 500);
         }
     }
@@ -381,7 +334,6 @@ class LeaveController extends Controller
                 "Processed {$processed} employees for carry forward from {$year} to " . ($year + 1)
             );
         } catch (\Exception $e) {
-            Log::error('Error processing carry forward: ' . $e->getMessage());
             return $this->error('Failed to process carry forward: ' . $e->getMessage(), 500);
         }
     }
@@ -411,7 +363,6 @@ class LeaveController extends Controller
 
             return $this->success($replacements, 'Replacement leaves fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching replacement leaves: ' . $e->getMessage());
             return $this->error('Failed to fetch replacement leaves: ' . $e->getMessage(), 500);
         }
     }
@@ -433,7 +384,6 @@ class LeaveController extends Controller
 
             return $this->success($replacements, 'Pending replacements fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching pending replacements: ' . $e->getMessage());
             return $this->error('Failed to fetch pending replacements: ' . $e->getMessage(), 500);
         }
     }
@@ -441,7 +391,7 @@ class LeaveController extends Controller
     public function requestReplacement(Request $request): JsonResponse
     {
         try {
-            $validator = Validator::make($request->all(), [
+            $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
                 'work_date' => 'required|date',
                 'work_day_type' => 'required|in:weekend,public_holiday',
                 'hours_worked' => 'required|integer|min:1|max:12',
@@ -462,7 +412,6 @@ class LeaveController extends Controller
                 201
             );
         } catch (\Exception $e) {
-            Log::error('Error requesting replacement: ' . $e->getMessage());
             return $this->error($e->getMessage(), 422);
         }
     }
@@ -489,7 +438,6 @@ class LeaveController extends Controller
                 "Replacement approved! +{$replacement->days_to_add} day(s) added to Annual Leave."
             );
         } catch (\Exception $e) {
-            Log::error('Error approving replacement: ' . $e->getMessage());
             return $this->error('Failed to approve: ' . $e->getMessage(), 500);
         }
     }
@@ -507,7 +455,6 @@ class LeaveController extends Controller
 
             return $this->success(null, 'Replacement leave rejected');
         } catch (\Exception $e) {
-            Log::error('Error rejecting replacement: ' . $e->getMessage());
             return $this->error('Failed to reject: ' . $e->getMessage(), 500);
         }
     }
@@ -527,7 +474,6 @@ class LeaveController extends Controller
 
             return $this->success(null, 'Replacement request cancelled');
         } catch (\Exception $e) {
-            Log::error('Error cancelling replacement: ' . $e->getMessage());
             return $this->error($e->getMessage(), 422);
         }
     }
