@@ -49,7 +49,6 @@ Route::get('/test', fn() => response()->json([
 // ==========================================
 Route::post('/login', [AuthController::class, 'login']);
 
-
 // Card attendance (no auth required)
 Route::post('/attendance/card/check-in', [AttendanceController::class, 'checkInWithCard']);
 Route::post('/attendance/card/check-out', [AttendanceController::class, 'checkOutWithCard']);
@@ -108,16 +107,16 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/departments', [DepartmentController::class, 'index']);
     Route::get('/departments/{id}', [DepartmentController::class, 'show']);
     Route::get('/departments/{id}/positions', [DepartmentController::class, 'positions']);
-    Route::post('/departments', [DepartmentController::class, 'store']);      // ✅ CREATE
-    Route::put('/departments/{id}', [DepartmentController::class, 'update']);  // ✅ UPDATE
-    Route::delete('/departments/{id}', [DepartmentController::class, 'destroy']); // ✅ DELETE
+    Route::post('/departments', [DepartmentController::class, 'store']);
+    Route::put('/departments/{id}', [DepartmentController::class, 'update']);
+    Route::delete('/departments/{id}', [DepartmentController::class, 'destroy']);
 
     // Positions
     Route::get('/positions', [PositionController::class, 'index']);
     Route::get('/positions/{id}', [PositionController::class, 'show']);
-    Route::post('/positions', [PositionController::class, 'store']);          // ✅ CREATE - INI YANG HILANG
-    Route::put('/positions/{id}', [PositionController::class, 'update']);     // ✅ UPDATE
-    Route::delete('/positions/{id}', [PositionController::class, 'destroy']); // ✅ DELETE
+    Route::post('/positions', [PositionController::class, 'store']);
+    Route::put('/positions/{id}', [PositionController::class, 'update']);
+    Route::delete('/positions/{id}', [PositionController::class, 'destroy']);
 
     // Attendance
     Route::post('/attendance/check-in', [AttendanceController::class, 'checkIn']);
@@ -138,37 +137,30 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/current-schedule', [WorkScheduleController::class, 'getCurrentSchedule']);
     Route::delete('/employee-schedules/{id}', [WorkScheduleController::class, 'removeAssignment']);
 
-
-    Route::get('/leaves/balance', [LeaveController::class, 'balance']);  // Get my balance
-    Route::get('/leaves/all-balances', [LeaveController::class, 'allBalances']); // Admin view all
-    Route::get('/leaves/balance/{id}', [LeaveController::class, 'getBalanceDetail']); // Get single balance by ID
-    Route::put('/leaves/balance/{id}', [LeaveController::class, 'updateBalance']); // Update balance
-    Route::get('/leaves/balance/{employeeId}/history', [LeaveController::class, 'getAdjustmentHistory']);
-    Route::get('/leaves/{id}', [LeaveController::class, 'show']);
-
-
     // Leaves
     Route::get('/leaves', [LeaveController::class, 'index']);
     Route::post('/leaves', [LeaveController::class, 'store']);
     Route::get('/leaves/balance', [LeaveController::class, 'balance']);
-    Route::get('/leaves/all-balances', [LeaveController::class, 'allBalances']); // Admin only
+    Route::get('/leaves/all-balances', [LeaveController::class, 'allBalances']);
     Route::get('/leave-types', [LeaveController::class, 'leaveTypes']);
     Route::put('/leaves/{id}/approve', [LeaveController::class, 'approve']);
     Route::put('/leaves/{id}/reject', [LeaveController::class, 'reject']);
     Route::get('/leaves/pending', [LeaveController::class, 'pendingRequests']);
     Route::post('/leaves/generate-balance', [LeaveController::class, 'generateBalance']);
-
+    Route::get('/leaves/balance/{id}', [LeaveController::class, 'getBalanceDetail']);
+    Route::put('/leaves/balance/{id}', [LeaveController::class, 'updateBalance']);
+    Route::get('/leaves/balance/{employeeId}/history', [LeaveController::class, 'getAdjustmentHistory']);
+    Route::get('/leaves/{id}', [LeaveController::class, 'show']);
+    Route::put('/leaves/{id}/cancel', [LeaveController::class, 'cancel']);
+    Route::post('/leaves/process-carry-forward', [LeaveController::class, 'processCarryForward']);
 
     // Replacement Leave
     Route::get('/replacement-leaves', [LeaveController::class, 'replacementList']);
     Route::post('/replacement-leaves', [LeaveController::class, 'requestReplacement']);
     Route::put('/replacement-leaves/{id}/approve', [LeaveController::class, 'approveReplacement']);
     Route::put('/replacement-leaves/{id}/reject', [LeaveController::class, 'rejectReplacement']);
-    Route::put('/leaves/{id}/cancel', [LeaveController::class, 'cancel']);
-    Route::post('/leaves/process-carry-forward', [LeaveController::class, 'processCarryForward']);
     Route::get('/replacement-leaves/pending', [LeaveController::class, 'pendingReplacements']);
     Route::put('/replacement-leaves/{id}/cancel', [LeaveController::class, 'cancelReplacement']);
-
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -207,7 +199,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/ppe/{id}/history', [PPEController::class, 'history']);
     Route::post('/ppe', [PPEController::class, 'store']);
     Route::put('/ppe/{id}', [PPEController::class, 'update']);
-
     Route::delete('/ppe/{id}', [PPEController::class, 'destroy']);
     Route::post('/ppe/{id}/assign', [PPEController::class, 'assign']);
     Route::post('/ppe/{id}/return', [PPEController::class, 'return']);
@@ -224,7 +215,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/ppe/import', [PPEImportController::class, 'import']);
 
     // ==========================================
-    // 🔥 RECRUITMENT ROUTES - Ikuti Format Leaves
+    // 🔥 RECRUITMENT ROUTES
     // ==========================================
 
     // Candidates
@@ -276,40 +267,31 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/onboarding/{id}/tasks', [OnboardingController::class, 'updateTasks']);
     Route::put('/onboarding/{id}/tasks/{taskIndex}/toggle', [OnboardingController::class, 'toggleTask']);
 
+    // Incident Reports
     Route::get('/incident-reports', [IncidentReportController::class, 'index']);
     Route::get('/incident-reports/stats', [IncidentReportController::class, 'stats']);
     Route::post('/incident-reports', [IncidentReportController::class, 'store']);
     Route::get('/incident-reports/{id}', [IncidentReportController::class, 'show']);
     Route::put('/incident-reports/{id}', [IncidentReportController::class, 'update']);
-    Route::delete('/incident-reports/{id}', [IncidentReportController::class, 'destroy']); // ✅ FIXED: changed 'incindent' to 'incident'
-
-    // Status Management
+    Route::delete('/incident-reports/{id}', [IncidentReportController::class, 'destroy']);
     Route::put('/incident-reports/{id}/status', [IncidentReportController::class, 'updateStatus']);
     Route::get('/incident-reports/{id}/history', [IncidentReportController::class, 'getStatusHistory']);
-
-    // Approval Flow
     Route::post('/incident-reports/{id}/approval-flow', [IncidentReportController::class, 'setApprovalFlow']);
     Route::put('/incident-reports/{id}/approve/{managerLevel}', [IncidentReportController::class, 'managerApprove']);
 
-    // Recruitment Dashboard
-    Route::get('/recruitment/dashboard', [CandidateController::class, 'dashboard']);
-    Route::get('/recruitment/pipeline', [CandidateController::class, 'pipeline']);
-    Route::get('/recruitment/metrics', [CandidateController::class, 'metrics']);
-    Route::get('/recruitment/status-options', [CandidateController::class, 'statusOptions']);
-    Route::get('/recruitment/document-types', [CandidateController::class, 'documentTypes']);
-
+    // Lost Time Injuries
     Route::get('/lost-time-injuries', [LostTimeInjuryController::class, 'index']);
     Route::get('/lost-time-injuries/stats', [LostTimeInjuryController::class, 'stats']);
     Route::post('/lost-time-injuries', [LostTimeInjuryController::class, 'store']);
     Route::get('/lost-time-injuries/{id}', [LostTimeInjuryController::class, 'show']);
     Route::put('/lost-time-injuries/{id}', [LostTimeInjuryController::class, 'update']);
     Route::delete('/lost-time-injuries/{id}', [LostTimeInjuryController::class, 'destroy']);
-
     Route::put('/lost-time-injuries/{id}/status', [LostTimeInjuryController::class, 'updateStatus']);
     Route::get('/lost-time-injuries/{id}/history', [LostTimeInjuryController::class, 'getStatusHistory']);
     Route::post('/lost-time-injuries/{id}/approval-flow', [LostTimeInjuryController::class, 'setApprovalFlow']);
     Route::put('/lost-time-injuries/{id}/approve/{managerLevel}', [LostTimeInjuryController::class, 'managerApprove']);
 
+    // Payroll
     Route::get('/payroll', [PayrollController::class, 'index']);
     Route::get('/payroll/stats', [PayrollController::class, 'stats']);
     Route::post('/payroll', [PayrollController::class, 'store']);
@@ -318,6 +300,7 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/payroll/{id}/status', [PayrollController::class, 'updateStatus']);
     Route::delete('/payroll/{id}', [PayrollController::class, 'destroy']);
 
+    // Payslips
     Route::get('/payslips', [PayslipController::class, 'index']);
     Route::post('/payslips/generate/{payrollPeriodId}', [PayslipController::class, 'generate']);
     Route::get('/payslips/{id}', [PayslipController::class, 'show']);
@@ -325,12 +308,14 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/payslips/{id}', [PayslipController::class, 'destroy']);
     Route::get('/payslips/employee/{employeeId}/summary', [PayslipController::class, 'employeeSummary']);
 
+    // Employee Salary Settings
     Route::get('/employee-salary-settings', [EmployeeSalarySettingController::class, 'index']);
     Route::get('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'show']);
     Route::post('/employee-salary-settings', [EmployeeSalarySettingController::class, 'store']);
     Route::put('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'update']);
     Route::delete('/employee-salary-settings/{employeeId}', [EmployeeSalarySettingController::class, 'destroy']);
 
+    // Tax Settings
     Route::get('/tax-settings', [TaxSettingController::class, 'index']);
     Route::get('/tax-settings/active', [TaxSettingController::class, 'active']);
     Route::post('/tax-settings/calculate', [TaxSettingController::class, 'calculate']);
@@ -340,15 +325,24 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/tax-settings/{id}', [TaxSettingController::class, 'destroy']);
     Route::post('/tax-settings/{id}/activate', [TaxSettingController::class, 'activate']);
 
+    // Exchange Rates - FIXED: changed 'exchange-ratess' to 'exchange-rates'
     Route::get('/exchange-rates', [ExchangeRateController::class, 'index']);
     Route::get('/exchange-rates/active', [ExchangeRateController::class, 'active']);
     Route::post('/exchange-rates/convert', [ExchangeRateController::class, 'convert']);
     Route::post('/exchange-rates', [ExchangeRateController::class, 'store']);
-    Route::put('/exchange-ratess/{id}', [ExchangeRateController::class, 'update']);
-    Route::delete('/exchange-ratess/{id}', [ExchangeRateController::class, 'destroy']);
+    Route::put('/exchange-rates/{id}', [ExchangeRateController::class, 'update']);
+    Route::delete('/exchange-rates/{id}', [ExchangeRateController::class, 'destroy']);
 
+    // Payroll Adjustments
     Route::get('/payroll-adjustments/{id}', [PayrollAdjustmentController::class, 'show']);
     Route::post('/payroll-adjustments/{id}/adjust', [PayrollAdjustmentController::class, 'adjust']);
     Route::post('/payroll-adjustments/{id}/clear', [PayrollAdjustmentController::class, 'clear']);
     Route::get('/payroll-adjustments/employee/{employeeId}/history', [PayrollAdjustmentController::class, 'history']);
+
+    // Recruitment Dashboard
+    Route::get('/recruitment/dashboard', [CandidateController::class, 'dashboard']);
+    Route::get('/recruitment/pipeline', [CandidateController::class, 'pipeline']);
+    Route::get('/recruitment/metrics', [CandidateController::class, 'metrics']);
+    Route::get('/recruitment/status-options', [CandidateController::class, 'statusOptions']);
+    Route::get('/recruitment/document-types', [CandidateController::class, 'documentTypes']);
 });
