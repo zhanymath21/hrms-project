@@ -40,11 +40,12 @@ class LeaveBalanceController extends Controller
 
             // If no leave types exist, create default ones
             if ($leaveTypes->isEmpty()) {
+                Log::info('No leave types found, creating defaults');
                 $this->balanceService->createDefaultLeaveTypes();
                 $leaveTypes = LeaveType::where('is_active', true)->get();
             }
 
-            // Build employee query
+            // Build employee query - FIX: Don't use whereHas, just get all active employees
             $employeesQuery = Employee::with([
                 'department:id,name,code',
                 'leaveBalances' => function ($query) use ($leaveTypes, $year) {
@@ -73,7 +74,12 @@ class LeaveBalanceController extends Controller
 
             // Pagination
             $perPage = $request->input('per_page', 20);
+
+            // FIX: Ensure we're getting employees
+            Log::info('Fetching employees with query');
             $employees = $employeesQuery->paginate($perPage);
+
+            Log::info('Found ' . $employees->count() . ' employees');
 
             // If no employees found, return empty result
             if ($employees->isEmpty()) {
@@ -92,6 +98,13 @@ class LeaveBalanceController extends Controller
 
             // Format response to match frontend expectations
             $result = $employees->map(function ($employee) use ($leaveTypes, $year) {
+                // Ensure balance exists for each employee
+                try {
+                    $this->balanceService->ensureBalanceExists($employee);
+                } catch (\Exception $e) {
+                    Log::warning('Could not ensure balance for employee ' . $employee->id . ': ' . $e->getMessage());
+                }
+
                 return $this->formatEmployeeBalance($employee, $leaveTypes, $year);
             });
 
