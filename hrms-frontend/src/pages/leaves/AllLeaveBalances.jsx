@@ -118,16 +118,18 @@ const AllLeaveBalances = () => {
             if (search) params.search = search;
             if (departmentFilter) params.department_id = departmentFilter;
 
+            // 🔥 PAKAI getAllBalances DARI leaveService
             const response = await leaveService.getAllBalances(params);
-            const data = response.data || response;
             
-            const employeesData = data?.data || [];
+            // Response sudah berbentuk { data: [], pagination: {} }
+            const employeesData = response?.data || [];
             setEmployees(employeesData);
+            
             setPagination({
-                current_page: data?.pagination?.current_page || 1,
-                per_page: data?.pagination?.per_page || 20,
-                total: data?.pagination?.total || 0,
-                last_page: data?.pagination?.last_page || 1,
+                current_page: response?.pagination?.current_page || 1,
+                per_page: response?.pagination?.per_page || 20,
+                total: response?.pagination?.total || 0,
+                last_page: response?.pagination?.last_page || 1,
             });
 
             // Calculate stats
@@ -155,7 +157,11 @@ const AllLeaveBalances = () => {
         }
     };
 
-    const handleRefresh = () => loadData();
+    const handleRefresh = () => {
+        loadData();
+        setSuccess('Data refreshed successfully!');
+        setTimeout(() => setSuccess(null), 3000);
+    };
 
     const handleSearch = (e) => {
         setSearch(e.target.value);
@@ -175,14 +181,19 @@ const AllLeaveBalances = () => {
 
     // ========== EDIT BALANCE ==========
     const handleOpenEdit = (employee, leaveType, balance) => {
+        if (!balance || !balance.id) {
+            alert('Balance not found for this employee');
+            return;
+        }
+
         setEditDialog({
             open: true,
             balanceId: balance.id,
             employeeName: employee.name,
             leaveType: leaveType.name,
             leaveCode: leaveType.code,
-            currentRemaining: balance.remaining,
-            newTotal: balance.total,
+            currentRemaining: balance.remaining || 0,
+            newTotal: balance.total || 0,
             adjustmentReason: '',
             isLoading: false,
         });
@@ -208,11 +219,16 @@ const AllLeaveBalances = () => {
             return;
         }
 
+        if (editDialog.newTotal < 0) {
+            alert('Total entitlement cannot be negative');
+            return;
+        }
+
         setEditDialog({ ...editDialog, isLoading: true });
         setError(null);
 
         try {
-            await api.put(`/employees/leave-balance/${editDialog.balanceId}`, {
+            await leaveService.updateBalance(editDialog.balanceId, {
                 total_entitlement: editDialog.newTotal,
                 adjustment_reason: editDialog.adjustmentReason,
             });
@@ -229,6 +245,7 @@ const AllLeaveBalances = () => {
         }
     };
 
+    // ========== HELPER FUNCTIONS ==========
     const getStatusColor = (remaining, total) => {
         const percentage = total > 0 ? (remaining / total) * 100 : 0;
         if (percentage <= 20) return 'error';
@@ -247,11 +264,12 @@ const AllLeaveBalances = () => {
         if (!name) return '?';
         const parts = name.split(' ');
         if (parts.length >= 2) {
-            return parts[0][0] + parts[1][0];
+            return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
         }
         return name.substring(0, 2).toUpperCase();
     };
 
+    // ========== RENDER ==========
     if (loading && employees.length === 0) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -406,6 +424,17 @@ const AllLeaveBalances = () => {
                             startIcon={<ClearIcon />}
                         >
                             Clear
+                        </Button>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            color="primary"
+                            startIcon={<FileDownloadIcon />}
+                            disabled={employees.length === 0}
+                        >
+                            Export
                         </Button>
                     </Grid>
                 </Grid>

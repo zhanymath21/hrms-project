@@ -9,22 +9,57 @@ const leaveService = {
         return response.data.data;
     },
 
-    // ========== LEAVE BALANCE - GUNAKAN ROUTE YANG SUDAH ADA ==========
+    // ========== LEAVE BALANCE ==========
     getMyBalance: async () => {
-        // 🔥 Gunakan route dari LeaveController yang sudah ada
-        const response = await api.get('/leaves/balance');
+        const response = await api.get('/employees/my-leave-balance');
         return response.data.data;
     },
 
     getEmployeeBalance: async (employeeId) => {
-        // 🔥 Gunakan route dari LeaveController
-        const response = await api.get(`/leaves/balance?employee_id=${employeeId}`);
+        const response = await api.get(`/employees/${employeeId}/leave-balance`);
         return response.data.data;
     },
 
+    // 🔥 PERBAIKI INI - Gunakan route yang benar
     getAllBalances: async (params = {}) => {
-        // 🔥 Gunakan route dari LeaveController
-        const response = await api.get('/leaves/all-balances', { params });
+        const response = await api.get('/employees/leave-balances', { params });
+        return response.data.data;
+    },
+
+    getBalanceDetail: async (id) => {
+        const response = await api.get(`/employees/leave-balance/${id}`);
+        return response.data.data;
+    },
+
+    updateBalance: async (id, data) => {
+        const response = await api.put(`/employees/leave-balance/${id}`, data);
+        return response.data;
+    },
+
+    getAdjustmentHistory: async (employeeId) => {
+        const response = await api.get(`/employees/leave-balance/${employeeId}/history`);
+        return response.data.data;
+    },
+
+    generateBalance: async (employeeId = null) => {
+        const data = employeeId ? { employee_id: employeeId } : {};
+        const response = await api.post('/employees/generate-balance', data);
+        return response.data;
+    },
+
+    generateAllBalances: async () => {
+        const response = await api.post('/employees/generate-all-balances');
+        return response.data;
+    },
+
+    processCarryForward: async (year = null) => {
+        const data = year ? { year } : {};
+        const response = await api.post('/employees/process-carry-forward', data);
+        return response.data;
+    },
+
+    getBalanceSummary: async (params = {}) => {
+        const response = await api.get('/employees/leave-balance-summary', { params });
         return response.data.data;
     },
 
@@ -61,18 +96,6 @@ const leaveService = {
 
     cancelLeave: async (id) => {
         const response = await api.put(`/leaves/${id}/cancel`);
-        return response.data;
-    },
-
-    generateBalance: async (employeeId = null) => {
-        const data = employeeId ? { employee_id: employeeId } : {};
-        const response = await api.post('/leaves/generate-balance', data);
-        return response.data;
-    },
-
-    processCarryForward: async (year = null) => {
-        const data = year ? { year } : {};
-        const response = await api.post('/leaves/process-carry-forward', data);
         return response.data;
     },
 
