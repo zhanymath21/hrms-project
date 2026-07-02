@@ -1,5 +1,5 @@
 <?php
-// database/migrations/xxxx_xx_xx_create_leave_tables.php
+// database/migrations/2026_07_02_111914_create_leave_table.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -44,7 +44,7 @@ return new class extends Migration
             $table->timestamp('adjusted_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['employee_id', 'leave_type_id', 'year']);
+            $table->unique(['employee_id', 'leave_type_id', 'year'], 'lb_employee_type_year_unique');
         });
 
         // 3. Leave Requests
@@ -78,7 +78,8 @@ return new class extends Migration
             $table->timestamp('approved_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['leave_id', 'approver_id']);
+            // 🔥 PERBAIKI - NAMA UNIQUE LEBIH PENDEK
+            $table->unique(['leave_id', 'approver_id'], 'la_leave_approver_unique');
         });
 
         // 5. Leave Approval Flows
@@ -138,7 +139,8 @@ return new class extends Migration
             $table->timestamp('approved_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['replacement_leave_id', 'approver_id']);
+            // 🔥 PERBAIKI - NAMA UNIQUE LEBIH PENDEK
+            $table->unique(['replacement_leave_id', 'approver_id'], 'rla_leave_approver_unique');
         });
 
         // 9. Replacement Approval Flows
