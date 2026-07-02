@@ -27,24 +27,6 @@ class LeaveBalanceController extends Controller
     /**
      * Get all employees leave balances (Admin/HR only)
      * GET /api/employees/leave-balance
-     * 
-     * Expected response format for frontend:
-     * {
-     *   status: 'success',
-     *   data: [
-     *     {
-     *       id, employee_id, name, email,
-     *       department: { id, name, code },
-     *       hire_date, years_of_service,
-     *       leave_balances: [...],
-     *       annual_leave: { id, total, used, pending, remaining },
-     *       sick_leave: { id, total, used, pending, remaining },
-     *       special_leave: { id, total, used, pending, remaining },
-     *       summary: { total_entitlement, used_days, pending_days, remaining_days }
-     *     }
-     *   ],
-     *   pagination: { current_page, per_page, total, last_page }
-     * }
      */
     public function allBalances(Request $request): JsonResponse
     {
@@ -58,7 +40,8 @@ class LeaveBalanceController extends Controller
 
             // If no leave types exist, create default ones
             if ($leaveTypes->isEmpty()) {
-                $leaveTypes = $this->createDefaultLeaveTypes();
+                $this->balanceService->createDefaultLeaveTypes();
+                $leaveTypes = LeaveType::where('is_active', true)->get();
             }
 
             // Build employee query
@@ -92,6 +75,21 @@ class LeaveBalanceController extends Controller
             $perPage = $request->input('per_page', 20);
             $employees = $employeesQuery->paginate($perPage);
 
+            // If no employees found, return empty result
+            if ($employees->isEmpty()) {
+                Log::info('No active employees found');
+                return response()->json([
+                    'status' => 'success',
+                    'data' => [],
+                    'pagination' => [
+                        'current_page' => 1,
+                        'per_page' => (int) $perPage,
+                        'total' => 0,
+                        'last_page' => 1,
+                    ],
+                ]);
+            }
+
             // Format response to match frontend expectations
             $result = $employees->map(function ($employee) use ($leaveTypes, $year) {
                 return $this->formatEmployeeBalance($employee, $leaveTypes, $year);
@@ -99,10 +97,10 @@ class LeaveBalanceController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data' => $result,
+                'data' => $result->values(),
                 'pagination' => [
                     'current_page' => $employees->currentPage(),
-                    'per_page' => $employees->perPage(),
+                    'per_page' => (int) $employees->perPage(),
                     'total' => $employees->total(),
                     'last_page' => $employees->lastPage(),
                 ],
@@ -225,9 +223,6 @@ class LeaveBalanceController extends Controller
                 $balance->remaining_days = max(0, $newRemaining);
                 $balance->save();
 
-                // Log the adjustment (if you have a log model)
-                // $this->logAdjustment($balance, $oldTotal, $oldRemaining, $user);
-
                 DB::commit();
 
                 return response()->json([
@@ -235,6 +230,8 @@ class LeaveBalanceController extends Controller
                     'message' => 'Leave balance updated successfully',
                     'data' => [
                         'id' => $balance->id,
+                        'employee_name' => $balance->employee->first_name . ' ' . $balance->employee->last_name,
+                        'leave_type' => $balance->leaveType->name,
                         'old_remaining' => $oldRemaining,
                         'new_remaining' => $balance->remaining_days,
                         'old_total' => $oldTotal,
@@ -265,7 +262,7 @@ class LeaveBalanceController extends Controller
     {
         try {
             $balance = LeaveBalance::with([
-                'employee:id,first_name,last_name,employee_id,email',
+                'employee:id,first_name,last_name,employee_id,email,hire_date',
                 'leaveType:id,name,code,description',
                 'adjustedBy:id,first_name,last_name'
             ])->find($id);
@@ -284,6 +281,10 @@ class LeaveBalanceController extends Controller
                     'employee' => $balance->employee,
                     'leave_type' => $balance->leaveType,
                     'year' => $balance->year,
+                    'base_entitlement' => (float) $balance->base_entitlement,
+                    'seniority_bonus' => (float) $balance->seniority_bonus,
+                    'carry_forward' => (float) $balance->carry_forward,
+                    'replacement_days' => (float) $balance->replacement_days,
                     'total_entitlement' => (float) $balance->total_entitlement,
                     'used_days' => (float) $balance->used_days,
                     'pending_days' => (float) $balance->pending_days,
@@ -328,6 +329,18 @@ class LeaveBalanceController extends Controller
             }
 
             $leaveTypes = LeaveType::where('is_active', true)->get();
+
+            // Ensure balance exists
+            $this->balanceService->ensureBalanceExists($employee);
+
+            // Refresh employee to get updated balances
+            $employee->load([
+                'leaveBalances' => function ($query) {
+                    $query->where('year', date('Y'))
+                        ->with('leaveType:id,name,code');
+                }
+            ]);
+
             $formattedEmployee = $this->formatEmployeeBalance($employee, $leaveTypes, date('Y'));
 
             return response()->json([
@@ -417,7 +430,7 @@ class LeaveBalanceController extends Controller
             }
 
             $year = $request->input('year', date('Y'));
-            $this->balanceService->ensureBalanceExists($employee, $year);
+            $this->balanceService->ensureBalanceExists($employee);
 
             return response()->json([
                 'status' => 'success',
@@ -452,11 +465,11 @@ class LeaveBalanceController extends Controller
 
             foreach ($employees as $employee) {
                 try {
-                    $this->balanceService->ensureBalanceExists($employee, $year);
+                    $this->balanceService->ensureBalanceExists($employee);
                     $count++;
                 } catch (\Exception $e) {
                     $failed++;
-                    $errors[] = "Employee ID {$employee->id}: " . $e->getMessage();
+                    $errors[] = "Employee ID {$employee->id} ({$employee->first_name} {$employee->last_name}): " . $e->getMessage();
                     Log::error('Failed for employee ' . $employee->id . ': ' . $e->getMessage());
                 }
             }
@@ -490,7 +503,6 @@ class LeaveBalanceController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'year' => 'sometimes|integer|min:2000|max:2100',
-                'max_carry_forward' => 'sometimes|numeric|min:0',
             ]);
 
             if ($validator->fails()) {
@@ -502,9 +514,8 @@ class LeaveBalanceController extends Controller
             }
 
             $year = $request->input('year', date('Y') - 1);
-            $maxCarryForward = $request->input('max_carry_forward', 30);
 
-            $processed = $this->balanceService->processCarryForward($year, $maxCarryForward);
+            $processed = $this->balanceService->processCarryForward($year);
 
             return response()->json([
                 'status' => 'success',
@@ -513,7 +524,6 @@ class LeaveBalanceController extends Controller
                     'from_year' => $year,
                     'to_year' => $year + 1,
                     'employees_processed' => $processed,
-                    'max_carry_forward' => $maxCarryForward,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -540,6 +550,7 @@ class LeaveBalanceController extends Controller
                 return response()->json([
                     'status' => 'success',
                     'data' => [],
+                    'year' => $year,
                 ]);
             }
 
@@ -597,6 +608,19 @@ class LeaveBalanceController extends Controller
 
         foreach ($leaveTypes as $leaveType) {
             $balance = $employee->leaveBalances->firstWhere('leave_type_id', $leaveType->id);
+
+            // If balance doesn't exist, create a default one
+            if (!$balance) {
+                $balance = new LeaveBalance([
+                    'employee_id' => $employee->id,
+                    'leave_type_id' => $leaveType->id,
+                    'year' => $year,
+                    'total_entitlement' => 0,
+                    'used_days' => 0,
+                    'pending_days' => 0,
+                    'remaining_days' => 0,
+                ]);
+            }
 
             $balanceItem = [
                 'id' => $balance->id ?? null,
@@ -656,9 +680,9 @@ class LeaveBalanceController extends Controller
 
         return [
             'id' => $employee->id,
-            'employee_id' => $employee->employee_id,
-            'name' => $employee->first_name . ' ' . $employee->last_name,
-            'email' => $employee->email,
+            'employee_id' => $employee->employee_id ?? 'N/A',
+            'name' => ($employee->first_name ?? '') . ' ' . ($employee->last_name ?? ''),
+            'email' => $employee->email ?? '',
             'department' => [
                 'id' => $employee->department->id ?? null,
                 'name' => $employee->department->name ?? 'N/A',
@@ -673,28 +697,5 @@ class LeaveBalanceController extends Controller
             'special_leave' => $specialLeave,
             'summary' => $summary,
         ];
-    }
-
-    /**
-     * Create default leave types if none exist
-     */
-    private function createDefaultLeaveTypes(): \Illuminate\Database\Eloquent\Collection
-    {
-        $defaultTypes = [
-            ['code' => 'AL', 'name' => 'Annual Leave', 'description' => 'Annual paid leave', 'is_active' => true],
-            ['code' => 'SL', 'name' => 'Sick Leave', 'description' => 'Sick leave with medical certificate', 'is_active' => true],
-            ['code' => 'SPL', 'name' => 'Special Leave', 'description' => 'Special paid leave', 'is_active' => true],
-        ];
-
-        $created = [];
-        foreach ($defaultTypes as $type) {
-            $leaveType = LeaveType::firstOrCreate(
-                ['code' => $type['code']],
-                $type
-            );
-            $created[] = $leaveType;
-        }
-
-        return collect($created);
     }
 }
