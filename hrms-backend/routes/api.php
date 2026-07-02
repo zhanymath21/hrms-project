@@ -2,32 +2,29 @@
 // routes/api.php
 
 use App\Http\Controllers\Api\ApplicationController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\DepartmentController;
-use App\Http\Controllers\Api\PositionController;
-use App\Http\Controllers\Api\EmployeeController;
-use App\Http\Controllers\Api\EmployeeCardController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\CandidateController;
-use App\Http\Controllers\Api\WorkScheduleController;
 use App\Http\Controllers\Api\DailyReportController;
+use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\EmployeeAssetController;
+use App\Http\Controllers\Api\EmployeeCardController;
+use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\EmployeeDocumentController;
 use App\Http\Controllers\Api\EmployeeOfficeController;
 use App\Http\Controllers\Api\EmployeeSalarySettingController;
 use App\Http\Controllers\Api\ExchangeRateController;
 use App\Http\Controllers\Api\IncidentReportController;
-use App\Http\Controllers\Api\OfficeLocationController;
-use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LeaveBalanceController;
+use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LostTimeInjuryController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PayrollAdjustmentController;
 use App\Http\Controllers\Api\PayrollController;
 use App\Http\Controllers\Api\PayslipController;
+use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\PPECategoryController;
 use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\PPEExportController;
@@ -36,9 +33,17 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TaxSettingController;
 use App\Http\Controllers\Api\TurnoverReportController;
 use App\Http\Controllers\Api\VacancyController;
+use App\Http\Controllers\Api\WorkScheduleController;
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
 // ==========================================
-// TEST
+// TEST ROUTE
 // ==========================================
 Route::get('/test', fn() => response()->json([
     'status' => 'success',
@@ -47,100 +52,118 @@ Route::get('/test', fn() => response()->json([
 ]));
 
 // ==========================================
-// PUBLIC
+// PUBLIC ROUTES (No authentication required)
 // ==========================================
 Route::post('/login', [AuthController::class, 'login']);
 
-// Card attendance (no auth required)
-Route::post('/attendance/card/check-in', [AttendanceController::class, 'checkInWithCard']);
-Route::post('/attendance/card/check-out', [AttendanceController::class, 'checkOutWithCard']);
+// Card attendance
+Route::prefix('attendance/card')->group(function () {
+    Route::post('/check-in', [AttendanceController::class, 'checkInWithCard']);
+    Route::post('/check-out', [AttendanceController::class, 'checkOutWithCard']);
+});
 
-// Export CSV
-Route::get('/export/leaves', [ReportController::class, 'exportLeaveCSV']);
-Route::get('/export/attendance/daily', [ReportController::class, 'exportDailyAttendanceCSV']);
-Route::get('/export/attendance/monthly', [ReportController::class, 'exportMonthlyAttendanceCSV']);
+// Public exports
+Route::prefix('export')->group(function () {
+    Route::get('/leaves', [ReportController::class, 'exportLeaveCSV']);
+    Route::get('/attendance/daily', [ReportController::class, 'exportDailyAttendanceCSV']);
+    Route::get('/attendance/monthly', [ReportController::class, 'exportMonthlyAttendanceCSV']);
+});
+
+// PPE Export
 Route::get('/ppe/export', [PPEExportController::class, 'export']);
 
-Route::get('/employees/export', [EmployeeController::class, 'export'])->name('employees.export');
-Route::post('/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
-Route::get('/employees/import/template', [EmployeeController::class, 'downloadTemplate'])->name('employees.template');
+// Employee imports/exports
+Route::prefix('employees')->group(function () {
+    Route::get('/export', [EmployeeController::class, 'export'])->name('employees.export');
+    Route::post('/import', [EmployeeController::class, 'import'])->name('employees.import');
+    Route::get('/import/template', [EmployeeController::class, 'downloadTemplate'])->name('employees.template');
+});
 
 // ==========================================
-// PROTECTED
+// PROTECTED ROUTES (Authentication required)
 // ==========================================
 Route::middleware('auth:api')->group(function () {
 
     // ==========================================
-    // AUTH
+    // AUTH & PROFILE
     // ==========================================
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/profile', [AuthController::class, 'profile']);
-
-    // ==========================================
-    // REPORTS - TURNOVER
-    // ==========================================
-    Route::prefix('reports/turnover')->group(function () {
-        Route::get('/', [TurnoverReportController::class, 'stats']);
-        Route::get('/resigned', [TurnoverReportController::class, 'resigned']);
-        Route::get('/by-department', [TurnoverReportController::class, 'byDepartment']);
-        Route::get('/by-month', [TurnoverReportController::class, 'byMonth']);
-        Route::get('/summary', [TurnoverReportController::class, 'summary']);
+    Route::prefix('auth')->group(function () {
+        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/profile', [AuthController::class, 'profile']);
     });
 
     // ==========================================
-    // EMPLOYEES
+    // EMPLOYEE MANAGEMENT
     // ==========================================
-    Route::apiResource('employees', EmployeeController::class);
-    Route::put('/employees/{id}/card', [EmployeeCardController::class, 'assignCard']);
-    Route::delete('/employees/{id}/card', [EmployeeCardController::class, 'removeCard']);
+    Route::prefix('employees')->group(function () {
+        // CRUD - Must come AFTER specific routes to avoid conflicts
+        Route::get('/', [EmployeeController::class, 'index']);
+        Route::post('/', [EmployeeController::class, 'store']);
+        Route::get('/{id}', [EmployeeController::class, 'show']);
+        Route::put('/{id}', [EmployeeController::class, 'update']);
+        Route::delete('/{id}', [EmployeeController::class, 'destroy']);
 
-    // Employee Assets
-    Route::prefix('employee-assets')->group(function () {
-        Route::get('/', [EmployeeAssetController::class, 'index']);
-        Route::get('/{id}', [EmployeeAssetController::class, 'show']);
-        Route::post('/assign', [EmployeeAssetController::class, 'assign']);
-        Route::post('/{id}/return', [EmployeeAssetController::class, 'return']);
-        Route::post('/replace', [EmployeeAssetController::class, 'replace']);
-        Route::get('/history/{employeeId}', [EmployeeAssetController::class, 'history']);
+        // Card management
+        Route::put('/{id}/card', [EmployeeCardController::class, 'assignCard']);
+        Route::delete('/{id}/card', [EmployeeCardController::class, 'removeCard']);
+
+        // ==========================================
+        // LEAVE BALANCE MANAGEMENT
+        // ==========================================
+        Route::prefix('leave-balance')->group(function () {
+            // Employee own balance
+            Route::get('/my', [LeaveBalanceController::class, 'myBalance']);
+
+            // Admin/HR operations
+            Route::get('/', [LeaveBalanceController::class, 'allBalances']);
+            Route::get('/summary', [LeaveBalanceController::class, 'getBalanceSummary']);
+            Route::get('/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
+            Route::put('/{id}', [LeaveBalanceController::class, 'updateBalance']);
+            Route::get('/{employeeId}/history', [LeaveBalanceController::class, 'getAdjustmentHistory']);
+
+            // Bulk operations
+            Route::post('/generate', [LeaveBalanceController::class, 'generateBalance']);
+            Route::post('/generate-all', [LeaveBalanceController::class, 'generateAllBalances']);
+            Route::post('/carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
+        });
     });
 
-    // Employee Documents
-    Route::prefix('employees/{employeeId}/documents')->group(function () {
-        Route::get('/', [EmployeeDocumentController::class, 'index']);
-        Route::post('/', [EmployeeDocumentController::class, 'store']);
-    });
-    Route::delete('/employee-documents/{id}', [EmployeeDocumentController::class, 'destroy']);
-
-    // Employee Office Assignments
-    Route::prefix('employee-offices')->group(function () {
-        Route::get('/', [EmployeeOfficeController::class, 'getEmployeeOffices']);
-        Route::post('/assign', [EmployeeOfficeController::class, 'assignOffice']);
-        Route::delete('/{id}', [EmployeeOfficeController::class, 'removeOffice']);
-    });
-    Route::get('/office/{id}/employees', [EmployeeOfficeController::class, 'getOfficeEmployees']);
-
-    // ==========================================
-    // DEPARTMENTS
-    // ==========================================
-    Route::prefix('departments')->group(function () {
-        Route::get('/', [DepartmentController::class, 'index']);
-        Route::get('/{id}', [DepartmentController::class, 'show']);
-        Route::get('/{id}/positions', [DepartmentController::class, 'positions']);
-        Route::post('/', [DepartmentController::class, 'store']);
-        Route::put('/{id}', [DepartmentController::class, 'update']);
-        Route::delete('/{id}', [DepartmentController::class, 'destroy']);
+    // Employee-specific routes (outside the main employees prefix to avoid conflicts)
+    Route::prefix('employees')->group(function () {
+        // These need to come AFTER the leave-balance routes
+        Route::get('/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
     });
 
     // ==========================================
-    // POSITIONS
+    // LEAVE REQUESTS
     // ==========================================
-    Route::prefix('positions')->group(function () {
-        Route::get('/', [PositionController::class, 'index']);
-        Route::get('/{id}', [PositionController::class, 'show']);
-        Route::post('/', [PositionController::class, 'store']);
-        Route::put('/{id}', [PositionController::class, 'update']);
-        Route::delete('/{id}', [PositionController::class, 'destroy']);
+    Route::prefix('leaves')->group(function () {
+        Route::get('/', [LeaveController::class, 'index']);
+        Route::get('/pending', [LeaveController::class, 'pendingRequests']);
+        Route::get('/types', [LeaveController::class, 'leaveTypes']);
+        Route::get('/{id}', [LeaveController::class, 'show']);
+        Route::post('/', [LeaveController::class, 'store']);
+        Route::put('/{id}/approve', [LeaveController::class, 'approve']);
+        Route::put('/{id}/reject', [LeaveController::class, 'reject']);
+        Route::put('/{id}/cancel', [LeaveController::class, 'cancel']);
     });
+
+    // ==========================================
+    // REPLACEMENT LEAVES
+    // ==========================================
+    Route::prefix('replacement-leaves')->group(function () {
+        Route::get('/', [LeaveController::class, 'replacementList']);
+        Route::get('/pending', [LeaveController::class, 'pendingReplacements']);
+        Route::post('/', [LeaveController::class, 'requestReplacement']);
+        Route::put('/{id}/approve', [LeaveController::class, 'approveReplacement']);
+        Route::put('/{id}/reject', [LeaveController::class, 'rejectReplacement']);
+        Route::put('/{id}/cancel', [LeaveController::class, 'cancelReplacement']);
+    });
+
+    // ==========================================
+    // PUBLIC HOLIDAYS
+    // ==========================================
+    Route::get('/public-holidays', [LeaveController::class, 'publicHolidays']);
 
     // ==========================================
     // ATTENDANCE
@@ -154,7 +177,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==========================================
-    // SCHEDULES
+    // WORK SCHEDULES
     // ==========================================
     Route::prefix('schedules')->group(function () {
         Route::get('/', [WorkScheduleController::class, 'index']);
@@ -170,73 +193,27 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==========================================
-    // LEAVE MANAGEMENT
+    // DEPARTMENTS
     // ==========================================
-
-    // Leave Types
-    Route::get('/leave-types', [LeaveController::class, 'leaveTypes']);
-
-    Route::prefix('employees')->group(function () {
-        // Employee can view their own balance
-        Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
-
-        // Admin/HR only
-        Route::get('/leave-balances', [LeaveBalanceController::class, 'allBalances']);
-        Route::get('/leave-balance/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
-        Route::put('/leave-balance/{id}', [LeaveBalanceController::class, 'updateBalance']);
-        Route::get('/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
-        Route::get('/leave-balance/{employeeId}/history', [LeaveBalanceController::class, 'getAdjustmentHistory']);
-        Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
-        Route::post('/generate-all-balances', [LeaveBalanceController::class, 'generateAllBalances']);
-        Route::post('/process-carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
-        Route::get('/leave-balance-summary', [LeaveBalanceController::class, 'getBalanceSummary']);
+    Route::prefix('departments')->group(function () {
+        Route::get('/', [DepartmentController::class, 'index']);
+        Route::post('/', [DepartmentController::class, 'store']);
+        Route::get('/{id}', [DepartmentController::class, 'show']);
+        Route::get('/{id}/positions', [DepartmentController::class, 'positions']);
+        Route::put('/{id}', [DepartmentController::class, 'update']);
+        Route::delete('/{id}', [DepartmentController::class, 'destroy']);
     });
 
     // ==========================================
-    // 3. LEAVE REQUESTS
+    // POSITIONS
     // ==========================================
-    Route::prefix('leaves')->group(function () {
-        // Leave Requests CRUD
-        Route::get('/', [LeaveController::class, 'index']);
-        Route::get('/pending', [LeaveController::class, 'pendingRequests']);
-        Route::get('/{id}', [LeaveController::class, 'show']);
-        Route::post('/', [LeaveController::class, 'store']);
-        Route::put('/{id}/approve', [LeaveController::class, 'approve']);
-        Route::put('/{id}/reject', [LeaveController::class, 'reject']);
-        Route::put('/{id}/cancel', [LeaveController::class, 'cancel']);
+    Route::prefix('positions')->group(function () {
+        Route::get('/', [PositionController::class, 'index']);
+        Route::post('/', [PositionController::class, 'store']);
+        Route::get('/{id}', [PositionController::class, 'show']);
+        Route::put('/{id}', [PositionController::class, 'update']);
+        Route::delete('/{id}', [PositionController::class, 'destroy']);
     });
-
-    // ==========================================
-    // 4. REPLACEMENT LEAVES
-    // ==========================================
-    Route::prefix('replacement-leaves')->group(function () {
-        Route::get('/', [LeaveController::class, 'replacementList']);
-        Route::get('/pending', [LeaveController::class, 'pendingReplacements']);
-        Route::post('/', [LeaveController::class, 'requestReplacement']);
-        Route::put('/{id}/approve', [LeaveController::class, 'approveReplacement']);
-        Route::put('/{id}/reject', [LeaveController::class, 'rejectReplacement']);
-        Route::put('/{id}/cancel', [LeaveController::class, 'cancelReplacement']);
-    });
-
-    // Public Holidays
-    Route::get('/public-holidays', [LeaveController::class, 'publicHolidays']);
-
-    // ==========================================
-    // NOTIFICATIONS
-    // ==========================================
-    Route::prefix('notifications')->group(function () {
-        Route::get('/', [NotificationController::class, 'index']);
-        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
-        Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
-        Route::put('/read-all', [NotificationController::class, 'markAllAsRead']);
-    });
-
-    // ==========================================
-    // DAILY REPORT
-    // ==========================================
-    Route::get('/daily-report', [DailyReportController::class, 'dailyReport']);
-    Route::put('/attendance/{id}', [DailyReportController::class, 'updateAttendance']);
-    Route::put('/attendance-session/{id}', [DailyReportController::class, 'updateSession']);
 
     // ==========================================
     // OFFICE LOCATIONS
@@ -251,13 +228,88 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==========================================
+    // EMPLOYEE ASSETS
+    // ==========================================
+    Route::prefix('employee-assets')->group(function () {
+        Route::get('/', [EmployeeAssetController::class, 'index']);
+        Route::get('/{id}', [EmployeeAssetController::class, 'show']);
+        Route::post('/assign', [EmployeeAssetController::class, 'assign']);
+        Route::post('/{id}/return', [EmployeeAssetController::class, 'return']);
+        Route::post('/replace', [EmployeeAssetController::class, 'replace']);
+        Route::get('/history/{employeeId}', [EmployeeAssetController::class, 'history']);
+    });
+
+    // ==========================================
+    // EMPLOYEE DOCUMENTS
+    // ==========================================
+    Route::prefix('employees/{employeeId}/documents')->group(function () {
+        Route::get('/', [EmployeeDocumentController::class, 'index']);
+        Route::post('/', [EmployeeDocumentController::class, 'store']);
+    });
+    Route::delete('/employee-documents/{id}', [EmployeeDocumentController::class, 'destroy']);
+
+    // ==========================================
+    // EMPLOYEE OFFICE ASSIGNMENTS
+    // ==========================================
+    Route::prefix('employee-offices')->group(function () {
+        Route::get('/', [EmployeeOfficeController::class, 'getEmployeeOffices']);
+        Route::post('/assign', [EmployeeOfficeController::class, 'assignOffice']);
+        Route::delete('/{id}', [EmployeeOfficeController::class, 'removeOffice']);
+    });
+    Route::get('/office/{id}/employees', [EmployeeOfficeController::class, 'getOfficeEmployees']);
+
+    // ==========================================
+    // EMPLOYEE SALARY SETTINGS
+    // ==========================================
+    Route::prefix('employee-salary-settings')->group(function () {
+        Route::get('/', [EmployeeSalarySettingController::class, 'index']);
+        Route::get('/{employeeId}', [EmployeeSalarySettingController::class, 'show']);
+        Route::post('/', [EmployeeSalarySettingController::class, 'store']);
+        Route::put('/{employeeId}', [EmployeeSalarySettingController::class, 'update']);
+        Route::delete('/{employeeId}', [EmployeeSalarySettingController::class, 'destroy']);
+    });
+
+    // ==========================================
+    // NOTIFICATIONS
+    // ==========================================
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::put('/read-all', [NotificationController::class, 'markAllAsRead']);
+    });
+
+    // ==========================================
+    // DAILY REPORT
+    // ==========================================
+    Route::prefix('daily-report')->group(function () {
+        Route::get('/', [DailyReportController::class, 'dailyReport']);
+        Route::put('/attendance/{id}', [DailyReportController::class, 'updateAttendance']);
+        Route::put('/attendance-session/{id}', [DailyReportController::class, 'updateSession']);
+    });
+
+    // ==========================================
     // REPORTS
     // ==========================================
     Route::prefix('reports')->group(function () {
+        // Leave reports
         Route::get('/leaves', [ReportController::class, 'leaveReport']);
         Route::get('/leave-balance', [ReportController::class, 'leaveBalanceReport']);
-        Route::get('/attendance/daily', [ReportController::class, 'dailyAttendance']);
-        Route::get('/attendance/monthly', [ReportController::class, 'monthlyAttendance']);
+
+        // Attendance reports
+        Route::prefix('attendance')->group(function () {
+            Route::get('/daily', [ReportController::class, 'dailyAttendance']);
+            Route::get('/monthly', [ReportController::class, 'monthlyAttendance']);
+        });
+
+        // Turnover reports
+        Route::prefix('turnover')->group(function () {
+            Route::get('/', [TurnoverReportController::class, 'stats']);
+            Route::get('/resigned', [TurnoverReportController::class, 'resigned']);
+            Route::get('/by-department', [TurnoverReportController::class, 'byDepartment']);
+            Route::get('/by-month', [TurnoverReportController::class, 'byMonth']);
+            Route::get('/summary', [TurnoverReportController::class, 'summary']);
+        });
     });
 
     // ==========================================
@@ -265,17 +317,19 @@ Route::middleware('auth:api')->group(function () {
     // ==========================================
     Route::prefix('ppe')->group(function () {
         // Categories
-        Route::get('/categories', [PPECategoryController::class, 'index']);
-        Route::get('/categories/{id}', [PPECategoryController::class, 'show']);
-        Route::post('/categories', [PPECategoryController::class, 'store']);
-        Route::put('/categories/{id}', [PPECategoryController::class, 'update']);
-        Route::delete('/categories/{id}', [PPECategoryController::class, 'destroy']);
+        Route::prefix('categories')->group(function () {
+            Route::get('/', [PPECategoryController::class, 'index']);
+            Route::post('/', [PPECategoryController::class, 'store']);
+            Route::get('/{id}', [PPECategoryController::class, 'show']);
+            Route::put('/{id}', [PPECategoryController::class, 'update']);
+            Route::delete('/{id}', [PPECategoryController::class, 'destroy']);
+        });
 
         // Items
         Route::get('/', [PPEController::class, 'index']);
+        Route::post('/', [PPEController::class, 'store']);
         Route::get('/{id}', [PPEController::class, 'show']);
         Route::get('/{id}/history', [PPEController::class, 'history']);
-        Route::post('/', [PPEController::class, 'store']);
         Route::put('/{id}', [PPEController::class, 'update']);
         Route::delete('/{id}', [PPEController::class, 'destroy']);
         Route::post('/{id}/assign', [PPEController::class, 'assign']);
@@ -287,8 +341,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/stats', [PPEController::class, 'stats']);
 
         // Import/Export
-        Route::get('/import/template', [PPEImportController::class, 'downloadTemplate']);
-        Route::post('/import', [PPEImportController::class, 'import']);
+        Route::prefix('import')->group(function () {
+            Route::get('/template', [PPEImportController::class, 'downloadTemplate']);
+            Route::post('/', [PPEImportController::class, 'import']);
+        });
     });
 
     // ==========================================
@@ -419,17 +475,6 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==========================================
-    // EMPLOYEE SALARY SETTINGS
-    // ==========================================
-    Route::prefix('employee-salary-settings')->group(function () {
-        Route::get('/', [EmployeeSalarySettingController::class, 'index']);
-        Route::get('/{employeeId}', [EmployeeSalarySettingController::class, 'show']);
-        Route::post('/', [EmployeeSalarySettingController::class, 'store']);
-        Route::put('/{employeeId}', [EmployeeSalarySettingController::class, 'update']);
-        Route::delete('/{employeeId}', [EmployeeSalarySettingController::class, 'destroy']);
-    });
-
-    // ==========================================
     // TAX SETTINGS
     // ==========================================
     Route::prefix('tax-settings')->group(function () {
@@ -467,7 +512,7 @@ Route::middleware('auth:api')->group(function () {
 });
 
 // ==========================================
-// FALLBACK
+// FALLBACK ROUTE
 // ==========================================
 Route::fallback(function () {
     return response()->json([
