@@ -84,7 +84,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 4. FETCH MY BALANCE =====
+    // ===== 4. FETCH MY BALANCE - PAKAI ROUTE YANG SUDAH ADA =====
     const fetchMyBalance = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -102,7 +102,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 5. FETCH EMPLOYEE BALANCE (HR/Admin) =====
+    // ===== 5. FETCH EMPLOYEE BALANCE =====
     const fetchEmployeeBalance = useCallback(async (employeeId) => {
         setLoading(true);
         setError(null);
@@ -120,7 +120,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 6. FETCH ALL BALANCES (HR/Admin) =====
+    // ===== 6. FETCH ALL BALANCES =====
     const fetchAllBalances = useCallback(async (params = {}) => {
         setLoading(true);
         setError(null);
@@ -137,7 +137,16 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 7. CREATE LEAVE =====
+    // ===== 7. FETCH BALANCES (UNIFIED) =====
+    const fetchBalances = useCallback(async (employeeId = null) => {
+        if (employeeId) {
+            return await fetchEmployeeBalance(employeeId);
+        } else {
+            return await fetchMyBalance();
+        }
+    }, [fetchMyBalance, fetchEmployeeBalance]);
+
+    // ===== 8. CREATE LEAVE =====
     const createLeave = useCallback(async (data) => {
         setLoading(true);
         setError(null);
@@ -156,7 +165,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 8. APPROVE LEAVE =====
+    // ===== 9. APPROVE LEAVE =====
     const approveLeave = useCallback(async (id) => {
         setLoading(true);
         setError(null);
@@ -175,7 +184,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 9. REJECT LEAVE =====
+    // ===== 10. REJECT LEAVE =====
     const rejectLeave = useCallback(async (id, reason) => {
         setLoading(true);
         setError(null);
@@ -194,7 +203,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 10. CANCEL LEAVE =====
+    // ===== 11. CANCEL LEAVE =====
     const cancelLeave = useCallback(async (id) => {
         setLoading(true);
         setError(null);
@@ -212,15 +221,6 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves]);
 
-    // ===== 11. FETCH BALANCES (UNIFIED) =====
-    const fetchBalances = useCallback(async (employeeId = null) => {
-        if (employeeId) {
-            return await fetchEmployeeBalance(employeeId);
-        } else {
-            return await fetchMyBalance();
-        }
-    }, [fetchMyBalance, fetchEmployeeBalance]);
-
     // ===== VALUE =====
     const value = {
         // States
@@ -236,7 +236,7 @@ export const LeaveProvider = ({ children }) => {
         fetchLeaveTypes,
         fetchLeaves,
         fetchPendingLeaves,
-        fetchBalances,        // 🔥 UNIFIED
+        fetchBalances,
         fetchMyBalance,
         fetchEmployeeBalance,
         fetchAllBalances,
