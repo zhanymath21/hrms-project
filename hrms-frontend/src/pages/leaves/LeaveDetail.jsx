@@ -33,7 +33,7 @@ import {
     Business as BusinessIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useLeave } from '../contexts/LeaveContext';
+import { useLeave } from '../../contexts/LeaveContext';
 import LeaveStatusBadge from '../../components/leaves/LeaveStatusBadge';
 import { formatDate } from '../../utils/dateFormat';
 import leaveService from '../../services/leaveService';

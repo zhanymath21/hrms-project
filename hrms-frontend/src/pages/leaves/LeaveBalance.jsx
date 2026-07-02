@@ -1,12 +1,19 @@
 // src/pages/leaves/LeaveBalance.jsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    Box, Typography, Grid, CircularProgress, Alert,
-    Button, Card, CardContent, Paper
+    Box,
+    Typography,
+    Grid,
+    Paper,
+    Button,
+    CircularProgress,
+    Alert,
+    Card,
+    CardContent,
 } from '@mui/material';
 import { Refresh as RefreshIcon } from '@mui/icons-material';
-import { useLeave } from '../contexts/LeaveContext';
+import { useLeave } from '../../contexts/LeaveContext';
 import LeaveBalanceCard from '../../components/leaves/LeaveBalanceCard';
 
 const LeaveBalance = () => {
@@ -14,13 +21,22 @@ const LeaveBalance = () => {
     const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
-        fetchBalances();
+        loadBalances();
     }, []);
 
-    const handleRefresh = async () => {
+    const loadBalances = async () => {
         setRefreshing(true);
-        await fetchBalances();
-        setRefreshing(false);
+        try {
+            await fetchBalances(); // 🔥 PAKAI fetchBalances
+        } catch (err) {
+            console.error('Error loading balances:', err);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
+    const handleRefresh = () => {
+        loadBalances();
     };
 
     if (loading && !refreshing) {
@@ -33,7 +49,6 @@ const LeaveBalance = () => {
 
     return (
         <Box>
-            {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h4" fontWeight="bold">
                     📊 Leave Balance
@@ -54,61 +69,61 @@ const LeaveBalance = () => {
                 </Alert>
             )}
 
-            {/* Summary Card */}
-            <Paper sx={{ p: 3, mb: 3 }}>
-                <Grid container spacing={2}>
-                    <Grid item xs={6} md={3}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">
-                                    Total Entitlement
-                                </Typography>
-                                <Typography variant="h4">
-                                    {balances.reduce((sum, b) => sum + (b.total_entitlement || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
+            {balances.length > 0 && (
+                <Paper sx={{ p: 3, mb: 3 }}>
+                    <Grid container spacing={2}>
+                        <Grid item xs={6} md={3}>
+                            <Card>
+                                <CardContent>
+                                    <Typography color="textSecondary" variant="body2">
+                                        Total Entitlement
+                                    </Typography>
+                                    <Typography variant="h4">
+                                        {balances.reduce((sum, b) => sum + (b.total_entitlement || 0), 0)}
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                            <Card>
+                                <CardContent>
+                                    <Typography color="textSecondary" variant="body2">
+                                        Used
+                                    </Typography>
+                                    <Typography variant="h4" color="error.main">
+                                        {balances.reduce((sum, b) => sum + (b.used_days || 0), 0)}
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                            <Card>
+                                <CardContent>
+                                    <Typography color="textSecondary" variant="body2">
+                                        Pending
+                                    </Typography>
+                                    <Typography variant="h4" color="warning.main">
+                                        {balances.reduce((sum, b) => sum + (b.pending_days || 0), 0)}
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                            <Card>
+                                <CardContent>
+                                    <Typography color="textSecondary" variant="body2">
+                                        Remaining
+                                    </Typography>
+                                    <Typography variant="h4" color="success.main">
+                                        {balances.reduce((sum, b) => sum + (b.remaining_days || 0), 0)}
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
                     </Grid>
-                    <Grid item xs={6} md={3}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">
-                                    Used
-                                </Typography>
-                                <Typography variant="h4" color="error.main">
-                                    {balances.reduce((sum, b) => sum + (b.used_days || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">
-                                    Pending
-                                </Typography>
-                                <Typography variant="h4" color="warning.main">
-                                    {balances.reduce((sum, b) => sum + (b.pending_days || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">
-                                    Remaining
-                                </Typography>
-                                <Typography variant="h4" color="success.main">
-                                    {balances.reduce((sum, b) => sum + (b.remaining_days || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                </Grid>
-            </Paper>
+                </Paper>
+            )}
 
-            {/* Balance Cards */}
             <Grid container spacing={3}>
                 {balances.length === 0 ? (
                     <Grid item xs={12}>

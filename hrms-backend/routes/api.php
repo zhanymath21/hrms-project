@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\ExchangeRateController;
 use App\Http\Controllers\Api\IncidentReportController;
 use App\Http\Controllers\Api\OfficeLocationController;
 use App\Http\Controllers\Api\LeaveController;
+use App\Http\Controllers\Api\LeaveBalanceController; // 🔥 TAMBAHKAN
 use App\Http\Controllers\Api\LostTimeInjuryController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
@@ -137,39 +138,61 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/current-schedule', [WorkScheduleController::class, 'getCurrentSchedule']);
     Route::delete('/employee-schedules/{id}', [WorkScheduleController::class, 'removeAssignment']);
 
-    // Leaves
-    Route::get('/leaves', [LeaveController::class, 'index']);
-    Route::post('/leaves', [LeaveController::class, 'store']);
-    Route::get('/leaves/balance', [LeaveController::class, 'balance']);
-    Route::get('/leaves/all-balances', [LeaveController::class, 'allBalances']);
+    // ==========================================
+    // 🔥 LEAVE MANAGEMENT ROUTES - DENGAN LEAVE BALANCE
+    // ==========================================
+
+    // Leave Types
     Route::get('/leave-types', [LeaveController::class, 'leaveTypes']);
+
+    // Leave Balance - 🔥 TAMBAHKAN INI
+    Route::prefix('employees')->group(function () {
+        // Employee can view their own balance
+        Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
+
+        // Admin/HR only
+        Route::get('/leave-balances', [LeaveBalanceController::class, 'allBalances']);
+        Route::get('/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
+        Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
+        Route::post('/generate-all-balances', [LeaveBalanceController::class, 'generateAllBalances']);
+    });
+
+    // Leave Requests
+    Route::get('/leaves', [LeaveController::class, 'index']);
+    Route::get('/leaves/pending', [LeaveController::class, 'pendingRequests']);
+    Route::get('/leaves/{id}', [LeaveController::class, 'show']);
+    Route::post('/leaves', [LeaveController::class, 'store']);
     Route::put('/leaves/{id}/approve', [LeaveController::class, 'approve']);
     Route::put('/leaves/{id}/reject', [LeaveController::class, 'reject']);
-    Route::get('/leaves/pending', [LeaveController::class, 'pendingRequests']);
-    Route::post('/leaves/generate-balance', [LeaveController::class, 'generateBalance']);
+    Route::put('/leaves/{id}/cancel', [LeaveController::class, 'cancel']);
+
+    // Leave Balance (legacy - keep for backward compatibility)
+    Route::get('/leaves/balance', [LeaveController::class, 'balance']);
+    Route::get('/leaves/all-balances', [LeaveController::class, 'allBalances']);
     Route::get('/leaves/balance/{id}', [LeaveController::class, 'getBalanceDetail']);
     Route::put('/leaves/balance/{id}', [LeaveController::class, 'updateBalance']);
     Route::get('/leaves/balance/{employeeId}/history', [LeaveController::class, 'getAdjustmentHistory']);
-    Route::get('/leaves/{id}', [LeaveController::class, 'show']);
-    Route::put('/leaves/{id}/cancel', [LeaveController::class, 'cancel']);
+    Route::post('/leaves/generate-balance', [LeaveController::class, 'generateBalance']);
     Route::post('/leaves/process-carry-forward', [LeaveController::class, 'processCarryForward']);
 
     // Replacement Leave
     Route::get('/replacement-leaves', [LeaveController::class, 'replacementList']);
+    Route::get('/replacement-leaves/pending', [LeaveController::class, 'pendingReplacements']);
     Route::post('/replacement-leaves', [LeaveController::class, 'requestReplacement']);
     Route::put('/replacement-leaves/{id}/approve', [LeaveController::class, 'approveReplacement']);
     Route::put('/replacement-leaves/{id}/reject', [LeaveController::class, 'rejectReplacement']);
-    Route::get('/replacement-leaves/pending', [LeaveController::class, 'pendingReplacements']);
     Route::put('/replacement-leaves/{id}/cancel', [LeaveController::class, 'cancelReplacement']);
+
+    // Public Holidays
+    Route::get('/public-holidays', [LeaveController::class, 'publicHolidays']);
+
+    // ==========================================
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::put('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
-
-    // Public Holidays
-    Route::get('/public-holidays', [LeaveController::class, 'publicHolidays']);
 
     // Daily Report
     Route::get('/daily-report', [DailyReportController::class, 'dailyReport']);
@@ -325,7 +348,7 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/tax-settings/{id}', [TaxSettingController::class, 'destroy']);
     Route::post('/tax-settings/{id}/activate', [TaxSettingController::class, 'activate']);
 
-    // Exchange Rates - FIXED: changed 'exchange-ratess' to 'exchange-rates'
+    // Exchange Rates
     Route::get('/exchange-rates', [ExchangeRateController::class, 'index']);
     Route::get('/exchange-rates/active', [ExchangeRateController::class, 'active']);
     Route::post('/exchange-rates/convert', [ExchangeRateController::class, 'convert']);

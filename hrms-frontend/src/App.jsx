@@ -8,26 +8,31 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+
+// ============ CONTEXTS ============
 import { AuthProvider, useAuth } from './pages/contexts/AuthContext';
 import { EmployeeProvider } from './pages/contexts/EmployeeContext';
 import { AttendanceProvider } from './pages/contexts/AttendanceContext';
 import { NotificationProvider } from './pages/contexts/NotificationContext';
-import { LeaveProvider } from './pages/contexts/LeaveContext';
+import { LeaveProvider } from './contexts/LeaveContext';
 import ProtectedRoute from './pages/components/ProtectedRoute';
 
-// Pages - Perbaiki path import
+// ============ LAYOUT ============
+import MainLayout from './layouts/MainLayout';
+
+// ============ AUTH PAGES ============
 import Login from './pages/Login';
+
+// ============ DASHBOARD ============
 import Dashboard from './pages/Dashboard';
+
+// ============ EMPLOYEE PAGES ============
 import EmployeeList from './pages/employees/EmployeeList';
 import EmployeeCreate from './pages/employees/EmployeeCreate';
 import EmployeeEdit from './pages/employees/EmployeeEdit';
 import EmployeeDetail from './pages/employees/EmployeeDetails';
-import Attendance from './pages/attendance/Attendance';
-import WorkSchedules from './pages/schedules/WorkSchedules';
-import OfficeLocations from './pages/locations/OfficeLocations';
-import AttendanceReport from './pages/reports/AttendanceReport';
 
-// Leave Pages - Perbaiki path (gunakan 'leaves' bukan 'leave')
+// ============ LEAVE PAGES ============
 import LeaveList from './pages/leaves/LeaveList';
 import LeaveCreate from './pages/leaves/LeaveCreate';
 import LeaveBalance from './pages/leaves/LeaveBalance';
@@ -35,13 +40,22 @@ import LeaveApproval from './pages/leaves/LeaveApproval';
 import LeaveDetail from './pages/leaves/LeaveDetail';
 import ReplacementLeave from './pages/leaves/ReplacementLeave';
 
+// ============ ATTENDANCE PAGES ============
+import Attendance from './pages/attendance/Attendance';
+import WorkSchedules from './pages/schedules/WorkSchedules';
+import OfficeLocations from './pages/locations/OfficeLocations';
+import AttendanceReport from './pages/reports/AttendanceReport';
+
+// ============ DEPARTMENT PAGES ============
 import DepartmentPage from './pages/Departments/DepartmentPage';
 import TurnoverPage from './pages/Turnover/TurnoverPage';
 import EmployeeAssetPage from './pages/EmployeeAssets/EmployeeAssetPage';
+
+// ============ PPE PAGES ============
 import PPEListPage from './pages/PPE/PPEListPage';
 import PPECategoryPage from './pages/PPE/PPECategoryPage';
 
-// Recruitment / Candidate Pages
+// ============ RECRUITMENT PAGES ============
 import CandidateList from './pages/recruitment/CandidateList';
 import CandidateForm from './pages/recruitment/CandidateForm';
 import CandidateCVList from './pages/recruitment/CandidateCVList';
@@ -53,19 +67,19 @@ import ApplicationCreate from './pages/recruitment/ApplicationCreate';
 import ApplicationDetail from './pages/recruitment/ApplicationDetail';
 import OnboardingList from './pages/recruitment/OnboardingList';
 
-// Incident Report Pages
+// ============ INCIDENT PAGES ============
 import IncidentList from './pages/incidents/IncidentList';
 import IncidentCreate from './pages/incidents/IncidentCreate';
 import IncidentDetail from './pages/incidents/IncidentDetail';
 import IncidentEdit from './pages/incidents/IncidentEdit';
 
-// Lost Time Injury Pages
+// ============ SAFETY PAGES ============
 import LostTimeInjuryList from './pages/safety/LostTimeInjuryList';
 import LostTimeInjuryCreate from './pages/safety/LostTimeInjuryCreate';
 import LostTimeInjuryDetail from './pages/safety/LostTimeInjuryDetail';
 import LostTimeInjuryEdit from './pages/safety/LostTimeInjuryEdit';
 
-// Payroll Pages
+// ============ PAYROLL PAGES ============
 import PayrollList from './pages/payroll/PayrollList';
 import PayrollCreate from './pages/payroll/PayrollCreate';
 import PayrollDetail from './pages/payroll/PayrollDetail';
@@ -75,9 +89,7 @@ import TaxSettings from './pages/payroll/TaxSettings';
 import PayslipList from './pages/payroll/PayslipList';
 import ExchangeRateSettings from './pages/payroll/ExchangeRateSettings';
 
-import MainLayout from './layouts/MainLayout';
-
-// Theme
+// ============ THEME ============
 const theme = createTheme({
   palette: {
     primary: {
@@ -155,7 +167,7 @@ const theme = createTheme({
   },
 });
 
-// Error Boundary
+// ============ ERROR BOUNDARY ============
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -167,9 +179,9 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('ERROR:', error);
-    console.error('STACK:', error?.stack);
-    console.error('INFO:', errorInfo);
+    console.error('❌ ERROR:', error);
+    console.error('📚 STACK:', error?.stack);
+    console.error('ℹ️ INFO:', errorInfo);
   }
 
   render() {
@@ -212,7 +224,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// App
+// ============ APP ============
 function App() {
   return (
     <ErrorBoundary>
@@ -223,11 +235,9 @@ function App() {
             <AuthProvider>
               <EmployeeProvider>
                 <AttendanceProvider>
-                  <LeaveProvider>
-                    <NotificationProvider>
-                      <AppRoutes />
-                    </NotificationProvider>
-                  </LeaveProvider>
+                  <NotificationProvider>
+                    <AppRoutes />
+                  </NotificationProvider>
                 </AttendanceProvider>
               </EmployeeProvider>
             </AuthProvider>
@@ -250,16 +260,16 @@ function App() {
   );
 }
 
-// App Routes - FIXED
+// ============ ROUTES ============
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
 
   return (
     <Routes>
-      {/* Public Routes */}
+      {/* ===== PUBLIC ROUTES ===== */}
       <Route path="/login" element={<Login />} />
 
-      {/* Protected Routes - SEMUA DALAM SATU Routes */}
+      {/* ===== PROTECTED ROUTES ===== */}
       <Route path="/" element={
         <ProtectedRoute>
           <MainLayout>
@@ -276,7 +286,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ EMPLOYEE ROUTES ============ */}
+      {/* ===== EMPLOYEE ROUTES ===== */}
       <Route path="/employees" element={
         <ProtectedRoute>
           <MainLayout>
@@ -309,11 +319,15 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ LEAVE ROUTES - FIXED ============ */}
+      {/* ============================================================ */}
+      {/* ===== 🔥 LEAVE MANAGEMENT ROUTES - DIBUNGKUS LeaveProvider ===== */}
+      {/* ============================================================ */}
       <Route path="/leaves" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveList />
+            <LeaveProvider>
+              <LeaveList />
+            </LeaveProvider>
           </MainLayout>
         </ProtectedRoute>
       } />
@@ -321,7 +335,9 @@ function AppRoutes() {
       <Route path="/leaves/create" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveCreate />
+            <LeaveProvider>
+              <LeaveCreate />
+            </LeaveProvider>
           </MainLayout>
         </ProtectedRoute>
       } />
@@ -329,7 +345,9 @@ function AppRoutes() {
       <Route path="/leaves/balance" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveBalance />
+            <LeaveProvider>
+              <LeaveBalance />
+            </LeaveProvider>
           </MainLayout>
         </ProtectedRoute>
       } />
@@ -337,7 +355,9 @@ function AppRoutes() {
       <Route path="/leaves/approval" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveApproval />
+            <LeaveProvider>
+              <LeaveApproval />
+            </LeaveProvider>
           </MainLayout>
         </ProtectedRoute>
       } />
@@ -345,7 +365,9 @@ function AppRoutes() {
       <Route path="/leaves/replacement" element={
         <ProtectedRoute>
           <MainLayout>
-            <ReplacementLeave />
+            <LeaveProvider>
+              <ReplacementLeave />
+            </LeaveProvider>
           </MainLayout>
         </ProtectedRoute>
       } />
@@ -353,12 +375,15 @@ function AppRoutes() {
       <Route path="/leaves/:id" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveDetail />
+            <LeaveProvider>
+              <LeaveDetail />
+            </LeaveProvider>
           </MainLayout>
         </ProtectedRoute>
       } />
+      {/* ============================================================ */}
 
-      {/* ============ TURNOVER ============ */}
+      {/* ===== TURNOVER ===== */}
       <Route path="/turnover" element={
         <ProtectedRoute>
           <MainLayout>
@@ -367,7 +392,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ EMPLOYEE ASSETS ============ */}
+      {/* ===== EMPLOYEE ASSETS ===== */}
       <Route path="/employee-assets" element={
         <ProtectedRoute>
           <MainLayout>
@@ -376,7 +401,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ DEPARTMENTS ============ */}
+      {/* ===== DEPARTMENTS ===== */}
       <Route path="/departments" element={
         <ProtectedRoute>
           <MainLayout>
@@ -385,7 +410,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ ATTENDANCE ============ */}
+      {/* ===== ATTENDANCE ===== */}
       <Route path="/attendance" element={
         <ProtectedRoute>
           <MainLayout>
@@ -418,7 +443,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ PPE ============ */}
+      {/* ===== PPE ===== */}
       <Route path="/ppe" element={
         <ProtectedRoute>
           <MainLayout>
@@ -435,7 +460,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ RECRUITMENT ============ */}
+      {/* ===== RECRUITMENT ===== */}
       <Route path="/candidates" element={
         <ProtectedRoute>
           <MainLayout>
@@ -532,7 +557,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ INCIDENT REPORTS ============ */}
+      {/* ===== INCIDENT REPORTS ===== */}
       <Route path="/incident-reports" element={
         <ProtectedRoute>
           <MainLayout>
@@ -565,7 +590,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ LOST TIME INJURY ============ */}
+      {/* ===== LOST TIME INJURY ===== */}
       <Route path="/lost-time-injuries" element={
         <ProtectedRoute>
           <MainLayout>
@@ -598,7 +623,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============ PAYROLL ============ */}
+      {/* ===== PAYROLL ===== */}
       <Route path="/payroll" element={
         <ProtectedRoute>
           <MainLayout>
@@ -671,7 +696,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Settings */}
+      {/* ===== SETTINGS ===== */}
       <Route path="/settings" element={
         <ProtectedRoute>
           <MainLayout>
@@ -680,7 +705,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Notifications */}
+      {/* ===== NOTIFICATIONS ===== */}
       <Route path="/notifications" element={
         <ProtectedRoute>
           <MainLayout>
@@ -689,7 +714,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Profile */}
+      {/* ===== PROFILE ===== */}
       <Route path="/profile" element={
         <ProtectedRoute>
           <MainLayout>
@@ -698,7 +723,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Catch all - redirect to login */}
+      {/* ===== 404 ===== */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

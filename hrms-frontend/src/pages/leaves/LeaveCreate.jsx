@@ -17,7 +17,8 @@ import {
     IconButton,
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, Save as SaveIcon } from '@mui/icons-material';
-import { useLeave } from '../contexts/LeaveContext';
+// 🔥 PERBAIKI PATH - gunakan '../../contexts/LeaveContext'
+import { useLeave } from '../../contexts/LeaveContext';
 import { useNavigate } from 'react-router-dom';
 import { DatePicker } from '@mui/x-date-pickers';
 import { format } from 'date-fns';
@@ -120,11 +121,15 @@ const LeaveCreate = () => {
                                     label="Leave Type *"
                                 >
                                     <MenuItem value="">Select Leave Type</MenuItem>
-                                    {leaveTypes.map((type) => (
-                                        <MenuItem key={type.id} value={type.id}>
-                                            {type.name} ({type.code}) - {type.days_per_year} days/year
-                                        </MenuItem>
-                                    ))}
+                                    {leaveTypes && leaveTypes.length > 0 ? (
+                                        leaveTypes.map((type) => (
+                                            <MenuItem key={type.id} value={type.id}>
+                                                {type.name} ({type.code}) - {type.days_per_year} days/year
+                                            </MenuItem>
+                                        ))
+                                    ) : (
+                                        <MenuItem disabled>No leave types available</MenuItem>
+                                    )}
                                 </Select>
                                 {errors.leave_type_id && (
                                     <Typography variant="caption" color="error">
