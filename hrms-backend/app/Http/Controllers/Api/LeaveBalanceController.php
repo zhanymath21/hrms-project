@@ -6,24 +6,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
-use App\Services\Leave\LeaveBalanceService;
-use App\Traits\ApiResponseTrait;
+use App\Models\LeaveType;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class LeaveBalanceController extends Controller
 {
-    use ApiResponseTrait;
-
-    protected LeaveBalanceService $balanceService;
-
-    public function __construct(LeaveBalanceService $balanceService)
-    {
-        $this->balanceService = $balanceService;
-    }
-
     /**
      * Get my leave balance (Employee)
      * GET /api/employees/my-leave-balance
@@ -35,13 +26,19 @@ class LeaveBalanceController extends Controller
 
             if (!$user) {
                 Log::error('User not authenticated');
-                return $this->error('User not authenticated', 401);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated'
+                ], 401);
             }
 
             Log::info('Fetching balance for user: ' . $user->id . ' - ' . $user->email);
 
+            // Ensure leave types exist
+            $this->ensureLeaveTypesExist();
+
             // Ensure balance exists
-            $this->balanceService->ensureBalanceExists($user);
+            $this->ensureBalanceExists($user);
 
             $balances = LeaveBalance::where('employee_id', $user->id)
                 ->where('year', date('Y'))
@@ -59,14 +56,15 @@ class LeaveBalanceController extends Controller
                         'leave_type_id' => $balance->leave_type_id,
                         'leave_type' => $balance->leaveType->name ?? 'Unknown',
                         'leave_code' => $balance->leaveType->code ?? 'N/A',
-                        'base_entitlement' => (float) $balance->base_entitlement ?? 0,
-                        'seniority_bonus' => (float) $balance->seniority_bonus ?? 0,
-                        'carry_forward' => (float) $balance->carry_forward ?? 0,
-                        'replacement_days' => (float) $balance->replacement_days ?? 0,
-                        'total_entitlement' => (float) $balance->total_entitlement ?? 0,
-                        'used_days' => (float) $balance->used_days ?? 0,
-                        'pending_days' => (float) $balance->pending_days ?? 0,
-                        'remaining_days' => (float) $balance->remaining_days ?? 0,
+                        'base_entitlement' => (float) ($balance->base_entitlement ?? 0),
+                        'seniority_bonus' => (float) ($balance->seniority_bonus ?? 0),
+                        'carry_forward' => (float) ($balance->carry_forward ?? 0),
+                        'replacement_days' => (float) ($balance->replacement_days ?? 0),
+                        'manual_adjustment' => (float) ($balance->manual_adjustment ?? 0),
+                        'total_entitlement' => (float) ($balance->total_entitlement ?? 0),
+                        'used_days' => (float) ($balance->used_days ?? 0),
+                        'pending_days' => (float) ($balance->pending_days ?? 0),
+                        'remaining_days' => (float) ($balance->remaining_days ?? 0),
                         'years_of_service' => $yearsOfService,
                     ];
                 }),
@@ -79,12 +77,128 @@ class LeaveBalanceController extends Controller
                 ],
             ];
 
-            return $this->success($result, 'My leave balance fetched');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'My leave balance fetched',
+                'data' => $result,
+            ]);
         } catch (\Exception $e) {
             Log::error('Error fetching my balance: ' . $e->getMessage());
             Log::error($e->getTraceAsString());
-            return $this->error('Failed to fetch balance: ' . $e->getMessage(), 500);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch balance: ' . $e->getMessage()
+            ], 500);
         }
+    }
+
+    /**
+     * Ensure leave types exist
+     */
+    private function ensureLeaveTypesExist(): void
+    {
+        $count = LeaveType::count();
+
+        if ($count === 0) {
+            Log::info('Creating default leave types');
+
+            $defaultTypes = [
+                ['code' => 'AL', 'name' => 'Annual Leave', 'days_per_year' => 12, 'is_paid' => true, 'allow_carry_forward' => true, 'max_carry_forward_days' => 6, 'is_active' => true],
+                ['code' => 'SL', 'name' => 'Sick Leave', 'days_per_year' => 14, 'is_paid' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => 0, 'is_active' => true],
+                ['code' => 'SPL', 'name' => 'Special Leave', 'days_per_year' => 3, 'is_paid' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => 0, 'is_active' => true],
+                ['code' => 'UL', 'name' => 'Unpaid Leave', 'days_per_year' => 0, 'is_paid' => false, 'allow_carry_forward' => false, 'max_carry_forward_days' => 0, 'is_active' => true],
+            ];
+
+            foreach ($defaultTypes as $type) {
+                LeaveType::create($type);
+            }
+        }
+    }
+
+    /**
+     * Ensure leave balance exists for employee
+     */
+    private function ensureBalanceExists(Employee $employee): void
+    {
+        $currentYear = date('Y');
+        $leaveTypes = LeaveType::where('is_active', true)->get();
+
+        foreach ($leaveTypes as $leaveType) {
+            $exists = LeaveBalance::where([
+                'employee_id' => $employee->id,
+                'leave_type_id' => $leaveType->id,
+                'year' => $currentYear,
+            ])->exists();
+
+            if (!$exists) {
+                Log::info('Creating balance for employee ' . $employee->id . ' - ' . $leaveType->code);
+                $this->createBalance($employee, $leaveType, $currentYear);
+            }
+        }
+    }
+
+    /**
+     * Create balance for employee
+     */
+    private function createBalance(Employee $employee, LeaveType $leaveType, int $year): void
+    {
+        $yearsOfService = Carbon::parse($employee->hire_date)->diffInYears(Carbon::now());
+        $hireDate = Carbon::parse($employee->hire_date);
+
+        // Base entitlement
+        $baseEntitlement = $leaveType->days_per_year;
+
+        // Prorata for new employees
+        if ($hireDate->year == $year && $hireDate->month > 1) {
+            $monthsWorked = 12 - $hireDate->month + 1;
+            $baseEntitlement = round(($baseEntitlement / 12) * $monthsWorked, 2);
+        }
+
+        // Seniority bonus for Annual Leave
+        $seniorityBonus = 0;
+        if ($leaveType->code === 'AL') {
+            if ($yearsOfService >= 6) {
+                $seniorityBonus = 2;
+            } elseif ($yearsOfService >= 3) {
+                $seniorityBonus = 1;
+            }
+        }
+
+        // Carry forward from previous year
+        $carryForward = 0;
+        if ($leaveType->code === 'AL' && $leaveType->allow_carry_forward) {
+            $previousBalance = LeaveBalance::where([
+                'employee_id' => $employee->id,
+                'leave_type_id' => $leaveType->id,
+                'year' => $year - 1,
+            ])->first();
+
+            if ($previousBalance && $previousBalance->remaining_days > 0) {
+                $carryForward = min($previousBalance->remaining_days, $leaveType->max_carry_forward_days);
+            }
+        }
+
+        $totalEntitlement = $baseEntitlement + $seniorityBonus + $carryForward;
+
+        LeaveBalance::updateOrCreate(
+            [
+                'employee_id' => $employee->id,
+                'leave_type_id' => $leaveType->id,
+                'year' => $year,
+            ],
+            [
+                'base_entitlement' => $baseEntitlement,
+                'seniority_bonus' => $seniorityBonus,
+                'carry_forward' => $carryForward,
+                'replacement_days' => 0,
+                'manual_adjustment' => 0,
+                'total_entitlement' => $totalEntitlement,
+                'used_days' => 0,
+                'pending_days' => 0,
+                'remaining_days' => $totalEntitlement,
+            ]
+        );
     }
 
     /**
@@ -97,15 +211,22 @@ class LeaveBalanceController extends Controller
             $user = $request->user();
 
             if (!$this->isAdminOrHR($user)) {
-                return $this->unauthorized('Only Admin/HR can view other employee balances');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only Admin/HR can view other employee balances'
+                ], 403);
             }
 
             $employee = Employee::find($employeeId);
             if (!$employee) {
-                return $this->notFound('Employee not found');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Employee not found'
+                ], 404);
             }
 
-            $this->balanceService->ensureBalanceExists($employee);
+            $this->ensureLeaveTypesExist();
+            $this->ensureBalanceExists($employee);
 
             $balances = LeaveBalance::where('employee_id', $employeeId)
                 ->where('year', date('Y'))
@@ -121,14 +242,15 @@ class LeaveBalanceController extends Controller
                         'leave_type_id' => $balance->leave_type_id,
                         'leave_type' => $balance->leaveType->name ?? 'Unknown',
                         'leave_code' => $balance->leaveType->code ?? 'N/A',
-                        'base_entitlement' => (float) $balance->base_entitlement ?? 0,
-                        'seniority_bonus' => (float) $balance->seniority_bonus ?? 0,
-                        'carry_forward' => (float) $balance->carry_forward ?? 0,
-                        'replacement_days' => (float) $balance->replacement_days ?? 0,
-                        'total_entitlement' => (float) $balance->total_entitlement ?? 0,
-                        'used_days' => (float) $balance->used_days ?? 0,
-                        'pending_days' => (float) $balance->pending_days ?? 0,
-                        'remaining_days' => (float) $balance->remaining_days ?? 0,
+                        'base_entitlement' => (float) ($balance->base_entitlement ?? 0),
+                        'seniority_bonus' => (float) ($balance->seniority_bonus ?? 0),
+                        'carry_forward' => (float) ($balance->carry_forward ?? 0),
+                        'replacement_days' => (float) ($balance->replacement_days ?? 0),
+                        'manual_adjustment' => (float) ($balance->manual_adjustment ?? 0),
+                        'total_entitlement' => (float) ($balance->total_entitlement ?? 0),
+                        'used_days' => (float) ($balance->used_days ?? 0),
+                        'pending_days' => (float) ($balance->pending_days ?? 0),
+                        'remaining_days' => (float) ($balance->remaining_days ?? 0),
                         'years_of_service' => $yearsOfService,
                     ];
                 }),
@@ -142,162 +264,17 @@ class LeaveBalanceController extends Controller
                 ],
             ];
 
-            return $this->success($result, 'Employee balance fetched');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Employee balance fetched',
+                'data' => $result,
+            ]);
         } catch (\Exception $e) {
             Log::error('Error fetching employee balance: ' . $e->getMessage());
-            return $this->error('Failed to fetch employee balance: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * Get all employees leave balances (Admin/HR only)
-     * GET /api/employees/leave-balances
-     */
-    public function allBalances(Request $request): JsonResponse
-    {
-        try {
-            $user = $request->user();
-
-            if (!$this->isAdminOrHR($user)) {
-                return $this->unauthorized('Only Admin/HR can view all employees balances');
-            }
-
-            $query = Employee::with([
-                'department:id,name',
-                'leaveBalances' => function ($query) {
-                    $query->where('year', date('Y'))->with('leaveType:id,name,code');
-                }
-            ])->where('status', 'active');
-
-            if ($request->filled('department_id')) {
-                $query->where('department_id', $request->department_id);
-            }
-
-            if ($request->filled('search')) {
-                $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%")
-                        ->orWhere('employee_id', 'like', "%{$search}%");
-                });
-            }
-
-            $perPage = $request->input('per_page', 20);
-            $employees = $query->paginate($perPage);
-
-            $result = $employees->map(function ($employee) {
-                $totalBalance = 0;
-                $usedBalance = 0;
-                $remainingBalance = 0;
-
-                foreach ($employee->leaveBalances as $balance) {
-                    $totalBalance += (float) $balance->total_entitlement ?? 0;
-                    $usedBalance += (float) $balance->used_days ?? 0;
-                    $remainingBalance += (float) $balance->remaining_days ?? 0;
-                }
-
-                return [
-                    'id' => $employee->id,
-                    'employee_id' => $employee->employee_id,
-                    'name' => $employee->first_name . ' ' . $employee->last_name,
-                    'department' => $employee->department->name ?? 'N/A',
-                    'hire_date' => $employee->hire_date,
-                    'years_of_service' => Carbon::parse($employee->hire_date)->diffInYears(Carbon::now()),
-                    'leave_balances' => $employee->leaveBalances->map(function ($balance) {
-                        return [
-                            'id' => $balance->id,
-                            'leave_type' => $balance->leaveType->name ?? 'Unknown',
-                            'leave_code' => $balance->leaveType->code ?? 'N/A',
-                            'total_entitlement' => (float) $balance->total_entitlement ?? 0,
-                            'used_days' => (float) $balance->used_days ?? 0,
-                            'pending_days' => (float) $balance->pending_days ?? 0,
-                            'remaining_days' => (float) $balance->remaining_days ?? 0,
-                        ];
-                    }),
-                    'summary' => [
-                        'total_entitlement' => $totalBalance,
-                        'used_days' => $usedBalance,
-                        'remaining_days' => $remainingBalance,
-                    ],
-                ];
-            });
-
-            return $this->success([
-                'data' => $result,
-                'pagination' => [
-                    'current_page' => $employees->currentPage(),
-                    'per_page' => $employees->perPage(),
-                    'total' => $employees->total(),
-                    'last_page' => $employees->lastPage(),
-                ],
-            ], 'All balances fetched');
-        } catch (\Exception $e) {
-            Log::error('Error fetching all balances: ' . $e->getMessage());
-            return $this->error('Failed to fetch all balances: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * Generate balance for employee (Admin/HR only)
-     * POST /api/employees/generate-balance
-     */
-    public function generateBalance(Request $request): JsonResponse
-    {
-        try {
-            $user = $request->user();
-
-            if (!$this->isAdminOrHR($user)) {
-                return $this->unauthorized('Only Admin/HR can generate balances');
-            }
-
-            $employeeId = $request->employee_id;
-            if (!$employeeId) {
-                return $this->error('Employee ID is required', 422);
-            }
-
-            $employee = Employee::find($employeeId);
-            if (!$employee) {
-                return $this->notFound('Employee not found');
-            }
-
-            $this->balanceService->ensureBalanceExists($employee);
-
-            return $this->success(null, 'Leave balance generated successfully for ' . $employee->first_name);
-        } catch (\Exception $e) {
-            Log::error('Error generating balance: ' . $e->getMessage());
-            return $this->error('Failed to generate balance: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * Generate balances for all employees (Admin/HR only)
-     * POST /api/employees/generate-all-balances
-     */
-    public function generateAllBalances(Request $request): JsonResponse
-    {
-        try {
-            $user = $request->user();
-
-            if (!$this->isAdminOrHR($user)) {
-                return $this->unauthorized('Only Admin/HR can generate all balances');
-            }
-
-            $employees = Employee::where('status', 'active')->get();
-            $count = 0;
-
-            foreach ($employees as $employee) {
-                try {
-                    $this->balanceService->ensureBalanceExists($employee);
-                    $count++;
-                } catch (\Exception $e) {
-                    Log::error('Failed to generate balance for employee ' . $employee->id . ': ' . $e->getMessage());
-                }
-            }
-
-            return $this->success(null, "Balance generated for {$count} employees");
-        } catch (\Exception $e) {
-            Log::error('Error generating all balances: ' . $e->getMessage());
-            return $this->error('Failed to generate all balances: ' . $e->getMessage(), 500);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch employee balance: ' . $e->getMessage()
+            ], 500);
         }
     }
 
