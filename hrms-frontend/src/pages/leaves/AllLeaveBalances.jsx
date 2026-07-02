@@ -28,6 +28,11 @@ import {
     Card,
     CardContent,
     Tooltip,
+    Avatar,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
     LinearProgress,
 } from '@mui/material';
 import {
@@ -42,9 +47,14 @@ import {
     Error as ErrorIcon,
     Print as PrintIcon,
     FileDownload as FileDownloadIcon,
+    Visibility as VisibilityIcon,
+    Edit as EditIcon,
+    Save as SaveIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import leaveService from '../../services/leaveService';
+import api from '../../services/axios';
 
 const AllLeaveBalances = () => {
     const [loading, setLoading] = useState(true);
@@ -59,8 +69,29 @@ const AllLeaveBalances = () => {
     const [departmentFilter, setDepartmentFilter] = useState('');
     const [departments, setDepartments] = useState([]);
     const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(null);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(20);
+    const [stats, setStats] = useState({
+        totalEmployees: 0,
+        totalAnnualLeave: 0,
+        totalSickLeave: 0,
+        totalSpecialLeave: 0,
+        totalRemaining: 0,
+    });
+
+    // Edit Dialog State
+    const [editDialog, setEditDialog] = useState({
+        open: false,
+        balanceId: null,
+        employeeName: '',
+        leaveType: '',
+        leaveCode: '',
+        currentRemaining: 0,
+        newTotal: 0,
+        adjustmentReason: '',
+        isLoading: false,
+    });
 
     useEffect(() => {
         loadData();
@@ -90,13 +121,32 @@ const AllLeaveBalances = () => {
             const response = await leaveService.getAllBalances(params);
             const data = response.data || response;
             
-            setEmployees(data?.data || []);
+            const employeesData = data?.data || [];
+            setEmployees(employeesData);
             setPagination({
                 current_page: data?.pagination?.current_page || 1,
                 per_page: data?.pagination?.per_page || 20,
                 total: data?.pagination?.total || 0,
                 last_page: data?.pagination?.last_page || 1,
             });
+
+            // Calculate stats
+            let totalAL = 0, totalSL = 0, totalSPL = 0, totalRemaining = 0;
+            employeesData.forEach(emp => {
+                totalAL += emp.annual_leave?.remaining || 0;
+                totalSL += emp.sick_leave?.remaining || 0;
+                totalSPL += emp.special_leave?.remaining || 0;
+                totalRemaining += emp.summary?.remaining_days || 0;
+            });
+
+            setStats({
+                totalEmployees: pagination.total || employeesData.length,
+                totalAnnualLeave: totalAL,
+                totalSickLeave: totalSL,
+                totalSpecialLeave: totalSPL,
+                totalRemaining: totalRemaining,
+            });
+
         } catch (err) {
             setError('Failed to load leave balances: ' + err.message);
             console.error('Error loading balances:', err);
@@ -123,6 +173,62 @@ const AllLeaveBalances = () => {
         setPage(0);
     };
 
+    // ========== EDIT BALANCE ==========
+    const handleOpenEdit = (employee, leaveType, balance) => {
+        setEditDialog({
+            open: true,
+            balanceId: balance.id,
+            employeeName: employee.name,
+            leaveType: leaveType.name,
+            leaveCode: leaveType.code,
+            currentRemaining: balance.remaining,
+            newTotal: balance.total,
+            adjustmentReason: '',
+            isLoading: false,
+        });
+    };
+
+    const handleCloseEdit = () => {
+        setEditDialog({
+            open: false,
+            balanceId: null,
+            employeeName: '',
+            leaveType: '',
+            leaveCode: '',
+            currentRemaining: 0,
+            newTotal: 0,
+            adjustmentReason: '',
+            isLoading: false,
+        });
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editDialog.adjustmentReason) {
+            alert('Please provide a reason for adjustment');
+            return;
+        }
+
+        setEditDialog({ ...editDialog, isLoading: true });
+        setError(null);
+
+        try {
+            await api.put(`/employees/leave-balance/${editDialog.balanceId}`, {
+                total_entitlement: editDialog.newTotal,
+                adjustment_reason: editDialog.adjustmentReason,
+            });
+
+            setSuccess(`✅ ${editDialog.employeeName}'s ${editDialog.leaveType} balance updated successfully!`);
+            setTimeout(() => setSuccess(null), 5000);
+            
+            handleCloseEdit();
+            loadData();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update balance');
+        } finally {
+            setEditDialog({ ...editDialog, isLoading: false });
+        }
+    };
+
     const getStatusColor = (remaining, total) => {
         const percentage = total > 0 ? (remaining / total) * 100 : 0;
         if (percentage <= 20) return 'error';
@@ -135,6 +241,15 @@ const AllLeaveBalances = () => {
         if (percentage <= 20) return 'Critical';
         if (percentage <= 50) return 'Low';
         return 'Good';
+    };
+
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.split(' ');
+        if (parts.length >= 2) {
+            return parts[0][0] + parts[1][0];
+        }
+        return name.substring(0, 2).toUpperCase();
     };
 
     if (loading && employees.length === 0) {
@@ -150,7 +265,7 @@ const AllLeaveBalances = () => {
             {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h4" fontWeight="bold">
-                    📊 All Employee Leave Balances
+                    📊 Employee Leave Balances
                 </Typography>
                 <Button
                     variant="outlined"
@@ -167,6 +282,76 @@ const AllLeaveBalances = () => {
                     {error}
                 </Alert>
             )}
+
+            {success && (
+                <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+                    {success}
+                </Alert>
+            )}
+
+            {/* Stats Cards */}
+            <Grid container spacing={2} mb={3}>
+                <Grid item xs={12} sm={6} md={2.4}>
+                    <Card>
+                        <CardContent>
+                            <Typography color="textSecondary" variant="body2">
+                                Total Employees
+                            </Typography>
+                            <Typography variant="h4" color="primary.main">
+                                {stats.totalEmployees}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={2.4}>
+                    <Card sx={{ borderLeft: '4px solid #4caf50' }}>
+                        <CardContent>
+                            <Typography color="textSecondary" variant="body2">
+                                Annual Leave Remaining
+                            </Typography>
+                            <Typography variant="h4" color="success.main">
+                                {stats.totalAnnualLeave.toFixed(1)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={2.4}>
+                    <Card sx={{ borderLeft: '4px solid #f44336' }}>
+                        <CardContent>
+                            <Typography color="textSecondary" variant="body2">
+                                Sick Leave Remaining
+                            </Typography>
+                            <Typography variant="h4" color="error.main">
+                                {stats.totalSickLeave.toFixed(1)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={2.4}>
+                    <Card sx={{ borderLeft: '4px solid #ff9800' }}>
+                        <CardContent>
+                            <Typography color="textSecondary" variant="body2">
+                                Special Leave Remaining
+                            </Typography>
+                            <Typography variant="h4" color="warning.main">
+                                {stats.totalSpecialLeave.toFixed(1)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={2.4}>
+                    <Card sx={{ borderLeft: '4px solid #2196f3' }}>
+                        <CardContent>
+                            <Typography color="textSecondary" variant="body2">
+                                Total Remaining
+                            </Typography>
+                            <Typography variant="h4" color="info.main">
+                                {stats.totalRemaining.toFixed(1)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
 
             {/* Filters */}
             <Paper sx={{ p: 2, mb: 2 }}>
@@ -226,60 +411,6 @@ const AllLeaveBalances = () => {
                 </Grid>
             </Paper>
 
-            {/* Summary Cards */}
-            {employees.length > 0 && (
-                <Grid container spacing={2} mb={3}>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">
-                                    Total Employees
-                                </Typography>
-                                <Typography variant="h4">
-                                    {pagination.total}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">
-                                    Total Leave Entitlement
-                                </Typography>
-                                <Typography variant="h4" color="primary.main">
-                                    {employees.reduce((sum, emp) => sum + (emp.summary?.total_entitlement || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">
-                                    Total Used Days
-                                </Typography>
-                                <Typography variant="h4" color="error.main">
-                                    {employees.reduce((sum, emp) => sum + (emp.summary?.used_days || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">
-                                    Total Remaining
-                                </Typography>
-                                <Typography variant="h4" color="success.main">
-                                    {employees.reduce((sum, emp) => sum + (emp.summary?.remaining_days || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                </Grid>
-            )}
-
             {/* Table */}
             <TableContainer component={Paper}>
                 <Table stickyHeader>
@@ -287,19 +418,33 @@ const AllLeaveBalances = () => {
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell>Employee</TableCell>
                             <TableCell>Department</TableCell>
-                            <TableCell>Years of Service</TableCell>
-                            <TableCell align="center">Leave Details</TableCell>
+                            <TableCell align="center">
+                                <Tooltip title="Annual Leave">
+                                    <span>🏖️ AL</span>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center">
+                                <Tooltip title="Sick Leave">
+                                    <span>🏥 SL</span>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center">
+                                <Tooltip title="Special Leave">
+                                    <span>🎉 SPL</span>
+                                </Tooltip>
+                            </TableCell>
                             <TableCell align="center">Total</TableCell>
                             <TableCell align="center">Used</TableCell>
                             <TableCell align="center">Pending</TableCell>
                             <TableCell align="center">Remaining</TableCell>
                             <TableCell align="center">Status</TableCell>
+                            <TableCell align="center">Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {employees.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                                <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
                                     <Typography color="textSecondary">
                                         {search || departmentFilter 
                                             ? 'No employees match your filters' 
@@ -309,6 +454,9 @@ const AllLeaveBalances = () => {
                             </TableRow>
                         ) : (
                             employees.map((employee) => {
+                                const al = employee.annual_leave || {};
+                                const sl = employee.sick_leave || {};
+                                const spl = employee.special_leave || {};
                                 const summary = employee.summary || {};
                                 const remaining = summary.remaining_days || 0;
                                 const total = summary.total_entitlement || 0;
@@ -319,7 +467,9 @@ const AllLeaveBalances = () => {
                                     <TableRow key={employee.id} hover>
                                         <TableCell>
                                             <Box display="flex" alignItems="center" gap={1}>
-                                                <PersonIcon color="primary" fontSize="small" />
+                                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
+                                                    {getInitials(employee.name)}
+                                                </Avatar>
                                                 <Box>
                                                     <Typography variant="body2" fontWeight="medium">
                                                         {employee.name}
@@ -337,45 +487,90 @@ const AllLeaveBalances = () => {
                                                 variant="outlined"
                                             />
                                         </TableCell>
-                                        <TableCell>
-                                            {employee.years_of_service || 0} years
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold"
+                                                color={al.remaining > 0 ? 'success.main' : 'error.main'}
+                                            >
+                                                {al.remaining?.toFixed(1) || 0}
+                                            </Typography>
+                                            <Typography variant="caption" color="textSecondary">
+                                                / {al.total?.toFixed(1) || 0}
+                                            </Typography>
+                                            <Tooltip title="Edit Annual Leave">
+                                                <IconButton 
+                                                    size="small" 
+                                                    color="primary"
+                                                    onClick={() => handleOpenEdit(employee, { name: 'Annual Leave', code: 'AL' }, al)}
+                                                    sx={{ ml: 0.5 }}
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
                                         </TableCell>
-                                        <TableCell>
-                                            <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                                                {employee.leave_balances?.map((balance) => (
-                                                    <Tooltip
-                                                        key={balance.leave_type_id}
-                                                        title={`${balance.leave_type}: ${balance.remaining_days} days remaining`}
-                                                    >
-                                                        <Chip
-                                                            label={`${balance.leave_code}: ${balance.remaining_days}`}
-                                                            size="small"
-                                                            color={balance.remaining_days > 0 ? 'success' : 'error'}
-                                                            variant="outlined"
-                                                            sx={{ fontSize: '0.65rem' }}
-                                                        />
-                                                    </Tooltip>
-                                                ))}
-                                            </Stack>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold"
+                                                color={sl.remaining > 0 ? 'success.main' : 'error.main'}
+                                            >
+                                                {sl.remaining?.toFixed(1) || 0}
+                                            </Typography>
+                                            <Typography variant="caption" color="textSecondary">
+                                                / {sl.total?.toFixed(1) || 0}
+                                            </Typography>
+                                            <Tooltip title="Edit Sick Leave">
+                                                <IconButton 
+                                                    size="small" 
+                                                    color="primary"
+                                                    onClick={() => handleOpenEdit(employee, { name: 'Sick Leave', code: 'SL' }, sl)}
+                                                    sx={{ ml: 0.5 }}
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold"
+                                                color={spl.remaining > 0 ? 'success.main' : 'error.main'}
+                                            >
+                                                {spl.remaining?.toFixed(1) || 0}
+                                            </Typography>
+                                            <Typography variant="caption" color="textSecondary">
+                                                / {spl.total?.toFixed(1) || 0}
+                                            </Typography>
+                                            <Tooltip title="Edit Special Leave">
+                                                <IconButton 
+                                                    size="small" 
+                                                    color="primary"
+                                                    onClick={() => handleOpenEdit(employee, { name: 'Special Leave', code: 'SPL' }, spl)}
+                                                    sx={{ ml: 0.5 }}
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Typography variant="body2" fontWeight="medium">
-                                                {total}
+                                                {total.toFixed(1)}
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Typography variant="body2" color="error.main">
-                                                {summary.used_days || 0}
+                                                {summary.used_days?.toFixed(1) || 0}
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Typography variant="body2" color="warning.main">
-                                                {summary.pending_days || 0}
+                                                {summary.pending_days?.toFixed(1) || 0}
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Typography variant="body2" fontWeight="bold" color="success.main">
-                                                {remaining}
+                                                {remaining.toFixed(1)}
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
@@ -389,6 +584,13 @@ const AllLeaveBalances = () => {
                                                     <CheckCircleIcon />
                                                 }
                                             />
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Tooltip title="View Details">
+                                                <IconButton size="small" color="info">
+                                                    <VisibilityIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -409,6 +611,78 @@ const AllLeaveBalances = () => {
                     }}
                 />
             </TableContainer>
+
+            {/* ========== EDIT DIALOG ========== */}
+            <Dialog open={editDialog.open} onClose={handleCloseEdit} maxWidth="sm" fullWidth>
+                <DialogTitle>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="h6">
+                            ✏️ Edit {editDialog.leaveType} Balance
+                        </Typography>
+                        <IconButton onClick={handleCloseEdit} size="small">
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                </DialogTitle>
+                <DialogContent>
+                    <Box mt={2}>
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                            <Typography variant="body2">
+                                <strong>Employee:</strong> {editDialog.employeeName}
+                            </Typography>
+                            <Typography variant="body2">
+                                <strong>Leave Type:</strong> {editDialog.leaveType} ({editDialog.leaveCode})
+                            </Typography>
+                            <Typography variant="body2">
+                                <strong>Current Remaining:</strong> {editDialog.currentRemaining.toFixed(1)} days
+                            </Typography>
+                        </Alert>
+
+                        <TextField
+                            fullWidth
+                            type="number"
+                            label="New Total Entitlement"
+                            value={editDialog.newTotal}
+                            onChange={(e) => setEditDialog({ ...editDialog, newTotal: parseFloat(e.target.value) || 0 })}
+                            InputProps={{
+                                inputProps: { min: 0, step: 0.5 }
+                            }}
+                            sx={{ mb: 2 }}
+                            helperText="Enter the new total entitlement for this leave type"
+                        />
+
+                        <TextField
+                            fullWidth
+                            multiline
+                            rows={3}
+                            label="Adjustment Reason *"
+                            value={editDialog.adjustmentReason}
+                            onChange={(e) => setEditDialog({ ...editDialog, adjustmentReason: e.target.value })}
+                            placeholder="Please explain why this balance is being adjusted..."
+                            required
+                            helperText="This reason will be logged for audit purposes"
+                        />
+
+                        {editDialog.isLoading && (
+                            <LinearProgress sx={{ mt: 2 }} />
+                        )}
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={handleCloseEdit} disabled={editDialog.isLoading}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleSaveEdit}
+                        disabled={editDialog.isLoading || !editDialog.adjustmentReason}
+                        startIcon={<SaveIcon />}
+                    >
+                        {editDialog.isLoading ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };
