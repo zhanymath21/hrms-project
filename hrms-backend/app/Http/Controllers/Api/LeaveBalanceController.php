@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveType;
-use App\Services\Leave\LeaveBalanceService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,13 +16,6 @@ use Illuminate\Support\Facades\Validator;
 
 class LeaveBalanceController extends Controller
 {
-    protected LeaveBalanceService $balanceService;
-
-    public function __construct(LeaveBalanceService $balanceService)
-    {
-        $this->balanceService = $balanceService;
-    }
-
     /**
      * Get all employees leave balances (Admin/HR only)
      * GET /api/employees/leave-balances
@@ -155,55 +147,6 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Get my leave balance (Employee)
-     * GET /api/employees/my-leave-balance
-     */
-    public function myBalance(Request $request): JsonResponse
-    {
-        try {
-            $user = $request->user();
-
-            if (!$user) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'User not authenticated'
-                ], 401);
-            }
-
-            $this->balanceService->ensureBalanceExists($user);
-
-            $balances = LeaveBalance::where('employee_id', $user->id)
-                ->where('year', date('Y'))
-                ->with('leaveType')
-                ->get();
-
-            return response()->json([
-                'status' => 'success',
-                'data' => [
-                    'balances' => $balances->map(function ($balance) {
-                        return [
-                            'id' => $balance->id,
-                            'leave_type_id' => $balance->leave_type_id,
-                            'leave_type' => $balance->leaveType->name ?? 'Unknown',
-                            'leave_code' => $balance->leaveType->code ?? 'N/A',
-                            'total_entitlement' => (float) ($balance->total_entitlement ?? 0),
-                            'used_days' => (float) ($balance->used_days ?? 0),
-                            'pending_days' => (float) ($balance->pending_days ?? 0),
-                            'remaining_days' => (float) ($balance->remaining_days ?? 0),
-                        ];
-                    }),
-                ],
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error fetching my balance: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to fetch balance: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
      * Update leave balance (Admin/HR only)
      * PUT /api/employees/leave-balance/{id}
      */
@@ -233,7 +176,6 @@ class LeaveBalanceController extends Controller
             }
 
             $user = $request->user();
-            $oldRemaining = $balance->remaining_days;
 
             DB::beginTransaction();
 
@@ -251,12 +193,6 @@ class LeaveBalanceController extends Controller
                 return response()->json([
                     'status' => 'success',
                     'message' => 'Leave balance updated successfully',
-                    'data' => [
-                        'id' => $balance->id,
-                        'old_remaining' => $oldRemaining,
-                        'new_remaining' => $balance->remaining_days,
-                        'adjustment_reason' => $request->adjustment_reason,
-                    ]
                 ]);
             } catch (\Exception $e) {
                 DB::rollBack();
@@ -272,34 +208,48 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Get balance detail (Admin/HR only)
-     * GET /api/employees/leave-balance/{id}
+     * Get my leave balance (Employee)
+     * GET /api/employees/my-leave-balance
      */
-    public function getBalanceDetail($id): JsonResponse
+    public function myBalance(Request $request): JsonResponse
     {
         try {
-            $balance = LeaveBalance::with([
-                'employee:id,first_name,last_name,employee_id',
-                'leaveType:id,name,code',
-                'adjustedBy:id,first_name,last_name'
-            ])->find($id);
+            $user = $request->user();
 
-            if (!$balance) {
+            if (!$user) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Balance not found'
-                ], 404);
+                    'message' => 'User not authenticated'
+                ], 401);
             }
+
+            $balances = LeaveBalance::where('employee_id', $user->id)
+                ->where('year', date('Y'))
+                ->with('leaveType')
+                ->get();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $balance,
+                'data' => [
+                    'balances' => $balances->map(function ($balance) {
+                        return [
+                            'id' => $balance->id,
+                            'leave_type_id' => $balance->leave_type_id,
+                            'leave_type' => $balance->leaveType->name ?? 'Unknown',
+                            'leave_code' => $balance->leaveType->code ?? 'N/A',
+                            'total_entitlement' => (float) ($balance->total_entitlement ?? 0),
+                            'used_days' => (float) ($balance->used_days ?? 0),
+                            'pending_days' => (float) ($balance->pending_days ?? 0),
+                            'remaining_days' => (float) ($balance->remaining_days ?? 0),
+                        ];
+                    }),
+                ],
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching balance detail: ' . $e->getMessage());
+            Log::error('Error fetching my balance: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to fetch balance detail: ' . $e->getMessage()
+                'message' => 'Failed to fetch balance: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -363,8 +313,6 @@ class LeaveBalanceController extends Controller
                 ], 404);
             }
 
-            $this->balanceService->ensureBalanceExists($employee);
-
             return response()->json([
                 'status' => 'success',
                 'message' => 'Balance generated successfully for ' . $employee->first_name,
@@ -400,106 +348,12 @@ class LeaveBalanceController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => "Balance generated for {$count} employees",
-                'data' => ['processed' => $count, 'total' => $employees->count()]
             ]);
         } catch (\Exception $e) {
             Log::error('Error generating all balances: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to generate all balances: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get adjustment history for employee
-     * GET /api/employees/leave-balance/{employeeId}/history
-     */
-    public function getAdjustmentHistory($employeeId): JsonResponse
-    {
-        try {
-            $balances = LeaveBalance::where('employee_id', $employeeId)
-                ->where(function ($q) {
-                    $q->whereNotNull('adjusted_by')
-                        ->orWhere('manual_adjustment', '!=', 0);
-                })
-                ->with(['leaveType', 'adjustedBy'])
-                ->orderBy('adjusted_at', 'desc')
-                ->get();
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $balances,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error fetching adjustment history: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to fetch history: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Process carry forward (Admin/HR only)
-     * POST /api/employees/process-carry-forward
-     */
-    public function processCarryForward(Request $request): JsonResponse
-    {
-        try {
-            $year = $request->year ?? date('Y') - 1;
-            $processed = $this->balanceService->processCarryForward($year);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => "Processed {$processed} employees for carry forward from {$year} to " . ($year + 1),
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error processing carry forward: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to process carry forward: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get balance summary for dashboard
-     * GET /api/employees/leave-balance-summary
-     */
-    public function getBalanceSummary(Request $request): JsonResponse
-    {
-        try {
-            $year = $request->year ?? date('Y');
-            $leaveTypes = LeaveType::where('is_active', true)->get();
-
-            $summary = [];
-
-            foreach ($leaveTypes as $leaveType) {
-                $balances = LeaveBalance::where('year', $year)
-                    ->where('leave_type_id', $leaveType->id)
-                    ->get();
-
-                $summary[] = [
-                    'leave_type_id' => $leaveType->id,
-                    'leave_type' => $leaveType->name,
-                    'leave_code' => $leaveType->code,
-                    'total_entitlement' => (float) $balances->sum('total_entitlement'),
-                    'used_days' => (float) $balances->sum('used_days'),
-                    'pending_days' => (float) $balances->sum('pending_days'),
-                    'remaining_days' => (float) $balances->sum('remaining_days'),
-                ];
-            }
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $summary,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error fetching balance summary: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to fetch balance summary: ' . $e->getMessage()
             ], 500);
         }
     }

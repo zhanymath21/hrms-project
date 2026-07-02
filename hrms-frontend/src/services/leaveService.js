@@ -22,8 +22,16 @@ const leaveService = {
 
     // 🔥 PERBAIKI INI - Gunakan route yang benar
     getAllBalances: async (params = {}) => {
-        const response = await api.get('/employees/leave-balances', { params });
-        return response.data.data;
+    // 🔥 Gunakan route yang pasti ada
+        try {
+            const response = await api.get('/employees/leave-balances', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('Error:', error);
+            // Fallback ke route lain
+            const response = await api.get('/leaves/all-balances', { params });
+            return response.data.data;
+        }
     },
 
     getBalanceDetail: async (id) => {
