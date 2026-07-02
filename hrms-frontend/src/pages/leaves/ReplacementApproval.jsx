@@ -21,11 +21,13 @@ import {
     TextField,
     Alert,
     CircularProgress,
+    Tooltip,
+    Stack,
+    Grid,
     Stepper,
     Step,
     StepLabel,
-    Tooltip,
-    Grid,
+    Avatar,
 } from '@mui/material';
 import {
     CheckCircle as CheckCircleIcon,
@@ -35,9 +37,11 @@ import {
     Person as PersonIcon,
     CalendarToday as CalendarIcon,
     AccessTime as AccessTimeIcon,
+    Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import leaveService from '../../services/leaveService';
+import LeaveStatusBadge from '../../components/leaves/LeaveStatusBadge';
 import { formatDate } from '../../utils/dateFormat';
 
 const ReplacementApproval = () => {
@@ -50,6 +54,7 @@ const ReplacementApproval = () => {
     const [showRejectDialog, setShowRejectDialog] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [showDetailDialog, setShowDetailDialog] = useState(false);
+    const [selectedDetail, setSelectedDetail] = useState(null);
 
     useEffect(() => {
         loadPendingApprovals();
@@ -57,22 +62,29 @@ const ReplacementApproval = () => {
 
     const loadPendingApprovals = async () => {
         setLoading(true);
+        setError(null);
         try {
             const data = await leaveService.getPendingReplacementApprovals();
             setPendingApprovals(data || []);
         } catch (err) {
-            setError('Failed to load pending approvals');
-            console.error(err);
+            setError('Failed to load pending approvals: ' + err.message);
+            console.error('Error loading pending approvals:', err);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleRefresh = () => {
+        loadPendingApprovals();
+        setSuccess('Data refreshed!');
+        setTimeout(() => setSuccess(null), 3000);
     };
 
     const handleApprove = async (id) => {
         if (window.confirm('Are you sure you want to approve this replacement request?')) {
             try {
                 await leaveService.approveReplacement(id);
-                setSuccess('Replacement approved successfully!');
+                setSuccess('✅ Replacement approved successfully!');
                 loadPendingApprovals();
                 setTimeout(() => setSuccess(null), 3000);
             } catch (err) {
@@ -88,7 +100,7 @@ const ReplacementApproval = () => {
         }
         try {
             await leaveService.rejectReplacement(selectedReplacement.id, rejectReason);
-            setSuccess('Replacement rejected successfully!');
+            setSuccess('✅ Replacement rejected successfully!');
             setShowRejectDialog(false);
             setRejectReason('');
             setSelectedReplacement(null);
@@ -100,7 +112,7 @@ const ReplacementApproval = () => {
     };
 
     const handleViewDetail = (replacement) => {
-        setSelectedReplacement(replacement);
+        setSelectedDetail(replacement);
         setShowDetailDialog(true);
     };
 
@@ -120,6 +132,15 @@ const ReplacementApproval = () => {
         }
     };
 
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.split(' ');
+        if (parts.length >= 2) {
+            return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -137,7 +158,8 @@ const ReplacementApproval = () => {
                 </Typography>
                 <Button
                     variant="outlined"
-                    onClick={loadPendingApprovals}
+                    startIcon={<RefreshIcon />}
+                    onClick={handleRefresh}
                     disabled={loading}
                 >
                     Refresh
@@ -156,7 +178,7 @@ const ReplacementApproval = () => {
                 </Alert>
             )}
 
-            {/* Stats */}
+            {/* Stats Cards */}
             <Grid container spacing={2} mb={3}>
                 <Grid item xs={12} sm={4}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
@@ -181,7 +203,7 @@ const ReplacementApproval = () => {
                 <Grid item xs={12} sm={4}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
                         <Typography color="textSecondary" variant="body2">
-                            Total Approvals
+                            Total Approval Levels
                         </Typography>
                         <Typography variant="h4" color="success.main">
                             {pendingApprovals[0]?.replacement_leave?.total_approval_levels || 0}
@@ -190,6 +212,7 @@ const ReplacementApproval = () => {
                 </Grid>
             </Grid>
 
+            {/* Table */}
             {pendingApprovals.length === 0 ? (
                 <Paper sx={{ p: 4, textAlign: 'center' }}>
                     <Typography color="textSecondary">
@@ -221,7 +244,9 @@ const ReplacementApproval = () => {
                                     <TableRow key={approval.id} hover>
                                         <TableCell>
                                             <Box display="flex" alignItems="center" gap={1}>
-                                                <PersonIcon color="primary" fontSize="small" />
+                                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
+                                                    {getInitials(replacement?.employee?.first_name + ' ' + replacement?.employee?.last_name)}
+                                                </Avatar>
                                                 <Box>
                                                     <Typography variant="body2" fontWeight="medium">
                                                         {replacement?.employee?.first_name} {replacement?.employee?.last_name}
@@ -238,6 +263,12 @@ const ReplacementApproval = () => {
                                                 <Typography variant="body2">
                                                     {formatDate(replacement?.work_date)}
                                                 </Typography>
+                                                <Chip
+                                                    label={replacement?.work_day_type}
+                                                    size="small"
+                                                    variant="outlined"
+                                                    sx={{ fontSize: '0.6rem' }}
+                                                />
                                             </Box>
                                         </TableCell>
                                         <TableCell>
@@ -288,7 +319,7 @@ const ReplacementApproval = () => {
                                             />
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Box display="flex" gap={1} justifyContent="center">
+                                            <Stack direction="row" spacing={0.5} justifyContent="center">
                                                 <Tooltip title="Approve">
                                                     <Button
                                                         size="small"
@@ -334,7 +365,7 @@ const ReplacementApproval = () => {
                                                         </IconButton>
                                                     </Tooltip>
                                                 )}
-                                            </Box>
+                                            </Stack>
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -346,18 +377,38 @@ const ReplacementApproval = () => {
 
             {/* Reject Dialog */}
             <Dialog open={showRejectDialog} onClose={() => setShowRejectDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Reject Replacement Request</DialogTitle>
+                <DialogTitle sx={{ bgcolor: 'error.light', color: 'error.main' }}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <CancelIcon />
+                        Reject Replacement Request
+                    </Box>
+                </DialogTitle>
                 <DialogContent>
                     <Box mt={2}>
-                        <Typography variant="body2" gutterBottom>
-                            <strong>Employee:</strong> {selectedReplacement?.employee?.first_name} {selectedReplacement?.employee?.last_name}
-                        </Typography>
-                        <Typography variant="body2" gutterBottom>
-                            <strong>Work Date:</strong> {formatDate(selectedReplacement?.work_date)}
-                        </Typography>
-                        <Typography variant="body2" gutterBottom>
-                            <strong>Replacement Date:</strong> {formatDate(selectedReplacement?.replacement_date)}
-                        </Typography>
+                        <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: '#f8f9fa' }}>
+                            <Grid container spacing={1}>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2">
+                                        <strong>Employee:</strong> {selectedReplacement?.employee?.first_name} {selectedReplacement?.employee?.last_name}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2">
+                                        <strong>Work Date:</strong> {formatDate(selectedReplacement?.work_date)}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2">
+                                        <strong>Replacement Date:</strong> {formatDate(selectedReplacement?.replacement_date)}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2">
+                                        <strong>Hours Worked:</strong> {selectedReplacement?.hours_worked}h
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+                        </Paper>
                         <TextField
                             fullWidth
                             multiline
@@ -365,16 +416,20 @@ const ReplacementApproval = () => {
                             label="Rejection Reason *"
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value)}
-                            placeholder="Please provide reason for rejection..."
-                            sx={{ mt: 2 }}
+                            placeholder="Please provide a detailed reason for rejection..."
                             required
                         />
                     </Box>
                 </DialogContent>
-                <DialogActions>
+                <DialogActions sx={{ p: 2 }}>
                     <Button onClick={() => setShowRejectDialog(false)}>Cancel</Button>
-                    <Button variant="contained" color="error" onClick={handleReject}>
-                        Reject
+                    <Button
+                        variant="contained"
+                        color="error"
+                        onClick={handleReject}
+                        startIcon={<CancelIcon />}
+                    >
+                        Reject Request
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -384,11 +439,11 @@ const ReplacementApproval = () => {
                 <DialogTitle>
                     <Box display="flex" justifyContent="space-between" alignItems="center">
                         <Typography variant="h6">Replacement Request Details</Typography>
-                        {selectedReplacement?.attachment && (
+                        {selectedDetail?.attachment && (
                             <Button
                                 size="small"
                                 startIcon={<DownloadIcon />}
-                                onClick={() => handleDownloadAttachment(selectedReplacement.id)}
+                                onClick={() => handleDownloadAttachment(selectedDetail.id)}
                             >
                                 Download Attachment
                             </Button>
@@ -397,69 +452,156 @@ const ReplacementApproval = () => {
                 </DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2}>
+                        {/* Employee Info */}
                         <Grid item xs={12} sm={6}>
                             <Paper variant="outlined" sx={{ p: 2 }}>
-                                <Typography variant="subtitle2" color="textSecondary">Employee</Typography>
-                                <Typography variant="body1">
-                                    {selectedReplacement?.employee?.first_name} {selectedReplacement?.employee?.last_name}
+                                <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                                    Employee
                                 </Typography>
-                                <Typography variant="caption" color="textSecondary">
-                                    {selectedReplacement?.employee?.employee_id}
-                                </Typography>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Avatar sx={{ width: 40, height: 40, bgcolor: 'primary.main' }}>
+                                        {getInitials(selectedDetail?.employee?.first_name + ' ' + selectedDetail?.employee?.last_name)}
+                                    </Avatar>
+                                    <Box>
+                                        <Typography variant="body1" fontWeight="medium">
+                                            {selectedDetail?.employee?.first_name} {selectedDetail?.employee?.last_name}
+                                        </Typography>
+                                        <Typography variant="caption" color="textSecondary">
+                                            {selectedDetail?.employee?.employee_id}
+                                        </Typography>
+                                    </Box>
+                                </Box>
                             </Paper>
                         </Grid>
+
+                        {/* Status */}
                         <Grid item xs={12} sm={6}>
                             <Paper variant="outlined" sx={{ p: 2 }}>
-                                <Typography variant="subtitle2" color="textSecondary">Work Details</Typography>
-                                <Typography variant="body1">
-                                    {formatDate(selectedReplacement?.work_date)} ({selectedReplacement?.work_day_type})
+                                <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                                    Status
                                 </Typography>
-                                <Typography variant="caption" color="textSecondary">
-                                    {selectedReplacement?.hours_worked} hours worked
-                                </Typography>
+                                <LeaveStatusBadge status={selectedDetail?.status} size="medium" />
+                                {selectedDetail?.rejection_reason && (
+                                    <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>
+                                        Reason: {selectedDetail.rejection_reason}
+                                    </Typography>
+                                )}
                             </Paper>
                         </Grid>
-                        <Grid item xs={12}>
+
+                        {/* Work Details */}
+                        <Grid item xs={12} sm={6}>
                             <Paper variant="outlined" sx={{ p: 2 }}>
-                                <Typography variant="subtitle2" color="textSecondary">Replacement</Typography>
-                                <Typography variant="body1">
-                                    {formatDate(selectedReplacement?.replacement_date)}
+                                <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                                    Work Details
                                 </Typography>
-                                <Typography variant="caption" color="textSecondary">
-                                    +{selectedReplacement?.days_to_add} days added to Annual Leave
-                                </Typography>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <CalendarIcon fontSize="small" color="action" />
+                                    <Typography variant="body1">
+                                        {formatDate(selectedDetail?.work_date)}
+                                    </Typography>
+                                </Box>
+                                <Box display="flex" alignItems="center" gap={1} mt={0.5}>
+                                    <AccessTimeIcon fontSize="small" color="action" />
+                                    <Typography variant="body2">
+                                        {selectedDetail?.work_day_type} · {selectedDetail?.hours_worked} hours worked
+                                    </Typography>
+                                </Box>
                             </Paper>
                         </Grid>
-                        {selectedReplacement?.reason && (
+
+                        {/* Replacement Details */}
+                        <Grid item xs={12} sm={6}>
+                            <Paper variant="outlined" sx={{ p: 2 }}>
+                                <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                                    Replacement Details
+                                </Typography>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <CalendarIcon fontSize="small" color="success" />
+                                    <Typography variant="body1">
+                                        {formatDate(selectedDetail?.replacement_date)}
+                                    </Typography>
+                                </Box>
+                                <Chip
+                                    label={`+${selectedDetail?.days_to_add} days added to Annual Leave`}
+                                    size="small"
+                                    color="primary"
+                                    sx={{ mt: 0.5 }}
+                                />
+                            </Paper>
+                        </Grid>
+
+                        {/* Reason */}
+                        {selectedDetail?.reason && (
                             <Grid item xs={12}>
                                 <Paper variant="outlined" sx={{ p: 2 }}>
-                                    <Typography variant="subtitle2" color="textSecondary">Reason</Typography>
-                                    <Typography variant="body1">{selectedReplacement.reason}</Typography>
+                                    <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                                        Reason
+                                    </Typography>
+                                    <Typography variant="body1">{selectedDetail.reason}</Typography>
                                 </Paper>
                             </Grid>
                         )}
+
+                        {/* Approval Progress */}
                         <Grid item xs={12}>
-                            <Typography variant="subtitle2" gutterBottom>Approval Progress</Typography>
-                            <Stepper activeStep={selectedReplacement?.approval_level || 0} alternativeLabel>
-                                {[...Array(selectedReplacement?.total_approval_levels || 1)].map((_, i) => (
-                                    <Step key={i}>
-                                        <StepLabel>
-                                            Level {i + 1}
-                                            {selectedReplacement?.approvals?.[i] && (
-                                                <Typography variant="caption" display="block">
-                                                    {selectedReplacement.approvals[i].approver?.first_name} {selectedReplacement.approvals[i].approver?.last_name}
-                                                    <br />
-                                                    {selectedReplacement.approvals[i].status}
-                                                </Typography>
-                                            )}
-                                        </StepLabel>
-                                    </Step>
-                                ))}
-                            </Stepper>
+                            <Paper variant="outlined" sx={{ p: 2 }}>
+                                <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                                    Approval Progress
+                                </Typography>
+                                <Stepper activeStep={selectedDetail?.approval_level || 0} alternativeLabel>
+                                    {[...Array(selectedDetail?.total_approval_levels || 1)].map((_, i) => (
+                                        <Step key={i}>
+                                            <StepLabel>
+                                                Level {i + 1}
+                                                {selectedDetail?.approvals?.[i] && (
+                                                    <Typography variant="caption" display="block">
+                                                        {selectedDetail.approvals[i].approver?.first_name} {selectedDetail.approvals[i].approver?.last_name}
+                                                        <br />
+                                                        <Chip
+                                                            label={selectedDetail.approvals[i].status}
+                                                            size="small"
+                                                            color={selectedDetail.approvals[i].status === 'approved' ? 'success' : 'warning'}
+                                                            sx={{ fontSize: '0.6rem', mt: 0.5 }}
+                                                        />
+                                                    </Typography>
+                                                )}
+                                            </StepLabel>
+                                        </Step>
+                                    ))}
+                                </Stepper>
+                            </Paper>
                         </Grid>
                     </Grid>
                 </DialogContent>
-                <DialogActions>
+                <DialogActions sx={{ p: 2 }}>
+                    {selectedDetail?.status === 'pending' && (
+                        <>
+                            <Button
+                                variant="contained"
+                                color="success"
+                                startIcon={<CheckCircleIcon />}
+                                onClick={() => {
+                                    handleApprove(selectedDetail.id);
+                                    setShowDetailDialog(false);
+                                }}
+                            >
+                                Approve
+                            </Button>
+                            <Button
+                                variant="contained"
+                                color="error"
+                                startIcon={<CancelIcon />}
+                                onClick={() => {
+                                    setShowDetailDialog(false);
+                                    setSelectedReplacement(selectedDetail);
+                                    setShowRejectDialog(true);
+                                }}
+                            >
+                                Reject
+                            </Button>
+                        </>
+                    )}
                     <Button onClick={() => setShowDetailDialog(false)}>Close</Button>
                 </DialogActions>
             </Dialog>

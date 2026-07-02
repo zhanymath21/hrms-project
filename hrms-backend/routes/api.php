@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\PPEController;
 use App\Http\Controllers\Api\PPEExportController;
 use App\Http\Controllers\Api\PPEImportController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\ReplacementLeaveController;
 use App\Http\Controllers\Api\TaxSettingController;
 use App\Http\Controllers\Api\TurnoverReportController;
 use App\Http\Controllers\Api\VacancyController;
@@ -96,7 +97,7 @@ Route::middleware('auth:api')->group(function () {
     // EMPLOYEE MANAGEMENT
     // ==========================================
     Route::prefix('employees')->group(function () {
-        // CRUD - Must come AFTER specific routes to avoid conflicts
+        // CRUD
         Route::get('/', [EmployeeController::class, 'index']);
         Route::post('/', [EmployeeController::class, 'store']);
         Route::get('/{id}', [EmployeeController::class, 'show']);
@@ -106,58 +107,63 @@ Route::middleware('auth:api')->group(function () {
         // Card management
         Route::put('/{id}/card', [EmployeeCardController::class, 'assignCard']);
         Route::delete('/{id}/card', [EmployeeCardController::class, 'removeCard']);
-
-        // ==========================================
-        // LEAVE BALANCE MANAGEMENT
-        // ==========================================
-        Route::prefix('leave-balance')->group(function () {
-            // Employee own balance
-            Route::get('/my', [LeaveBalanceController::class, 'myBalance']);
-
-            // Admin/HR operations
-            Route::get('/', [LeaveBalanceController::class, 'allBalances']);
-            Route::get('/summary', [LeaveBalanceController::class, 'getBalanceSummary']);
-            Route::get('/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
-            Route::put('/{id}', [LeaveBalanceController::class, 'updateBalance']);
-            Route::get('/{employeeId}/history', [LeaveBalanceController::class, 'getAdjustmentHistory']);
-
-            // Bulk operations
-            Route::post('/generate', [LeaveBalanceController::class, 'generateBalance']);
-            Route::post('/generate-all', [LeaveBalanceController::class, 'generateAllBalances']);
-            Route::post('/carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
-        });
     });
 
-    // Employee-specific routes (outside the main employees prefix to avoid conflicts)
-    Route::prefix('employees')->group(function () {
-        // These need to come AFTER the leave-balance routes
-        Route::get('/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
+    // ==========================================
+    // LEAVE BALANCE MANAGEMENT
+    // ==========================================
+    Route::prefix('leave-balances')->group(function () {
+        // Employee own balance
+        Route::get('/my', [LeaveBalanceController::class, 'myBalance']);
+
+        // Admin/HR operations
+        Route::get('/', [LeaveBalanceController::class, 'allBalances']);
+        Route::get('/summary', [LeaveBalanceController::class, 'getBalanceSummary']);
+        Route::get('/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
+        Route::put('/{id}', [LeaveBalanceController::class, 'updateBalance']);
+        Route::get('/{employeeId}/history', [LeaveBalanceController::class, 'getAdjustmentHistory']);
+
+        // Bulk operations
+        Route::post('/generate', [LeaveBalanceController::class, 'generateBalance']);
+        Route::post('/generate-all', [LeaveBalanceController::class, 'generateAllBalances']);
+        Route::post('/carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
     });
+
+    // Employee-specific balance (keep for backward compatibility)
+    Route::get('/employees/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
 
     // ==========================================
     // LEAVE REQUESTS
     // ==========================================
     Route::prefix('leaves')->group(function () {
+        // Leave Types
+        Route::get('/types', [LeaveController::class, 'leaveTypes']);
+
+        // Leave Requests - CRUD
         Route::get('/', [LeaveController::class, 'index']);
         Route::get('/pending', [LeaveController::class, 'pendingRequests']);
-        Route::get('/types', [LeaveController::class, 'leaveTypes']);
         Route::get('/{id}', [LeaveController::class, 'show']);
         Route::post('/', [LeaveController::class, 'store']);
+
+        // Leave Actions
         Route::put('/{id}/approve', [LeaveController::class, 'approve']);
         Route::put('/{id}/reject', [LeaveController::class, 'reject']);
         Route::put('/{id}/cancel', [LeaveController::class, 'cancel']);
+        Route::get('/{id}/download-attachment', [LeaveController::class, 'downloadAttachment']);
     });
 
     // ==========================================
     // REPLACEMENT LEAVES
     // ==========================================
     Route::prefix('replacement-leaves')->group(function () {
-        Route::get('/', [LeaveController::class, 'replacementList']);
-        Route::get('/pending', [LeaveController::class, 'pendingReplacements']);
-        Route::post('/', [LeaveController::class, 'requestReplacement']);
-        Route::put('/{id}/approve', [LeaveController::class, 'approveReplacement']);
-        Route::put('/{id}/reject', [LeaveController::class, 'rejectReplacement']);
-        Route::put('/{id}/cancel', [LeaveController::class, 'cancelReplacement']);
+        Route::get('/', [ReplacementLeaveController::class, 'index']);
+        Route::get('/pending-approvals', [ReplacementLeaveController::class, 'pendingApprovals']);
+        Route::get('/{id}', [ReplacementLeaveController::class, 'show']);
+        Route::post('/', [ReplacementLeaveController::class, 'store']);
+        Route::put('/{id}/approve', [ReplacementLeaveController::class, 'approve']);
+        Route::put('/{id}/reject', [ReplacementLeaveController::class, 'reject']);
+        Route::put('/{id}/cancel', [ReplacementLeaveController::class, 'cancel']);
+        Route::get('/{id}/download-attachment', [ReplacementLeaveController::class, 'downloadAttachment']);
     });
 
     // ==========================================

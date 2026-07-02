@@ -1,4 +1,5 @@
 <?php
+// database/seeders/LeaveTypeSeeder.php
 
 namespace Database\Seeders;
 
@@ -7,43 +8,62 @@ use Illuminate\Database\Seeder;
 
 class LeaveTypeSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
         $leaveTypes = [
             [
                 'code' => 'AL',
                 'name' => 'Annual Leave',
-                'description' => 'Cuti tahunan untuk liburan atau istirahat',
-                'days_per_year' => 18,
+                'description' => 'Regular annual leave for employees',
+                'days_per_year' => 12,
                 'is_paid' => true,
                 'allow_carry_forward' => true,
                 'max_carry_forward_days' => 6,
                 'is_active' => true,
+                'require_attachment' => false,
             ],
             [
                 'code' => 'SL',
                 'name' => 'Sick Leave',
-                'description' => 'Cuti sakit dengan surat dokter',
-                'days_per_year' => 12,
+                'description' => 'Leave due to sickness or medical reasons',
+                'days_per_year' => 14,
                 'is_paid' => true,
                 'allow_carry_forward' => false,
                 'max_carry_forward_days' => 0,
                 'is_active' => true,
+                'require_attachment' => true,
             ],
             [
                 'code' => 'SPL',
                 'name' => 'Special Leave',
-                'description' => 'Cuti khusus untuk keperluan penting (nikah, dll)',
-                'days_per_year' => 7,
+                'description' => 'Special occasions like marriage, birth, etc.',
+                'days_per_year' => 3,
                 'is_paid' => true,
                 'allow_carry_forward' => false,
                 'max_carry_forward_days' => 0,
                 'is_active' => true,
+                'require_attachment' => false,
+            ],
+            [
+                'code' => 'UL',
+                'name' => 'Unpaid Leave',
+                'description' => 'Unpaid leave for personal reasons',
+                'days_per_year' => 0,
+                'is_paid' => false,
+                'allow_carry_forward' => false,
+                'max_carry_forward_days' => 0,
+                'is_active' => true,
+                'require_attachment' => false,
             ],
         ];
 
         foreach ($leaveTypes as $type) {
-            LeaveType::updateOrCreate(['code' => $type['code']], $type);
+            LeaveType::updateOrCreate(
+                ['code' => $type['code']],
+                $type
+            );
         }
+
+        $this->command->info('✅ Leave types seeded successfully!');
     }
 }

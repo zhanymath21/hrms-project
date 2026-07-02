@@ -84,7 +84,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 4. FETCH MY BALANCE - PAKAI ROUTE YANG SUDAH ADA =====
+    // ===== 4. FETCH MY BALANCE =====
     const fetchMyBalance = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -102,25 +102,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 5. FETCH EMPLOYEE BALANCE =====
-    const fetchEmployeeBalance = useCallback(async (employeeId) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const data = await leaveService.getEmployeeBalance(employeeId);
-            setBalances(data?.balances || []);
-            return data;
-        } catch (err) {
-            const msg = err.response?.data?.message || err.message || 'Failed to fetch employee balance';
-            setError(msg);
-            console.error('❌ Fetch employee balance error:', err);
-            return null;
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    // ===== 6. FETCH ALL BALANCES =====
+    // ===== 5. FETCH ALL BALANCES (HR) =====
     const fetchAllBalances = useCallback(async (params = {}) => {
         setLoading(true);
         setError(null);
@@ -137,16 +119,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 7. FETCH BALANCES (UNIFIED) =====
-    const fetchBalances = useCallback(async (employeeId = null) => {
-        if (employeeId) {
-            return await fetchEmployeeBalance(employeeId);
-        } else {
-            return await fetchMyBalance();
-        }
-    }, [fetchMyBalance, fetchEmployeeBalance]);
-
-    // ===== 8. CREATE LEAVE =====
+    // ===== 6. CREATE LEAVE =====
     const createLeave = useCallback(async (data) => {
         setLoading(true);
         setError(null);
@@ -165,12 +138,12 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 9. APPROVE LEAVE =====
-    const approveLeave = useCallback(async (id) => {
+    // ===== 7. APPROVE LEAVE =====
+    const approveLeave = useCallback(async (id, notes) => {
         setLoading(true);
         setError(null);
         try {
-            const result = await leaveService.approveLeave(id);
+            const result = await leaveService.approveLeave(id, notes);
             await fetchLeaves();
             await fetchPendingLeaves();
             return result;
@@ -184,7 +157,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 10. REJECT LEAVE =====
+    // ===== 8. REJECT LEAVE =====
     const rejectLeave = useCallback(async (id, reason) => {
         setLoading(true);
         setError(null);
@@ -203,7 +176,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 11. CANCEL LEAVE =====
+    // ===== 9. CANCEL LEAVE =====
     const cancelLeave = useCallback(async (id) => {
         setLoading(true);
         setError(null);
@@ -221,6 +194,24 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves]);
 
+    // ===== 10. UPDATE BALANCE =====
+    const updateBalance = useCallback(async (id, data) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await leaveService.updateBalance(id, data);
+            await fetchAllBalances();
+            return result;
+        } catch (err) {
+            const msg = err.response?.data?.message || err.message || 'Failed to update balance';
+            setError(msg);
+            console.error('❌ Update balance error:', err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [fetchAllBalances]);
+
     // ===== VALUE =====
     const value = {
         // States
@@ -236,9 +227,7 @@ export const LeaveProvider = ({ children }) => {
         fetchLeaveTypes,
         fetchLeaves,
         fetchPendingLeaves,
-        fetchBalances,
         fetchMyBalance,
-        fetchEmployeeBalance,
         fetchAllBalances,
 
         // Actions
@@ -246,6 +235,7 @@ export const LeaveProvider = ({ children }) => {
         approveLeave,
         rejectLeave,
         cancelLeave,
+        updateBalance,
     };
 
     return (

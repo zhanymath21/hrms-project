@@ -38,8 +38,12 @@ import LeaveCreate from './pages/leaves/LeaveCreate';
 import LeaveBalance from './pages/leaves/LeaveBalance';
 import LeaveApproval from './pages/leaves/LeaveApproval';
 import LeaveDetail from './pages/leaves/LeaveDetail';
-import ReplacementLeave from './pages/leaves/ReplacementLeave';
 import AllLeaveBalances from './pages/leaves/AllLeaveBalances';
+
+// ============ REPLACEMENT LEAVE PAGES ============
+import ReplacementList from './pages/leaves/ReplacementList';
+import ReplacementApproval from './pages/leaves/ReplacementApproval';
+import ReplacementCreate from './pages/leaves/ReplacementLeave';
 
 // ============ ATTENDANCE PAGES ============
 import Attendance from './pages/attendance/Attendance';
@@ -321,8 +325,10 @@ function AppRoutes() {
       } />
 
       {/* ============================================================ */}
-      {/* ===== 🔥 LEAVE MANAGEMENT ROUTES - DIBUNGKUS LeaveProvider ===== */}
+      {/* ===== 🔥 LEAVE MANAGEMENT ROUTES ===== */}
       {/* ============================================================ */}
+      
+      {/* Leave List */}
       <Route path="/leaves" element={
         <ProtectedRoute>
           <MainLayout>
@@ -333,6 +339,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* Create Leave */}
       <Route path="/leaves/create" element={
         <ProtectedRoute>
           <MainLayout>
@@ -343,6 +350,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* Leave Balance */}
       <Route path="/leaves/balance" element={
         <ProtectedRoute>
           <MainLayout>
@@ -353,6 +361,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* Leave Approval */}
       <Route path="/leaves/approval" element={
         <ProtectedRoute>
           <MainLayout>
@@ -363,16 +372,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      <Route path="/leaves/replacement" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <LeaveProvider>
-              <ReplacementLeave />
-            </LeaveProvider>
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-
+      {/* Leave Detail */}
       <Route path="/leaves/:id" element={
         <ProtectedRoute>
           <MainLayout>
@@ -383,14 +383,52 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* All Leave Balances (HR) */}
       <Route path="/leaves/all-balances" element={
-          <ProtectedRoute>
-              <MainLayout>
-                  <AllLeaveBalances />
-              </MainLayout>
-          </ProtectedRoute>
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveProvider>
+              <AllLeaveBalances />
+            </LeaveProvider>
+          </MainLayout>
+        </ProtectedRoute>
       } />
+
+      {/* ===== REPLACEMENT LEAVE ROUTES ===== */}
       
+      {/* Replacement List */}
+      <Route path="/leaves/replacement" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveProvider>
+              <ReplacementList />
+            </LeaveProvider>
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Create Replacement */}
+      <Route path="/leaves/replacement/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveProvider>
+              <ReplacementCreate />
+            </LeaveProvider>
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Replacement Approval */}
+      <Route path="/leaves/replacement/approval" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveProvider>
+              <ReplacementApproval />
+            </LeaveProvider>
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
       {/* ============================================================ */}
 
       {/* ===== TURNOVER ===== */}
