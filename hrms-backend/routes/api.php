@@ -176,27 +176,27 @@ Route::middleware('auth:api')->group(function () {
     // Leave Types
     Route::get('/leave-types', [LeaveController::class, 'leaveTypes']);
 
-    // Leave Balance - Employee
     Route::prefix('employees')->group(function () {
+        // Employee can view their own balance
         Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
+
+        // Admin/HR only
         Route::get('/leave-balances', [LeaveBalanceController::class, 'allBalances']);
+        Route::get('/leave-balance/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
+        Route::put('/leave-balance/{id}', [LeaveBalanceController::class, 'updateBalance']);
         Route::get('/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
+        Route::get('/leave-balance/{employeeId}/history', [LeaveBalanceController::class, 'getAdjustmentHistory']);
         Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
         Route::post('/generate-all-balances', [LeaveBalanceController::class, 'generateAllBalances']);
+        Route::post('/process-carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
+        Route::get('/leave-balance-summary', [LeaveBalanceController::class, 'getBalanceSummary']);
     });
 
-    // Leave Balance - Legacy (Backward Compatibility)
+    // ==========================================
+    // 3. LEAVE REQUESTS
+    // ==========================================
     Route::prefix('leaves')->group(function () {
-        // Balance
-        Route::get('/balance', [LeaveController::class, 'balance']);
-        Route::get('/all-balances', [LeaveController::class, 'allBalances']);
-        Route::get('/balance/{id}', [LeaveController::class, 'getBalanceDetail']);
-        Route::put('/balance/{id}', [LeaveController::class, 'updateBalance']);
-        Route::get('/balance/{employeeId}/history', [LeaveController::class, 'getAdjustmentHistory']);
-        Route::post('/generate-balance', [LeaveController::class, 'generateBalance']);
-        Route::post('/process-carry-forward', [LeaveController::class, 'processCarryForward']);
-
-        // Leave Requests
+        // Leave Requests CRUD
         Route::get('/', [LeaveController::class, 'index']);
         Route::get('/pending', [LeaveController::class, 'pendingRequests']);
         Route::get('/{id}', [LeaveController::class, 'show']);
@@ -206,7 +206,9 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/{id}/cancel', [LeaveController::class, 'cancel']);
     });
 
-    // Replacement Leaves
+    // ==========================================
+    // 4. REPLACEMENT LEAVES
+    // ==========================================
     Route::prefix('replacement-leaves')->group(function () {
         Route::get('/', [LeaveController::class, 'replacementList']);
         Route::get('/pending', [LeaveController::class, 'pendingReplacements']);
