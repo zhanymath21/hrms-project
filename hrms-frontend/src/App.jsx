@@ -39,6 +39,7 @@ import LeaveBalance from './pages/leaves/LeaveBalance';
 import LeaveApproval from './pages/leaves/LeaveApproval';
 import LeaveDetail from './pages/leaves/LeaveDetail';
 import ReplacementLeave from './pages/leaves/ReplacementLeave';
+import AllLeaveBalances from './pages/leaves/AllLeaveBalances';
 
 // ============ ATTENDANCE PAGES ============
 import Attendance from './pages/attendance/Attendance';
@@ -381,6 +382,15 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
+
+      <Route path="/leaves/all-balances" element={
+          <ProtectedRoute>
+              <MainLayout>
+                  <AllLeaveBalances />
+              </MainLayout>
+          </ProtectedRoute>
+      } />
+      
       {/* ============================================================ */}
 
       {/* ===== TURNOVER ===== */}

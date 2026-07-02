@@ -126,6 +126,7 @@ const menuItems = [
       { text: '➕ Request Leave', path: '/leaves/create', icon: <AddIcon /> },
       { text: '✅ Approve Leaves', path: '/leaves/approval', icon: <CheckCircleIcon /> },
       { text: '📊 Leave Balance', path: '/leaves/balance', icon: <BalanceIcon /> },
+      { text: '📊 All Balances', path: '/leaves/all-balances', icon: <BalanceIcon /> }, 
       { text: '🔄 Replacement Leave', path: '/leaves/replacement', icon: <SwapIcon /> },
     ]
   },
