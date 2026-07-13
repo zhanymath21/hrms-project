@@ -10,6 +10,7 @@ use App\Models\LeaveType;
 use App\Models\LeaveBalance;
 use App\Services\Leave\LeaveApprovalService;
 use App\Services\Leave\LeaveBalanceService;
+use App\Models\LeaveApproval;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -293,72 +294,76 @@ class LeaveController extends Controller
             Log::info('📋 Fetching pending approvals for user: ' . $request->user()->id);
 
             $user = $request->user();
+            $approvals = $this->approvalService->getPendingApprovals($user);
 
-            // Get all pending approvals where current user is the approver
-            $approvals = LeaveApproval::with([
-                'leave:id,employee_id,leave_type_id,start_date,end_date,total_days,reason,status,attachment,approval_level,total_approval_levels,created_at',
-                'leave.employee:id,first_name,last_name,employee_id',
-                'leave.leaveType:id,name,code',
-                'approver:id,first_name,last_name',
-            ])
-                ->where('approver_id', $user->id)
-                ->where('status', 'pending')
-                ->orderBy('created_at', 'asc')
-                ->get();
-
-            Log::info('✅ Found ' . $approvals->count() . ' pending approvals');
-
-            // Format response
-            $result = $approvals->map(function ($approval) {
-                return [
-                    'id' => $approval->id,
-                    'level' => $approval->level,
-                    'status' => $approval->status,
-                    'notes' => $approval->notes,
-                    'approved_at' => $approval->approved_at,
-                    'created_at' => $approval->created_at,
-                    'leave_id' => $approval->leave_id,
-                    'leave' => $approval->leave ? [
-                        'id' => $approval->leave->id,
-                        'employee_id' => $approval->leave->employee_id,
-                        'employee' => $approval->leave->employee ? [
-                            'id' => $approval->leave->employee->id,
-                            'first_name' => $approval->leave->employee->first_name,
-                            'last_name' => $approval->leave->employee->last_name,
-                            'employee_id' => $approval->leave->employee->employee_id,
-                        ] : null,
-                        'leave_type_id' => $approval->leave->leave_type_id,
-                        'leave_type' => $approval->leave->leaveType ? [
-                            'id' => $approval->leave->leaveType->id,
-                            'name' => $approval->leave->leaveType->name,
-                            'code' => $approval->leave->leaveType->code,
-                        ] : null,
-                        'start_date' => $approval->leave->start_date,
-                        'end_date' => $approval->leave->end_date,
-                        'total_days' => $approval->leave->total_days,
-                        'reason' => $approval->leave->reason,
-                        'attachment' => $approval->leave->attachment,
-                        'status' => $approval->leave->status,
-                        'approval_level' => $approval->leave->approval_level,
-                        'total_approval_levels' => $approval->leave->total_approval_levels,
-                        'created_at' => $approval->leave->created_at,
-                    ] : null,
-                    'approver' => $approval->approver ? [
-                        'id' => $approval->approver->id,
-                        'first_name' => $approval->approver->first_name,
-                        'last_name' => $approval->approver->last_name,
-                    ] : null,
-                ];
-            });
-
-            return $this->success($result, 'Pending approvals fetched');
+            return $this->success($approvals, 'Pending approvals fetched');
         } catch (\Exception $e) {
             Log::error('❌ Error fetching pending approvals: ' . $e->getMessage());
-            Log::error($e->getTraceAsString());
             return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
         }
     }
 
+    public function getApprovalFlow(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$this->isAdminOrHR($user)) {
+                return $this->unauthorized('Only Admin/HR can view approval flow');
+            }
+
+            $flows = $this->approvalService->getApprovalFlowConfig();
+
+            return $this->success($flows, 'Approval flow fetched');
+        } catch (\Exception $e) {
+            return $this->error('Failed to fetch approval flow: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function updateApprovalFlow(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$this->isAdminOrHR($user)) {
+                return $this->unauthorized('Only Admin/HR can update approval flow');
+            }
+
+            $validator = Validator::make($request->all(), [
+                'flows' => 'required|array',
+                'flows.*.level' => 'required|integer|min:1',
+                'flows.*.approver_type' => 'required|string|in:manager,hr,director,custom',
+                'flows.*.approver_id' => 'nullable|exists:employees,id',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->validationError($validator->errors());
+            }
+
+            $this->approvalService->updateApprovalFlowConfig($request->flows);
+
+            return $this->success(null, 'Approval flow updated successfully');
+        } catch (\Exception $e) {
+            return $this->error('Failed to update approval flow: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function getEmployeeApprovalFlow($employeeId): JsonResponse
+    {
+        try {
+            $employee = Employee::find($employeeId);
+
+            if (!$employee) {
+                return $this->notFound('Employee not found');
+            }
+
+            $flows = $this->approvalService->getEmployeeApprovalFlow($employee);
+
+            return $this->success($flows, 'Employee approval flow fetched');
+        } catch (\Exception $e) {
+            return $this->error('Failed to fetch employee approval flow: ' . $e->getMessage(), 500);
+        }
+    }
     /**
      * Approve leave at level
      * PUT /api/leaves/{id}/approve

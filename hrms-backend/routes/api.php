@@ -143,6 +143,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [LeaveController::class, 'index']);
         Route::get('/pending', [LeaveController::class, 'pendingRequests']);
         Route::get('/all-pending', [LeaveController::class, 'allPendingRequests']);
+        Route::get('/pending-approvals', [LeaveController::class, 'pendingApprovals']);
+        Route::get('/approval-flow', [LeaveController::class, 'getApprovalFlow']);
+        Route::post('/approval-flow', [LeaveController::class, 'updateApprovalFlow']);
+        Route::get('/employee-approval-flow/{employeeId}', [LeaveController::class, 'getEmployeeApprovalFlow']);
         Route::get('/{id}', [LeaveController::class, 'show']);
         Route::post('/', [LeaveController::class, 'store']);
 
