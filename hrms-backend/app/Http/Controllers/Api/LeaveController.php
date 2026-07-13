@@ -290,12 +290,71 @@ class LeaveController extends Controller
     public function pendingApprovals(Request $request): JsonResponse
     {
         try {
-            $employee = $request->user();
-            $approvals = $this->approvalService->getPendingApprovals($employee);
+            Log::info('📋 Fetching pending approvals for user: ' . $request->user()->id);
 
-            return $this->success($approvals, 'Pending approvals fetched');
+            $user = $request->user();
+
+            // Get all pending approvals where current user is the approver
+            $approvals = LeaveApproval::with([
+                'leave:id,employee_id,leave_type_id,start_date,end_date,total_days,reason,status,attachment,approval_level,total_approval_levels,created_at',
+                'leave.employee:id,first_name,last_name,employee_id',
+                'leave.leaveType:id,name,code',
+                'approver:id,first_name,last_name',
+            ])
+                ->where('approver_id', $user->id)
+                ->where('status', 'pending')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            Log::info('✅ Found ' . $approvals->count() . ' pending approvals');
+
+            // Format response
+            $result = $approvals->map(function ($approval) {
+                return [
+                    'id' => $approval->id,
+                    'level' => $approval->level,
+                    'status' => $approval->status,
+                    'notes' => $approval->notes,
+                    'approved_at' => $approval->approved_at,
+                    'created_at' => $approval->created_at,
+                    'leave_id' => $approval->leave_id,
+                    'leave' => $approval->leave ? [
+                        'id' => $approval->leave->id,
+                        'employee_id' => $approval->leave->employee_id,
+                        'employee' => $approval->leave->employee ? [
+                            'id' => $approval->leave->employee->id,
+                            'first_name' => $approval->leave->employee->first_name,
+                            'last_name' => $approval->leave->employee->last_name,
+                            'employee_id' => $approval->leave->employee->employee_id,
+                        ] : null,
+                        'leave_type_id' => $approval->leave->leave_type_id,
+                        'leave_type' => $approval->leave->leaveType ? [
+                            'id' => $approval->leave->leaveType->id,
+                            'name' => $approval->leave->leaveType->name,
+                            'code' => $approval->leave->leaveType->code,
+                        ] : null,
+                        'start_date' => $approval->leave->start_date,
+                        'end_date' => $approval->leave->end_date,
+                        'total_days' => $approval->leave->total_days,
+                        'reason' => $approval->leave->reason,
+                        'attachment' => $approval->leave->attachment,
+                        'status' => $approval->leave->status,
+                        'approval_level' => $approval->leave->approval_level,
+                        'total_approval_levels' => $approval->leave->total_approval_levels,
+                        'created_at' => $approval->leave->created_at,
+                    ] : null,
+                    'approver' => $approval->approver ? [
+                        'id' => $approval->approver->id,
+                        'first_name' => $approval->approver->first_name,
+                        'last_name' => $approval->approver->last_name,
+                    ] : null,
+                ];
+            });
+
+            return $this->success($result, 'Pending approvals fetched');
         } catch (\Exception $e) {
-            Log::error('Error fetching pending approvals: ' . $e->getMessage());
+            Log::error('❌ Error fetching pending approvals: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
             return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
         }
     }
