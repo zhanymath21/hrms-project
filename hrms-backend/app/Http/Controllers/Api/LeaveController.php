@@ -43,7 +43,6 @@ class LeaveController extends Controller
             $types = LeaveType::where('is_active', true)->get();
 
             if ($types->isEmpty()) {
-                // Create default leave types if none exist
                 $this->createDefaultLeaveTypes();
                 $types = LeaveType::where('is_active', true)->get();
             }
@@ -135,6 +134,128 @@ class LeaveController extends Controller
         }
     }
 
+    // ==========================================
+    // 🔥 TAMBAHKAN METHOD INI - pendingRequests
+    // ==========================================
+
+    /**
+     * Get pending leave requests
+     * GET /api/leaves/pending
+     */
+    public function pendingRequests(Request $request): JsonResponse
+    {
+        try {
+            Log::info('📋 Fetching pending leave requests');
+
+            $query = Leave::with([
+                'employee:id,first_name,last_name,employee_id,department_id,manager_id',
+                'employee.department:id,name',
+                'leaveType:id,name,code',
+                'approvals.approver:id,first_name,last_name',
+            ])->where('status', 'pending');
+
+            // Filter by employee
+            if ($request->filled('employee_id')) {
+                $query->where('employee_id', $request->employee_id);
+            }
+
+            // Filter by date range
+            if ($request->filled('start_date')) {
+                $query->whereDate('start_date', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('end_date', '<=', $request->end_date);
+            }
+
+            $perPage = $request->input('per_page', 15);
+            $leaves = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+            Log::info('✅ Found ' . $leaves->total() . ' pending requests');
+
+            return $this->success($leaves, 'Pending requests fetched');
+        } catch (\Exception $e) {
+            Log::error('❌ Error fetching pending requests: ' . $e->getMessage());
+            return $this->error('Failed to fetch pending requests: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get pending approvals for current user
+     * GET /api/leaves/pending-approvals
+     */
+    public function pendingApprovals(Request $request): JsonResponse
+    {
+        try {
+            $employee = $request->user();
+            $approvals = $this->approvalService->getPendingApprovals($employee);
+
+            return $this->success($approvals, 'Pending approvals fetched');
+        } catch (\Exception $e) {
+            Log::error('Error fetching pending approvals: ' . $e->getMessage());
+            return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get all pending leaves (Admin/HR only)
+     * GET /api/leaves/all-pending
+     */
+    public function allPendingRequests(Request $request): JsonResponse
+    {
+        try {
+            Log::info('📋 Fetching all pending leave requests');
+
+            $user = $request->user();
+
+            // Check if user is Admin/HR
+            if (!$this->isAdminOrHR($user)) {
+                return $this->unauthorized('Only Admin/HR can view all pending requests');
+            }
+
+            $query = Leave::with([
+                'employee:id,first_name,last_name,employee_id,department_id,manager_id',
+                'employee.department:id,name',
+                'leaveType:id,name,code',
+                'approvals.approver:id,first_name,last_name',
+            ])->where('status', 'pending');
+
+            // Filter by employee
+            if ($request->filled('employee_id')) {
+                $query->where('employee_id', $request->employee_id);
+            }
+
+            // Filter by department
+            if ($request->filled('department_id')) {
+                $query->whereHas('employee', function ($q) use ($request) {
+                    $q->where('department_id', $request->department_id);
+                });
+            }
+
+            // Filter by date range
+            if ($request->filled('start_date')) {
+                $query->whereDate('start_date', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('end_date', '<=', $request->end_date);
+            }
+
+            // Filter by leave type
+            if ($request->filled('leave_type_id')) {
+                $query->where('leave_type_id', $request->leave_type_id);
+            }
+
+            $perPage = $request->input('per_page', 15);
+            $leaves = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+            Log::info('✅ Found ' . $leaves->total() . ' pending requests');
+
+            return $this->success($leaves, 'All pending requests fetched');
+        } catch (\Exception $e) {
+            Log::error('❌ Error fetching all pending requests: ' . $e->getMessage());
+            return $this->error('Failed to fetch all pending requests: ' . $e->getMessage(), 500);
+        }
+    }
+
     /**
      * Create leave request with attachment
      * POST /api/leaves
@@ -207,23 +328,6 @@ class LeaveController extends Controller
             Log::error('❌ Error creating leave: ' . $e->getMessage());
             Log::error($e->getTraceAsString());
             return $this->error('Failed to submit leave: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * Get pending approvals for current user
-     * GET /api/leaves/pending-approvals
-     */
-    public function pendingApprovals(Request $request): JsonResponse
-    {
-        try {
-            $employee = $request->user();
-            $approvals = $this->approvalService->getPendingApprovals($employee);
-
-            return $this->success($approvals, 'Pending approvals fetched');
-        } catch (\Exception $e) {
-            Log::error('Error fetching pending approvals: ' . $e->getMessage());
-            return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
         }
     }
 
@@ -493,31 +597,13 @@ class LeaveController extends Controller
     public function publicHolidays(Request $request): JsonResponse
     {
         try {
-            // This would typically fetch from a database or API
-            // For now, return sample data
             $year = $request->year ?? date('Y');
 
             $holidays = [
-                [
-                    'date' => $year . '-01-01',
-                    'name' => 'New Year\'s Day',
-                    'type' => 'national',
-                ],
-                [
-                    'date' => $year . '-05-01',
-                    'name' => 'Labor Day',
-                    'type' => 'national',
-                ],
-                [
-                    'date' => $year . '-08-17',
-                    'name' => 'Independence Day',
-                    'type' => 'national',
-                ],
-                [
-                    'date' => $year . '-12-25',
-                    'name' => 'Christmas Day',
-                    'type' => 'national',
-                ],
+                ['date' => $year . '-01-01', 'name' => 'New Year\'s Day', 'type' => 'national'],
+                ['date' => $year . '-05-01', 'name' => 'Labor Day', 'type' => 'national'],
+                ['date' => $year . '-08-17', 'name' => 'Independence Day', 'type' => 'national'],
+                ['date' => $year . '-12-25', 'name' => 'Christmas Day', 'type' => 'national'],
             ];
 
             return $this->success($holidays, 'Public holidays fetched');

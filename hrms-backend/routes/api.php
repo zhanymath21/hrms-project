@@ -142,6 +142,7 @@ Route::middleware('auth:api')->group(function () {
         // Leave Requests - CRUD
         Route::get('/', [LeaveController::class, 'index']);
         Route::get('/pending', [LeaveController::class, 'pendingRequests']);
+        Route::get('/all-pending', [LeaveController::class, 'allPendingRequests']);
         Route::get('/{id}', [LeaveController::class, 'show']);
         Route::post('/', [LeaveController::class, 'store']);
 
