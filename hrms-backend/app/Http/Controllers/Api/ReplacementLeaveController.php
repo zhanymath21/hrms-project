@@ -8,6 +8,7 @@ use App\Models\ReplacementLeave;
 use App\Services\Leave\ReplacementLeaveService;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
