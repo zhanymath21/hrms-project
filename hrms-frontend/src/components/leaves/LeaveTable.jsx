@@ -1,6 +1,6 @@
 // src/components/leaves/LeaveTable.jsx
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Table,
     TableBody,
@@ -17,12 +17,14 @@ import {
     Tooltip,
     CircularProgress,
     Box,
+    Avatar,
 } from '@mui/material';
 import {
     Visibility as VisibilityIcon,
     CheckCircle as CheckCircleIcon,
     Cancel as CancelIcon,
     Block as BlockIcon,
+    Download as DownloadIcon,
 } from '@mui/icons-material';
 import LeaveStatusBadge from './LeaveStatusBadge';
 import { formatDate } from '../../utils/dateFormat';
@@ -39,10 +41,21 @@ const LeaveTable = ({
     onApprove,
     onReject,
     onCancel,
+    onDownload,
     hasActiveFilters = false,
     showActions = true,
+    showProgress = false,
 }) => {
     const isPending = (status) => status === 'pending';
+
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.split(' ');
+        if (parts.length >= 2) {
+            return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
 
     if (loading && data.length === 0) {
         return (
@@ -64,8 +77,9 @@ const LeaveTable = ({
                             <TableCell>Total Days</TableCell>
                             <TableCell>Status</TableCell>
                             <TableCell>Requested</TableCell>
+                            {showProgress && <TableCell align="center">Progress</TableCell>}
                             {showActions && (
-                                <TableCell align="center" width="150">Actions</TableCell>
+                                <TableCell align="center" width="200">Actions</TableCell>
                             )}
                         </TableRow>
                     </TableHead>
@@ -73,7 +87,7 @@ const LeaveTable = ({
                         {data.length === 0 ? (
                             <TableRow>
                                 <TableCell 
-                                    colSpan={showActions ? 7 : 6} 
+                                    colSpan={showActions ? (showProgress ? 9 : 8) : (showProgress ? 7 : 6)} 
                                     align="center" 
                                     sx={{ py: 4 }}
                                 >
@@ -96,12 +110,19 @@ const LeaveTable = ({
                                     }}
                                 >
                                     <TableCell>
-                                        <Typography variant="body2" fontWeight="medium">
-                                            {leave.employee?.first_name} {leave.employee?.last_name}
-                                        </Typography>
-                                        <Typography variant="caption" color="textSecondary">
-                                            {leave.employee?.employee_id}
-                                        </Typography>
+                                        <Box display="flex" alignItems="center" gap={1}>
+                                            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
+                                                {getInitials(leave.employee?.first_name + ' ' + leave.employee?.last_name)}
+                                            </Avatar>
+                                            <Box>
+                                                <Typography variant="body2" fontWeight="medium">
+                                                    {leave.employee?.first_name} {leave.employee?.last_name}
+                                                </Typography>
+                                                <Typography variant="caption" color="textSecondary">
+                                                    {leave.employee?.employee_id}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
                                     </TableCell>
                                     <TableCell>
                                         <Chip
@@ -131,6 +152,22 @@ const LeaveTable = ({
                                             {formatDate(leave.created_at)}
                                         </Typography>
                                     </TableCell>
+                                    {showProgress && (
+                                        <TableCell align="center">
+                                            <Box display="flex" alignItems="center" gap={1}>
+                                                <Typography variant="caption">
+                                                    {leave.approval_level || 0}/{leave.total_approval_levels || 1}
+                                                </Typography>
+                                                <Box sx={{ width: 60 }}>
+                                                    <LinearProgress 
+                                                        variant="determinate" 
+                                                        value={leave.approval_level / leave.total_approval_levels * 100 || 0}
+                                                        sx={{ height: 6, borderRadius: 3 }}
+                                                    />
+                                                </Box>
+                                            </Box>
+                                        </TableCell>
+                                    )}
                                     {showActions && (
                                         <TableCell align="center">
                                             <Stack direction="row" spacing={0.5} justifyContent="center">
@@ -141,6 +178,10 @@ const LeaveTable = ({
                                                             size="small"
                                                             color="success"
                                                             onClick={() => onApprove?.(leave.id)}
+                                                            sx={{ 
+                                                                bgcolor: 'success.light',
+                                                                '&:hover': { bgcolor: 'success.main', color: 'white' }
+                                                            }}
                                                         >
                                                             <CheckCircleIcon fontSize="small" />
                                                         </IconButton>
@@ -154,6 +195,10 @@ const LeaveTable = ({
                                                             size="small"
                                                             color="error"
                                                             onClick={() => onReject?.(leave)}
+                                                            sx={{ 
+                                                                bgcolor: 'error.light',
+                                                                '&:hover': { bgcolor: 'error.main', color: 'white' }
+                                                            }}
                                                         >
                                                             <CancelIcon fontSize="small" />
                                                         </IconButton>
@@ -183,6 +228,19 @@ const LeaveTable = ({
                                                         <VisibilityIcon fontSize="small" />
                                                     </IconButton>
                                                 </Tooltip>
+
+                                                {/* Download */}
+                                                {leave.attachment && (
+                                                    <Tooltip title="Download Attachment">
+                                                        <IconButton
+                                                            size="small"
+                                                            color="primary"
+                                                            onClick={() => onDownload?.(leave.id)}
+                                                        >
+                                                            <DownloadIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
                                             </Stack>
                                         </TableCell>
                                     )}

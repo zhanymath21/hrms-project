@@ -19,7 +19,6 @@ import {
   MenuItem,
   Divider,
   Tooltip,
-  Badge,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -53,23 +52,23 @@ import {
   Article as ArticleIcon,
   FileCopy as FileCopyIcon,
   HowToReg as HowToRegIcon,
-  ReportProblem as IncidentIcon, 
-  Warning as WarningIcon, 
-  Healing as HealingIcon, 
-  WarningAmber as WarningAmberIcon,
+  Healing as HealingIcon,
+  Warning as WarningIcon,
   AttachMoney as AttachMoneyIcon,
-  // Leave Icons
-  CalendarToday as CalendarIcon,
+  // 🔥 LEAVE ICONS - HANYA YANG ADA DI MUI
   Balance as BalanceIcon,
   SwapHoriz as SwapIcon,
   CheckCircle as CheckCircleIcon,
-  Pending as PendingIcon,
+  CalendarToday as CalendarIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from '../pages/components/NotificationBell';
 
 const drawerWidth = 280;
 
+// ==========================================
+// MENU ITEMS - TANPA ICON YANG TIDAK ADA
+// ==========================================
 const menuItems = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/', color: '#6366f1' },
   { 
@@ -115,19 +114,23 @@ const menuItems = [
       { text: 'Office Locations', icon: <LocationOnIcon />, path: '/locations', color: '#f59e0b' },
     ],
   },
-  // ========== LEAVE MANAGEMENT ==========
+  // ==========================================
+  // LEAVE MANAGEMENT - TANPA ICON BERMASALAH
+  // ==========================================
   { 
     text: 'Leave Management', 
     icon: <LeaveIcon />, 
     path: '/leaves', 
     color: '#ef4444',
     children: [
-      { text: '📋 Leave Requests', path: '/leaves', icon: <CalendarIcon /> },
-      { text: '➕ Request Leave', path: '/leaves/create', icon: <AddIcon /> },
-      { text: '✅ Approve Leaves', path: '/leaves/approval', icon: <CheckCircleIcon /> },
-      { text: '📊 Leave Balance', path: '/leaves/balance', icon: <BalanceIcon /> },
-      { text: '📊 All Balances', path: '/leaves/all-balances', icon: <BalanceIcon /> }, 
-      { text: '🔄 Replacement Leave', path: '/leaves/replacement', icon: <SwapIcon /> },
+      { text: '🏠 Dashboard', path: '/leaves' },
+      { text: '📋 My Requests', path: '/leaves/list' },
+      { text: '➕ Request Leave', path: '/leaves/create' },
+      { text: '📊 My Balance', path: '/leaves/balance' },
+      { text: '✅ Approve Leaves', path: '/leaves/approval' },
+      { text: '📊 All Balances', path: '/leaves/all-balances' },
+      { text: '🔄 Replacement Leave', path: '/leaves/replacement' },
+      { text: '⚙️ Approval Flow', path: '/approval-flow' },
     ]
   },
   {
@@ -166,6 +169,9 @@ const menuItems = [
   { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },
 ];
 
+// ==========================================
+// MAINLAYOUT COMPONENT
+// ==========================================
 const MainLayout = ({ children }) => {
   const [open, setOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -191,7 +197,6 @@ const MainLayout = ({ children }) => {
 
   const isMenuActive = (item) => {
     if (item.path === '/') return location.pathname === '/';
-    // Check if current path matches item path or any child path
     if (item.children) {
       return item.children.some(child => location.pathname === child.path);
     }
@@ -207,7 +212,6 @@ const MainLayout = ({ children }) => {
     return true;
   });
 
-  // Safe alpha function
   const getAlphaColor = (color, opacity) => {
     if (!color) return `rgba(99, 102, 241, ${opacity})`;
     if (color.startsWith('#')) {

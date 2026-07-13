@@ -2,6 +2,7 @@
 // routes/api.php
 
 use App\Http\Controllers\Api\ApplicationController;
+use App\Http\Controllers\Api\ApprovalFlowController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\CandidateController;
@@ -155,6 +156,12 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/{id}/reject', [LeaveController::class, 'reject']);
         Route::put('/{id}/cancel', [LeaveController::class, 'cancel']);
         Route::get('/{id}/download-attachment', [LeaveController::class, 'downloadAttachment']);
+    });
+
+    Route::prefix('approval-flow')->group(function () {
+        Route::get('/', [ApprovalFlowController::class, 'index']);
+        Route::post('/', [ApprovalFlowController::class, 'update']);
+        Route::get('/employee/{employeeId}', [ApprovalFlowController::class, 'getEmployeeFlow']);
     });
 
     // ==========================================

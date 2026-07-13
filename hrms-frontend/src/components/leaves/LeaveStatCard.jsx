@@ -1,7 +1,7 @@
 // src/components/leaves/LeaveStatCard.jsx
 
 import React from 'react';
-import { Card, CardContent, Typography, Box, CircularProgress } from '@mui/material';
+import { Card, CardContent, Typography, Box, CircularProgress, Tooltip } from '@mui/material';
 
 const LeaveStatCard = ({ 
     title, 
@@ -10,6 +10,7 @@ const LeaveStatCard = ({
     icon = null, 
     loading = false,
     subtitle = null,
+    tooltip = null,
 }) => {
     return (
         <Card sx={{ height: '100%', position: 'relative', overflow: 'visible' }}>
@@ -30,14 +31,16 @@ const LeaveStatCard = ({
                                 </Box>
                             )}
                         </Box>
-                        <Typography 
-                            variant="h4" 
-                            component="div" 
-                            color={`${color}.main`}
-                            fontWeight="bold"
-                        >
-                            {value || 0}
-                        </Typography>
+                        <Tooltip title={tooltip || ''} arrow>
+                            <Typography 
+                                variant="h4" 
+                                component="div" 
+                                color={`${color}.main`}
+                                fontWeight="bold"
+                            >
+                                {value || 0}
+                            </Typography>
+                        </Tooltip>
                         {subtitle && (
                             <Typography variant="caption" color="textSecondary">
                                 {subtitle}

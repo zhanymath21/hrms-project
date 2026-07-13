@@ -18,6 +18,7 @@ export const LeaveProvider = ({ children }) => {
     const [leaves, setLeaves] = useState([]);
     const [pendingLeaves, setPendingLeaves] = useState([]);
     const [balances, setBalances] = useState([]);
+    const [allBalances, setAllBalances] = useState([]); // 🔥 TAMBAHKAN
     const [leaveTypes, setLeaveTypes] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -102,12 +103,13 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 5. FETCH ALL BALANCES =====
+    // ===== 5. FETCH ALL BALANCES (HR/Admin) =====
     const fetchAllBalances = useCallback(async (params = {}) => {
         setLoading(true);
         setError(null);
         try {
             const data = await leaveService.getAllBalances(params);
+            setAllBalances(data?.data || []);
             return data;
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Failed to fetch all balances';
@@ -218,6 +220,7 @@ export const LeaveProvider = ({ children }) => {
         leaves,
         pendingLeaves,
         balances,
+        allBalances, // 🔥 TAMBAHKAN
         leaveTypes,
         loading,
         error,
@@ -228,7 +231,7 @@ export const LeaveProvider = ({ children }) => {
         fetchLeaves,
         fetchPendingLeaves,
         fetchMyBalance,
-        fetchAllBalances,
+        fetchAllBalances, // 🔥 TAMBAHKAN
 
         // Actions
         createLeave,

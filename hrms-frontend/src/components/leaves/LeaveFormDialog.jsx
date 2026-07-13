@@ -18,8 +18,9 @@ import {
     IconButton,
     Box,
     Typography,
+    Chip,
 } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
+import { Close as CloseIcon, AttachFile as AttachFileIcon, Clear as ClearIcon } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers';
 import { format } from 'date-fns';
 
@@ -31,15 +32,18 @@ const LeaveFormDialog = ({
     initialData = null,
     loading = false,
     title = 'Request Leave',
+    submitLabel = 'Submit',
 }) => {
     const [formData, setFormData] = useState({
         leave_type_id: '',
         start_date: null,
         end_date: null,
         reason: '',
+        attachment: null,
     });
     const [errors, setErrors] = useState({});
     const [submitError, setSubmitError] = useState('');
+    const [attachmentPreview, setAttachmentPreview] = useState(null);
 
     useEffect(() => {
         if (open) {
@@ -49,6 +53,7 @@ const LeaveFormDialog = ({
                     start_date: initialData.start_date ? new Date(initialData.start_date) : null,
                     end_date: initialData.end_date ? new Date(initialData.end_date) : null,
                     reason: initialData.reason || '',
+                    attachment: null,
                 });
             } else {
                 setFormData({
@@ -56,10 +61,12 @@ const LeaveFormDialog = ({
                     start_date: null,
                     end_date: null,
                     reason: '',
+                    attachment: null,
                 });
             }
             setErrors({});
             setSubmitError('');
+            setAttachmentPreview(null);
         }
     }, [open, initialData]);
 
@@ -76,6 +83,29 @@ const LeaveFormDialog = ({
         if (errors[name]) {
             setErrors((prev) => ({ ...prev, [name]: '' }));
         }
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+            if (!validTypes.includes(file.type)) {
+                setSubmitError('Please upload PDF, JPG, PNG, or DOC file');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                setSubmitError('File size must be less than 5MB');
+                return;
+            }
+            setFormData((prev) => ({ ...prev, attachment: file }));
+            setAttachmentPreview(URL.createObjectURL(file));
+            setSubmitError('');
+        }
+    };
+
+    const handleRemoveAttachment = () => {
+        setFormData((prev) => ({ ...prev, attachment: null }));
+        setAttachmentPreview(null);
     };
 
     const validate = () => {
@@ -99,11 +129,15 @@ const LeaveFormDialog = ({
         if (!validate()) return;
 
         try {
-            const data = {
-                ...formData,
-                start_date: format(formData.start_date, 'yyyy-MM-dd'),
-                end_date: format(formData.end_date, 'yyyy-MM-dd'),
-            };
+            const data = new FormData();
+            data.append('leave_type_id', formData.leave_type_id);
+            data.append('start_date', format(formData.start_date, 'yyyy-MM-dd'));
+            data.append('end_date', format(formData.end_date, 'yyyy-MM-dd'));
+            data.append('reason', formData.reason);
+            if (formData.attachment) {
+                data.append('attachment', formData.attachment);
+            }
+
             await onSubmit(data);
             onClose();
         } catch (err) {
@@ -143,6 +177,7 @@ const LeaveFormDialog = ({
                                 {leaveTypes.map((type) => (
                                     <MenuItem key={type.id} value={type.id}>
                                         {type.name} ({type.code}) - {type.days_per_year} days/year
+                                        {type.require_attachment && ' 📎'}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -201,6 +236,62 @@ const LeaveFormDialog = ({
                             required
                         />
                     </Grid>
+
+                    <Grid item xs={12}>
+                        <Box>
+                            <Typography variant="subtitle2" gutterBottom>
+                                Attachment (Optional)
+                            </Typography>
+                            <Box
+                                sx={{
+                                    border: '2px dashed #ccc',
+                                    borderRadius: 2,
+                                    p: 3,
+                                    textAlign: 'center',
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                        borderColor: 'primary.main',
+                                        bgcolor: 'rgba(99, 102, 241, 0.05)',
+                                    },
+                                }}
+                            >
+                                <input
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                    onChange={handleFileChange}
+                                    style={{ display: 'none' }}
+                                    id="attachment-upload"
+                                />
+                                <label htmlFor="attachment-upload" style={{ cursor: 'pointer' }}>
+                                    {attachmentPreview ? (
+                                        <Box>
+                                            <Typography variant="body2" color="success.main">
+                                                📎 {formData.attachment?.name || 'Attachment uploaded'}
+                                            </Typography>
+                                            <IconButton
+                                                size="small"
+                                                color="error"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemoveAttachment();
+                                                }}
+                                                sx={{ mt: 1 }}
+                                            >
+                                                <ClearIcon fontSize="small" />
+                                            </IconButton>
+                                        </Box>
+                                    ) : (
+                                        <Box>
+                                            <AttachFileIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
+                                            <Typography variant="body2" color="textSecondary">
+                                                Click to upload attachment (PDF, JPG, PNG, DOC - max 5MB)
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </label>
+                            </Box>
+                        </Box>
+                    </Grid>
                 </Grid>
             </DialogContent>
 
@@ -214,7 +305,7 @@ const LeaveFormDialog = ({
                     disabled={loading}
                     startIcon={loading ? <CircularProgress size={20} /> : null}
                 >
-                    {loading ? 'Submitting...' : initialData ? 'Update' : 'Submit'}
+                    {loading ? 'Submitting...' : submitLabel}
                 </Button>
             </DialogActions>
         </Dialog>

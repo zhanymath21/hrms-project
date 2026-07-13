@@ -34,6 +34,7 @@ import {
     DialogContent,
     DialogActions,
     LinearProgress,
+    Snackbar,
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
@@ -73,6 +74,7 @@ const AllLeaveBalances = () => {
         totalRemaining: 0,
     });
     const [success, setSuccess] = useState(null);
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     // Edit Dialog
     const [editDialog, setEditDialog] = useState({
@@ -82,6 +84,9 @@ const AllLeaveBalances = () => {
         leaveType: '',
         leaveCode: '',
         currentRemaining: 0,
+        currentTotal: 0,
+        usedDays: 0,
+        pendingDays: 0,
         newTotal: 0,
         adjustmentReason: '',
         isLoading: false,
@@ -111,6 +116,8 @@ const AllLeaveBalances = () => {
             if (departmentFilter) params.department_id = departmentFilter;
 
             const response = await fetchAllBalances(params);
+            console.log('📊 All balances response:', response); // 🔥 DEBUG
+            
             const data = response?.data || {};
             const employeesData = data?.data || [];
             
@@ -122,12 +129,17 @@ const AllLeaveBalances = () => {
                 last_page: data?.pagination?.last_page || 1,
             });
 
-            // Calculate stats
+            // 🔥 PERBAIKI STATS - Gunakan leave_balances
             let totalAL = 0, totalSL = 0, totalSPL = 0, totalRemaining = 0;
             employeesData.forEach(emp => {
-                totalAL += emp.annual_leave?.remaining || 0;
-                totalSL += emp.sick_leave?.remaining || 0;
-                totalSPL += emp.special_leave?.remaining || 0;
+                // Cari balance berdasarkan leave_code
+                const al = emp.leave_balances?.find(b => b.leave_code === 'AL');
+                const sl = emp.leave_balances?.find(b => b.leave_code === 'SL');
+                const spl = emp.leave_balances?.find(b => b.leave_code === 'SPL');
+                
+                totalAL += al?.remaining_days || 0;
+                totalSL += sl?.remaining_days || 0;
+                totalSPL += spl?.remaining_days || 0;
                 totalRemaining += emp.summary?.remaining_days || 0;
             });
 
@@ -141,13 +153,21 @@ const AllLeaveBalances = () => {
 
         } catch (err) {
             console.error('Error loading data:', err);
+            setSnackbar({
+                open: true,
+                message: 'Failed to load data: ' + err.message,
+                severity: 'error',
+            });
         }
     };
 
     const handleRefresh = () => {
         loadData();
-        setSuccess('Data refreshed successfully!');
-        setTimeout(() => setSuccess(null), 3000);
+        setSnackbar({
+            open: true,
+            message: 'Data refreshed successfully!',
+            severity: 'success',
+        });
     };
 
     const handleSearch = (e) => {
@@ -166,10 +186,14 @@ const AllLeaveBalances = () => {
         setPage(0);
     };
 
-    // Edit Balance
+    // 🔥 PERBAIKI EDIT BALANCE
     const handleOpenEdit = (employee, leaveType, balance) => {
         if (!balance || !balance.id) {
-            alert('Balance not found for this employee');
+            setSnackbar({
+                open: true,
+                message: 'Balance not found for this employee',
+                severity: 'error',
+            });
             return;
         }
 
@@ -177,9 +201,13 @@ const AllLeaveBalances = () => {
             open: true,
             balanceId: balance.id,
             employeeName: employee.name,
+            employeeId: employee.employee_id,
             leaveType: leaveType.name,
             leaveCode: leaveType.code,
             currentRemaining: balance.remaining || 0,
+            currentTotal: balance.total || 0,
+            usedDays: balance.used || 0,
+            pendingDays: balance.pending || 0,
             newTotal: balance.total || 0,
             adjustmentReason: '',
             isLoading: false,
@@ -191,9 +219,13 @@ const AllLeaveBalances = () => {
             open: false,
             balanceId: null,
             employeeName: '',
+            employeeId: '',
             leaveType: '',
             leaveCode: '',
             currentRemaining: 0,
+            currentTotal: 0,
+            usedDays: 0,
+            pendingDays: 0,
             newTotal: 0,
             adjustmentReason: '',
             isLoading: false,
@@ -202,12 +234,20 @@ const AllLeaveBalances = () => {
 
     const handleSaveEdit = async () => {
         if (!editDialog.adjustmentReason) {
-            alert('Please provide a reason for adjustment');
+            setSnackbar({
+                open: true,
+                message: 'Please provide a reason for adjustment',
+                severity: 'error',
+            });
             return;
         }
 
         if (editDialog.newTotal < 0) {
-            alert('Total entitlement cannot be negative');
+            setSnackbar({
+                open: true,
+                message: 'Total entitlement cannot be negative',
+                severity: 'error',
+            });
             return;
         }
 
@@ -219,13 +259,20 @@ const AllLeaveBalances = () => {
                 adjustment_reason: editDialog.adjustmentReason,
             });
 
-            setSuccess(`✅ ${editDialog.employeeName}'s ${editDialog.leaveType} balance updated successfully!`);
-            setTimeout(() => setSuccess(null), 5000);
+            setSnackbar({
+                open: true,
+                message: `✅ ${editDialog.employeeName}'s ${editDialog.leaveType} balance updated successfully!`,
+                severity: 'success',
+            });
             
             handleCloseEdit();
             loadData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to update balance');
+            setSnackbar({
+                open: true,
+                message: err.response?.data?.message || 'Failed to update balance',
+                severity: 'error',
+            });
         } finally {
             setEditDialog({ ...editDialog, isLoading: false });
         }
@@ -282,12 +329,6 @@ const AllLeaveBalances = () => {
             {error && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={() => {}}>
                     {error}
-                </Alert>
-            )}
-
-            {success && (
-                <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
-                    {success}
                 </Alert>
             )}
 
@@ -405,14 +446,19 @@ const AllLeaveBalances = () => {
                         {employees.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
-                                    <Typography color="textSecondary">No employees found</Typography>
+                                    <Typography color="textSecondary">
+                                        {search || departmentFilter 
+                                            ? 'No employees match your filters' 
+                                            : 'No employees found'}
+                                    </Typography>
                                 </TableCell>
                             </TableRow>
                         ) : (
                             employees.map((employee) => {
-                                const al = employee.annual_leave || {};
-                                const sl = employee.sick_leave || {};
-                                const spl = employee.special_leave || {};
+                                // 🔥 CARI BALANCE DARI leave_balances
+                                const al = employee.leave_balances?.find(b => b.leave_code === 'AL') || {};
+                                const sl = employee.leave_balances?.find(b => b.leave_code === 'SL') || {};
+                                const spl = employee.leave_balances?.find(b => b.leave_code === 'SPL') || {};
                                 const summary = employee.summary || {};
                                 const remaining = summary.remaining_days || 0;
                                 const total = summary.total_entitlement || 0;
@@ -442,14 +488,22 @@ const AllLeaveBalances = () => {
                                         {/* AL */}
                                         <TableCell align="center">
                                             <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                                                <Typography variant="body2" fontWeight="bold" color={al.remaining > 0 ? 'success.main' : 'error.main'}>
-                                                    {al.remaining?.toFixed(1) || 0}
+                                                <Typography 
+                                                    variant="body2" 
+                                                    fontWeight="bold" 
+                                                    color={al.remaining_days > 0 ? 'success.main' : 'error.main'}
+                                                >
+                                                    {al.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
                                                 <Typography variant="caption" color="textSecondary">
-                                                    / {al.total?.toFixed(1) || 0}
+                                                    / {al.total_entitlement?.toFixed(1) || 0}
                                                 </Typography>
                                                 <Tooltip title="Edit AL Balance">
-                                                    <IconButton size="small" color="primary" onClick={() => handleOpenEdit(employee, { name: 'Annual Leave', code: 'AL' }, al)}>
+                                                    <IconButton 
+                                                        size="small" 
+                                                        color="primary" 
+                                                        onClick={() => handleOpenEdit(employee, { name: 'Annual Leave', code: 'AL' }, al)}
+                                                    >
                                                         <EditIcon fontSize="small" />
                                                     </IconButton>
                                                 </Tooltip>
@@ -458,14 +512,22 @@ const AllLeaveBalances = () => {
                                         {/* SL */}
                                         <TableCell align="center">
                                             <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                                                <Typography variant="body2" fontWeight="bold" color={sl.remaining > 0 ? 'success.main' : 'error.main'}>
-                                                    {sl.remaining?.toFixed(1) || 0}
+                                                <Typography 
+                                                    variant="body2" 
+                                                    fontWeight="bold" 
+                                                    color={sl.remaining_days > 0 ? 'success.main' : 'error.main'}
+                                                >
+                                                    {sl.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
                                                 <Typography variant="caption" color="textSecondary">
-                                                    / {sl.total?.toFixed(1) || 0}
+                                                    / {sl.total_entitlement?.toFixed(1) || 0}
                                                 </Typography>
                                                 <Tooltip title="Edit SL Balance">
-                                                    <IconButton size="small" color="primary" onClick={() => handleOpenEdit(employee, { name: 'Sick Leave', code: 'SL' }, sl)}>
+                                                    <IconButton 
+                                                        size="small" 
+                                                        color="primary" 
+                                                        onClick={() => handleOpenEdit(employee, { name: 'Sick Leave', code: 'SL' }, sl)}
+                                                    >
                                                         <EditIcon fontSize="small" />
                                                     </IconButton>
                                                 </Tooltip>
@@ -474,14 +536,22 @@ const AllLeaveBalances = () => {
                                         {/* SPL */}
                                         <TableCell align="center">
                                             <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                                                <Typography variant="body2" fontWeight="bold" color={spl.remaining > 0 ? 'success.main' : 'error.main'}>
-                                                    {spl.remaining?.toFixed(1) || 0}
+                                                <Typography 
+                                                    variant="body2" 
+                                                    fontWeight="bold" 
+                                                    color={spl.remaining_days > 0 ? 'success.main' : 'error.main'}
+                                                >
+                                                    {spl.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
                                                 <Typography variant="caption" color="textSecondary">
-                                                    / {spl.total?.toFixed(1) || 0}
+                                                    / {spl.total_entitlement?.toFixed(1) || 0}
                                                 </Typography>
                                                 <Tooltip title="Edit SPL Balance">
-                                                    <IconButton size="small" color="primary" onClick={() => handleOpenEdit(employee, { name: 'Special Leave', code: 'SPL' }, spl)}>
+                                                    <IconButton 
+                                                        size="small" 
+                                                        color="primary" 
+                                                        onClick={() => handleOpenEdit(employee, { name: 'Special Leave', code: 'SPL' }, spl)}
+                                                    >
                                                         <EditIcon fontSize="small" />
                                                     </IconButton>
                                                 </Tooltip>
@@ -541,11 +611,29 @@ const AllLeaveBalances = () => {
                     <Box mt={2}>
                         <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: '#f8f9fa' }}>
                             <Grid container spacing={1}>
-                                <Grid item xs={12}><Typography variant="body2"><strong>Employee:</strong> {editDialog.employeeName}</Typography></Grid>
-                                <Grid item xs={12}><Typography variant="body2"><strong>Leave Type:</strong> {editDialog.leaveType} ({editDialog.leaveCode})</Typography></Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2">
+                                        <strong>Employee:</strong> {editDialog.employeeName}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2">
+                                        <strong>Leave Type:</strong> {editDialog.leaveType} ({editDialog.leaveCode})
+                                    </Typography>
+                                </Grid>
                                 <Grid item xs={12}>
                                     <Typography variant="body2" color="success.main">
                                         <strong>Current Remaining:</strong> {editDialog.currentRemaining.toFixed(1)} days
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2" color="error.main">
+                                        <strong>Used:</strong> {editDialog.usedDays.toFixed(1)} days
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2" color="warning.main">
+                                        <strong>Pending:</strong> {editDialog.pendingDays.toFixed(1)} days
                                     </Typography>
                                 </Grid>
                             </Grid>
@@ -559,7 +647,7 @@ const AllLeaveBalances = () => {
                             onChange={(e) => setEditDialog({ ...editDialog, newTotal: parseFloat(e.target.value) || 0 })}
                             InputProps={{ inputProps: { min: 0, step: 0.5 } }}
                             sx={{ mb: 2 }}
-                            helperText={`New remaining: ${(editDialog.newTotal - 0).toFixed(1)} days`}
+                            helperText={`New remaining: ${(editDialog.newTotal - editDialog.usedDays - editDialog.pendingDays).toFixed(1)} days`}
                         />
 
                         <TextField
@@ -589,6 +677,22 @@ const AllLeaveBalances = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Snackbar */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+                <Alert 
+                    severity={snackbar.severity} 
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    variant="filled"
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

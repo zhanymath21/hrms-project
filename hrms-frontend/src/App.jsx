@@ -33,12 +33,15 @@ import EmployeeEdit from './pages/employees/EmployeeEdit';
 import EmployeeDetail from './pages/employees/EmployeeDetails';
 
 // ============ LEAVE PAGES ============
+import LeaveDashboard from './pages/leaves/LeaveDashboard';
 import LeaveList from './pages/leaves/LeaveList';
 import LeaveCreate from './pages/leaves/LeaveCreate';
 import LeaveBalance from './pages/leaves/LeaveBalance';
 import LeaveApproval from './pages/leaves/LeaveApproval';
 import LeaveDetail from './pages/leaves/LeaveDetail';
 import AllLeaveBalances from './pages/leaves/AllLeaveBalances';
+import ApprovalFlowList from './pages/leaves/ApprovalFlowList';
+
 
 // ============ REPLACEMENT LEAVE PAGES ============
 import ReplacementList from './pages/leaves/ReplacementList';
@@ -333,10 +336,20 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <LeaveProvider>
-              <LeaveList />
+              <LeaveDashboard />
             </LeaveProvider>
           </MainLayout>
         </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/list" element={
+          <ProtectedRoute>
+              <MainLayout>
+                  <LeaveProvider>
+                      <LeaveList />
+                  </LeaveProvider>
+              </MainLayout>
+          </ProtectedRoute>
       } />
 
       {/* Create Leave */}
@@ -392,6 +405,16 @@ function AppRoutes() {
             </LeaveProvider>
           </MainLayout>
         </ProtectedRoute>
+      } />
+
+      <Route path="/approval-flow" element={
+          <ProtectedRoute>
+              <MainLayout>
+                  <LeaveProvider>
+                      <ApprovalFlowList />
+                  </LeaveProvider>
+              </MainLayout>
+          </ProtectedRoute>
       } />
 
       {/* ===== REPLACEMENT LEAVE ROUTES ===== */}

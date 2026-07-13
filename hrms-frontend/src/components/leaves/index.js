@@ -6,3 +6,4 @@ export { default as LeaveTable } from './LeaveTable';
 export { default as LeaveFormDialog } from './LeaveFormDialog';
 export { default as LeaveBalanceCard } from '../../pages/leaves/LeaveBalanceCard';
 export { default as LeaveStatusBadge } from '../../pages/leaves/LeaveStatusBadge';
+export { default as ApprovalFlowList } from '../../pages/leaves/ApprovalFlowList';
