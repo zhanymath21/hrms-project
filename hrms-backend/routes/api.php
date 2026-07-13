@@ -113,8 +113,6 @@ Route::middleware('auth:api')->group(function () {
     // ==========================================
     // LEAVE BALANCE MANAGEMENT - UNIFIED
     // ==========================================
-
-    // 🔥 SEMUA ROUTE LEAVE BALANCE DISATUKAN DI SINI
     Route::prefix('employees')->group(function () {
         // My balance (Employee)
         Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
@@ -148,7 +146,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==========================================
-    // LEAVE REQUESTS
+    // LEAVE REQUESTS - FIXED
     // ==========================================
     Route::prefix('leaves')->group(function () {
         // Leave Types
@@ -156,8 +154,9 @@ Route::middleware('auth:api')->group(function () {
 
         // Leave Requests - CRUD
         Route::get('/', [LeaveController::class, 'index']);
-        Route::get('/pending', [LeaveController::class, 'pendingRequests']);
-        Route::get('/pending-approvals', [LeaveController::class, 'pendingApprovals']);
+        Route::get('/pending', [LeaveController::class, 'pendingRequests']); // ✅ Fixed: Using pendingRequests
+        // Route::get('/pending-approvals', [LeaveController::class, 'pendingApprovals']); // ❌ REMOVED - Duplicate
+
         Route::get('/{id}', [LeaveController::class, 'show']);
         Route::post('/', [LeaveController::class, 'store']);
 
@@ -166,6 +165,11 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/{id}/reject', [LeaveController::class, 'reject']);
         Route::put('/{id}/cancel', [LeaveController::class, 'cancel']);
         Route::get('/{id}/download-attachment', [LeaveController::class, 'downloadAttachment']);
+
+        // Statistics
+        Route::get('/statistics', [LeaveController::class, 'statistics']);
+        Route::get('/my-history', [LeaveController::class, 'myHistory']);
+        Route::get('/employee/{employeeId}', [LeaveController::class, 'employeeLeaves']);
     });
 
     // ==========================================
