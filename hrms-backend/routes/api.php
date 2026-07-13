@@ -111,26 +111,32 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==========================================
-    // LEAVE BALANCE MANAGEMENT - UNIFIED
+    // LEAVE BALANCE MANAGEMENT - FIXED ORDER
     // ==========================================
+    // IMPORTANT: These routes MUST be defined BEFORE the employees/{id} routes
+    // or use a separate prefix to avoid conflicts
+
     Route::prefix('employees')->group(function () {
-        // My balance (Employee)
+        // ✅ My balance (Employee) - This MUST work
         Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
 
         // All balances (Admin/HR)
         Route::get('/leave-balances', [LeaveBalanceController::class, 'allBalances']);
 
-        // Single employee balance (Admin/HR)
-        Route::get('/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
+        // Balance summary (Admin/HR)
+        Route::get('/leave-balance-summary', [LeaveBalanceController::class, 'getBalanceSummary']);
 
-        // Balance detail (Admin/HR)
+        // Balance detail by ID (Admin/HR)
         Route::get('/leave-balance/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
 
         // Update balance (Admin/HR)
         Route::put('/leave-balance/{id}', [LeaveBalanceController::class, 'updateBalance']);
 
-        // Adjustment history (Admin/HR)
+        // Adjustment history for employee (Admin/HR)
         Route::get('/leave-balance/{employeeId}/history', [LeaveBalanceController::class, 'getAdjustmentHistory']);
+
+        // Get balance for specific employee (Admin/HR)
+        Route::get('/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
 
         // Generate balance (Admin/HR)
         Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
@@ -141,12 +147,12 @@ Route::middleware('auth:api')->group(function () {
         // Process carry forward (Admin/HR)
         Route::post('/process-carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
 
-        // Balance summary (Admin/HR)
-        Route::get('/leave-balance-summary', [LeaveBalanceController::class, 'getBalanceSummary']);
+        // Balance report (Admin/HR)
+        Route::get('/leave-balance-report', [LeaveBalanceController::class, 'getBalanceReport']);
     });
 
     // ==========================================
-    // LEAVE REQUESTS - FIXED
+    // LEAVE REQUESTS
     // ==========================================
     Route::prefix('leaves')->group(function () {
         // Leave Types
@@ -154,9 +160,7 @@ Route::middleware('auth:api')->group(function () {
 
         // Leave Requests - CRUD
         Route::get('/', [LeaveController::class, 'index']);
-        Route::get('/pending', [LeaveController::class, 'pendingRequests']); // ✅ Fixed: Using pendingRequests
-        // Route::get('/pending-approvals', [LeaveController::class, 'pendingApprovals']); // ❌ REMOVED - Duplicate
-
+        Route::get('/pending', [LeaveController::class, 'pendingRequests']);
         Route::get('/{id}', [LeaveController::class, 'show']);
         Route::post('/', [LeaveController::class, 'store']);
 
@@ -166,7 +170,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/{id}/cancel', [LeaveController::class, 'cancel']);
         Route::get('/{id}/download-attachment', [LeaveController::class, 'downloadAttachment']);
 
-        // Statistics
+        // Statistics & History
         Route::get('/statistics', [LeaveController::class, 'statistics']);
         Route::get('/my-history', [LeaveController::class, 'myHistory']);
         Route::get('/employee/{employeeId}', [LeaveController::class, 'employeeLeaves']);
