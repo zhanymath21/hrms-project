@@ -38,33 +38,15 @@ class LeaveApprovalFlowSeeder extends Seeder
         ];
 
         foreach ($flows as $flow) {
-            LeaveApprovalFlow::create($flow);
+            LeaveApprovalFlow::updateOrCreate(
+                [
+                    'level' => $flow['level'],
+                    'approver_type' => $flow['approver_type'],
+                ],
+                $flow
+            );
         }
 
-        // Same for replacement
-        $replacementFlows = [
-            [
-                'department_id' => null,
-                'position_id' => null,
-                'level' => 1,
-                'approver_type' => 'manager',
-                'approver_id' => null,
-                'is_active' => true,
-            ],
-            [
-                'department_id' => null,
-                'position_id' => null,
-                'level' => 2,
-                'approver_type' => 'hr',
-                'approver_id' => null,
-                'is_active' => true,
-            ],
-        ];
-
-        foreach ($replacementFlows as $flow) {
-            \App\Models\ReplacementApprovalFlow::create($flow);
-        }
-
-        $this->command->info('✅ Approval flows seeded successfully!');
+        $this->command->info('✅ Leave approval flows seeded successfully!');
     }
 }

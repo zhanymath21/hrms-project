@@ -4,6 +4,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Employee;
 use App\Models\Leave;
 use App\Models\LeaveType;
 use App\Models\LeaveBalance;
@@ -11,6 +12,7 @@ use App\Services\Leave\LeaveApprovalService;
 use App\Services\Leave\LeaveBalanceService;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -33,19 +35,51 @@ class LeaveController extends Controller
 
     /**
      * Get leave types
+     * GET /api/leaves/types
      */
     public function leaveTypes(): JsonResponse
     {
         try {
             $types = LeaveType::where('is_active', true)->get();
+
+            if ($types->isEmpty()) {
+                // Create default leave types if none exist
+                $this->createDefaultLeaveTypes();
+                $types = LeaveType::where('is_active', true)->get();
+            }
+
             return $this->success($types, 'Leave types fetched');
         } catch (\Exception $e) {
+            Log::error('Error fetching leave types: ' . $e->getMessage());
             return $this->error('Failed to fetch leave types: ' . $e->getMessage(), 500);
         }
     }
 
     /**
+     * Create default leave types
+     */
+    private function createDefaultLeaveTypes(): void
+    {
+        $defaultTypes = [
+            ['code' => 'AL', 'name' => 'Annual Leave', 'days_per_year' => 12, 'is_paid' => true, 'allow_carry_forward' => true, 'max_carry_forward_days' => 6, 'is_active' => true],
+            ['code' => 'SL', 'name' => 'Sick Leave', 'days_per_year' => 14, 'is_paid' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => 0, 'is_active' => true],
+            ['code' => 'SPL', 'name' => 'Special Leave', 'days_per_year' => 3, 'is_paid' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => 0, 'is_active' => true],
+            ['code' => 'UL', 'name' => 'Unpaid Leave', 'days_per_year' => 0, 'is_paid' => false, 'allow_carry_forward' => false, 'max_carry_forward_days' => 0, 'is_active' => true],
+        ];
+
+        foreach ($defaultTypes as $type) {
+            LeaveType::firstOrCreate(
+                ['code' => $type['code']],
+                $type
+            );
+        }
+
+        Log::info('✅ Default leave types created');
+    }
+
+    /**
      * Get leave balance
+     * GET /api/leaves/balance
      */
     public function balance(Request $request): JsonResponse
     {
@@ -64,14 +98,46 @@ class LeaveController extends Controller
                 ->with('leaveType')
                 ->get();
 
-            return $this->success($balances, 'Leave balance fetched');
+            $yearsOfService = Carbon::parse($employee->hire_date)->diffInYears(Carbon::now());
+
+            $result = [
+                'balances' => $balances->map(function ($balance) use ($yearsOfService) {
+                    return [
+                        'id' => $balance->id,
+                        'leave_type_id' => $balance->leave_type_id,
+                        'leave_type' => $balance->leaveType->name ?? 'Unknown',
+                        'leave_code' => $balance->leaveType->code ?? 'N/A',
+                        'base_entitlement' => (float) ($balance->base_entitlement ?? 0),
+                        'seniority_bonus' => (float) ($balance->seniority_bonus ?? 0),
+                        'carry_forward' => (float) ($balance->carry_forward ?? 0),
+                        'replacement_days' => (float) ($balance->replacement_days ?? 0),
+                        'manual_adjustment' => (float) ($balance->manual_adjustment ?? 0),
+                        'total_entitlement' => (float) ($balance->total_entitlement ?? 0),
+                        'used_days' => (float) ($balance->used_days ?? 0),
+                        'pending_days' => (float) ($balance->pending_days ?? 0),
+                        'remaining_days' => (float) ($balance->remaining_days ?? 0),
+                        'years_of_service' => $yearsOfService,
+                    ];
+                }),
+                'employee' => [
+                    'id' => $employee->id,
+                    'name' => $employee->first_name . ' ' . $employee->last_name,
+                    'employee_id' => $employee->employee_id,
+                    'hire_date' => $employee->hire_date,
+                    'years_of_service' => $yearsOfService,
+                ],
+            ];
+
+            return $this->success($result, 'Leave balance fetched');
         } catch (\Exception $e) {
+            Log::error('Error fetching balance: ' . $e->getMessage());
             return $this->error('Failed to load balance: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Create leave request with attachment
+     * POST /api/leaves
      */
     public function store(Request $request): JsonResponse
     {
@@ -105,7 +171,10 @@ class LeaveController extends Controller
             ])->first();
 
             if (!$balance || $balance->remaining_days < $totalDays) {
-                return $this->error("Insufficient balance! Need {$totalDays} days, available: " . ($balance->remaining_days ?? 0), 422);
+                return $this->error(
+                    "Insufficient balance! Need {$totalDays} days, available: " . ($balance->remaining_days ?? 0),
+                    422
+                );
             }
 
             // Handle attachment
@@ -129,15 +198,21 @@ class LeaveController extends Controller
                 $totalDays
             );
 
-            return $this->success($leave->load('approvals.approver'), 'Leave request submitted!', 201);
+            return $this->success(
+                $leave->load(['leaveType', 'approvals.approver']),
+                'Leave request submitted!',
+                201
+            );
         } catch (\Exception $e) {
             Log::error('❌ Error creating leave: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
             return $this->error('Failed to submit leave: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Get pending approvals for current user
+     * GET /api/leaves/pending-approvals
      */
     public function pendingApprovals(Request $request): JsonResponse
     {
@@ -147,17 +222,19 @@ class LeaveController extends Controller
 
             return $this->success($approvals, 'Pending approvals fetched');
         } catch (\Exception $e) {
+            Log::error('Error fetching pending approvals: ' . $e->getMessage());
             return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Approve leave at level
+     * PUT /api/leaves/{id}/approve
      */
     public function approve(Request $request, $id): JsonResponse
     {
         try {
-            $leave = Leave::with(['approvals'])->find($id);
+            $leave = Leave::with(['approvals', 'employee', 'leaveType'])->find($id);
 
             if (!$leave) {
                 return $this->notFound('Leave not found');
@@ -165,12 +242,13 @@ class LeaveController extends Controller
 
             $employee = $request->user();
 
-            $validator = Validator::make($request->all(), [
-                'notes' => 'nullable|string|max:500',
-            ]);
+            // Check if user is authorized to approve
+            $approval = $leave->approvals()->where('approver_id', $employee->id)
+                ->where('status', 'pending')
+                ->first();
 
-            if ($validator->fails()) {
-                return $this->validationError($validator->errors());
+            if (!$approval) {
+                return $this->unauthorized('You are not authorized to approve this leave');
             }
 
             $leave = $this->approvalService->approveLeave($leave, $employee, $request->only(['notes']));
@@ -188,23 +266,34 @@ class LeaveController extends Controller
 
             return $this->success($leave, 'Leave approved successfully');
         } catch (\Exception $e) {
+            Log::error('Error approving leave: ' . $e->getMessage());
             return $this->error('Failed to approve: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Reject leave
+     * PUT /api/leaves/{id}/reject
      */
     public function reject(Request $request, $id): JsonResponse
     {
         try {
-            $leave = Leave::with(['approvals'])->find($id);
+            $leave = Leave::with(['approvals', 'employee', 'leaveType'])->find($id);
 
             if (!$leave) {
                 return $this->notFound('Leave not found');
             }
 
             $employee = $request->user();
+
+            // Check if user is authorized to reject
+            $approval = $leave->approvals()->where('approver_id', $employee->id)
+                ->where('status', 'pending')
+                ->first();
+
+            if (!$approval) {
+                return $this->unauthorized('You are not authorized to reject this leave');
+            }
 
             $validator = Validator::make($request->all(), [
                 'rejection_reason' => 'required|string|min:5',
@@ -227,21 +316,24 @@ class LeaveController extends Controller
 
             return $this->success($leave, 'Leave rejected successfully');
         } catch (\Exception $e) {
+            Log::error('Error rejecting leave: ' . $e->getMessage());
             return $this->error('Failed to reject: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Get leave details
+     * GET /api/leaves/{id}
      */
     public function show($id): JsonResponse
     {
         try {
             $leave = Leave::with([
-                'employee',
-                'leaveType',
-                'approvals.approver',
-                'cancelledBy'
+                'employee:id,first_name,last_name,employee_id,department_id',
+                'employee.department:id,name',
+                'leaveType:id,name,code,days_per_year',
+                'approvals.approver:id,first_name,last_name',
+                'cancelledBy:id,first_name,last_name'
             ])->find($id);
 
             if (!$leave) {
@@ -255,20 +347,23 @@ class LeaveController extends Controller
                 'approval_status' => $approvalStatus,
             ], 'Leave details fetched');
         } catch (\Exception $e) {
+            Log::error('Error fetching leave details: ' . $e->getMessage());
             return $this->error('Failed to fetch leave details: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Get all leaves with filters
+     * GET /api/leaves
      */
     public function index(Request $request): JsonResponse
     {
         try {
             $query = Leave::with([
-                'employee',
-                'leaveType',
-                'approvals.approver',
+                'employee:id,first_name,last_name,employee_id,department_id',
+                'employee.department:id,name',
+                'leaveType:id,name,code',
+                'approvals.approver:id,first_name,last_name',
             ]);
 
             if ($request->filled('status')) {
@@ -287,6 +382,10 @@ class LeaveController extends Controller
                 $query->whereDate('end_date', '<=', $request->end_date);
             }
 
+            if ($request->filled('leave_type_id')) {
+                $query->where('leave_type_id', $request->leave_type_id);
+            }
+
             // For regular employees, only show their own leaves
             $user = $request->user();
             if (!$this->isAdminOrHR($user)) {
@@ -298,12 +397,14 @@ class LeaveController extends Controller
 
             return $this->success($leaves, 'Leaves fetched');
         } catch (\Exception $e) {
+            Log::error('Error fetching leaves: ' . $e->getMessage());
             return $this->error('Failed to fetch leaves: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Cancel leave
+     * PUT /api/leaves/{id}/cancel
      */
     public function cancel(Request $request, $id): JsonResponse
     {
@@ -322,6 +423,10 @@ class LeaveController extends Controller
 
             if ($leave->status === 'approved') {
                 return $this->error('Approved leave cannot be cancelled', 422);
+            }
+
+            if ($leave->status === 'rejected') {
+                return $this->error('Rejected leave cannot be cancelled', 422);
             }
 
             DB::beginTransaction();
@@ -346,19 +451,25 @@ class LeaveController extends Controller
             return $this->success(null, 'Leave cancelled successfully');
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Error cancelling leave: ' . $e->getMessage());
             return $this->error('Failed to cancel: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Download attachment
+     * GET /api/leaves/{id}/download-attachment
      */
     public function downloadAttachment($id): JsonResponse
     {
         try {
             $leave = Leave::find($id);
 
-            if (!$leave || !$leave->attachment) {
+            if (!$leave) {
+                return $this->notFound('Leave not found');
+            }
+
+            if (!$leave->attachment) {
                 return $this->notFound('Attachment not found');
             }
 
@@ -368,14 +479,56 @@ class LeaveController extends Controller
                 return $this->notFound('File not found');
             }
 
-            return response()->download($path);
+            return response()->download($path, basename($leave->attachment));
         } catch (\Exception $e) {
+            Log::error('Error downloading attachment: ' . $e->getMessage());
             return $this->error('Failed to download attachment: ' . $e->getMessage(), 500);
         }
     }
 
     /**
-     * Calculate working days
+     * Get public holidays
+     * GET /api/public-holidays
+     */
+    public function publicHolidays(Request $request): JsonResponse
+    {
+        try {
+            // This would typically fetch from a database or API
+            // For now, return sample data
+            $year = $request->year ?? date('Y');
+
+            $holidays = [
+                [
+                    'date' => $year . '-01-01',
+                    'name' => 'New Year\'s Day',
+                    'type' => 'national',
+                ],
+                [
+                    'date' => $year . '-05-01',
+                    'name' => 'Labor Day',
+                    'type' => 'national',
+                ],
+                [
+                    'date' => $year . '-08-17',
+                    'name' => 'Independence Day',
+                    'type' => 'national',
+                ],
+                [
+                    'date' => $year . '-12-25',
+                    'name' => 'Christmas Day',
+                    'type' => 'national',
+                ],
+            ];
+
+            return $this->success($holidays, 'Public holidays fetched');
+        } catch (\Exception $e) {
+            Log::error('Error fetching public holidays: ' . $e->getMessage());
+            return $this->error('Failed to fetch public holidays: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Calculate working days between two dates (exclude weekends)
      */
     private function calculateWorkingDays($startDate, $endDate): float
     {
@@ -401,5 +554,13 @@ class LeaveController extends Controller
 
         $adminPositions = ['HR Manager', 'HR Officer', 'HR Assistant', 'Admin', 'System Admin'];
         return in_array($user->position->title ?? '', $adminPositions);
+    }
+
+    /**
+     * Check if user is manager of the employee
+     */
+    private function isManagerOf($manager, $employee): bool
+    {
+        return $manager && $employee && $manager->id === $employee->manager_id;
     }
 }
