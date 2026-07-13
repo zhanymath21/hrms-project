@@ -5,7 +5,7 @@ import api from './axios';
 const leaveService = {
     // ========== LEAVE TYPES ==========
     getLeaveTypes: async () => {
-        const response = await api.get('/leaves/types');
+        const response = await api.get('/leave-types');
         return response.data.data;
     },
 
@@ -15,29 +15,9 @@ const leaveService = {
         return response.data.data;
     },
 
-    // 🔥 PERBAIKI getAllBalances DENGAN FALLBACK
     getAllBalances: async (params = {}) => {
-        try {
-            console.log('📤 Fetching all balances with params:', params);
-            
-            // Coba endpoint utama
-            const response = await api.get('/employees/leave-balances', { params });
-            console.log('📥 Response from /employees/leave-balances:', response.data);
-            return response.data.data;
-            
-        } catch (error) {
-            console.warn('❌ /employees/leave-balances failed, trying fallback...');
-            
-            try {
-                // Fallback ke endpoint lain
-                const response = await api.get('/leave-balances', { params });
-                console.log('📥 Response from /leave-balances:', response.data);
-                return response.data.data;
-            } catch (fallbackError) {
-                console.error('❌ All endpoints failed');
-                throw error;
-            }
-        }
+        const response = await api.get('/employees/leave-balances', { params });
+        return response.data.data;
     },
 
     updateBalance: async (id, data) => {
@@ -53,6 +33,11 @@ const leaveService = {
 
     getPendingLeaves: async (params = {}) => {
         const response = await api.get('/leaves/pending', { params });
+        return response.data.data;
+    },
+
+    getPendingApprovals: async () => {
+        const response = await api.get('/leaves/pending-approvals');
         return response.data.data;
     },
 

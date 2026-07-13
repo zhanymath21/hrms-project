@@ -47,9 +47,6 @@ import {
     Save as SaveIcon,
     Close as CloseIcon,
     Person as PersonIcon,
-    BeachAccess as BeachIcon,
-    LocalHospital as SickIcon,
-    Celebration as SpecialIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import api from '../../services/axios';
@@ -116,19 +113,15 @@ const AllLeaveBalances = () => {
             if (search) params.search = search;
             if (departmentFilter) params.department_id = departmentFilter;
 
-            console.log('📤 Fetching all balances...');
             const response = await fetchAllBalances(params);
-            console.log('📥 Response:', response);
-
-            const data = response?.data || {};
-            const employeesData = data?.data || [];
+            const employeesData = response?.data || [];
             
             setEmployees(employeesData);
             setPagination({
-                current_page: data?.pagination?.current_page || 1,
-                per_page: data?.pagination?.per_page || 20,
-                total: data?.pagination?.total || 0,
-                last_page: data?.pagination?.last_page || 1,
+                current_page: response?.pagination?.current_page || 1,
+                per_page: response?.pagination?.per_page || 20,
+                total: response?.pagination?.total || 0,
+                last_page: response?.pagination?.last_page || 1,
             });
 
             // Calculate stats
@@ -149,7 +142,7 @@ const AllLeaveBalances = () => {
             });
 
         } catch (err) {
-            console.error('❌ Error loading data:', err);
+            console.error('Error loading data:', err);
             setSnackbar({
                 open: true,
                 message: 'Failed to load data: ' + err.message,
@@ -183,7 +176,6 @@ const AllLeaveBalances = () => {
         setPage(0);
     };
 
-    // Edit Balance
     const handleOpenEdit = (employee, leaveType, balance) => {
         if (!balance || !balance.id) {
             setSnackbar({
@@ -311,7 +303,7 @@ const AllLeaveBalances = () => {
             {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h4" fontWeight="bold">
-                    📊 All Employee Leave Balances
+                    📊 Employee Leave Balances
                 </Typography>
                 <Button
                     variant="outlined"
@@ -422,26 +414,22 @@ const AllLeaveBalances = () => {
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell>Employee</TableCell>
                             <TableCell>Department</TableCell>
-                            <TableCell align="center" width="80">🏖️ AL</TableCell>
-                            <TableCell align="center" width="80">🏥 SL</TableCell>
-                            <TableCell align="center" width="80">🎉 SPL</TableCell>
-                            <TableCell align="center" width="60">Total</TableCell>
-                            <TableCell align="center" width="60">Used</TableCell>
-                            <TableCell align="center" width="60">Pending</TableCell>
-                            <TableCell align="center" width="80">Remaining</TableCell>
-                            <TableCell align="center" width="90">Status</TableCell>
-                            <TableCell align="center" width="50">Actions</TableCell>
+                            <TableCell align="center">🏖️ AL</TableCell>
+                            <TableCell align="center">🏥 SL</TableCell>
+                            <TableCell align="center">🎉 SPL</TableCell>
+                            <TableCell align="center">Total</TableCell>
+                            <TableCell align="center">Used</TableCell>
+                            <TableCell align="center">Pending</TableCell>
+                            <TableCell align="center">Remaining</TableCell>
+                            <TableCell align="center">Status</TableCell>
+                            <TableCell align="center">Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {employees.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
-                                    <Typography color="textSecondary">
-                                        {search || departmentFilter 
-                                            ? 'No employees match your filters' 
-                                            : 'No employees found'}
-                                    </Typography>
+                                    <Typography color="textSecondary">No employees found</Typography>
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -477,73 +465,44 @@ const AllLeaveBalances = () => {
                                         </TableCell>
                                         <TableCell align="center">
                                             <Tooltip title={`Annual Leave: ${al.remaining_days || 0} days remaining`}>
-                                                <Typography 
-                                                    variant="body2" 
-                                                    fontWeight="bold" 
-                                                    color={al.remaining_days > 0 ? 'success.main' : 'error.main'}
-                                                >
+                                                <Typography variant="body2" fontWeight="bold" color="success.main">
                                                     {al.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
                                             </Tooltip>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Tooltip title={`Sick Leave: ${sl.remaining_days || 0} days remaining`}>
-                                                <Typography 
-                                                    variant="body2" 
-                                                    fontWeight="bold" 
-                                                    color={sl.remaining_days > 0 ? 'success.main' : 'error.main'}
-                                                >
+                                                <Typography variant="body2" fontWeight="bold" color="error.main">
                                                     {sl.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
                                             </Tooltip>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Tooltip title={`Special Leave: ${spl.remaining_days || 0} days remaining`}>
-                                                <Typography 
-                                                    variant="body2" 
-                                                    fontWeight="bold" 
-                                                    color={spl.remaining_days > 0 ? 'success.main' : 'error.main'}
-                                                >
+                                                <Typography variant="body2" fontWeight="bold" color="warning.main">
                                                     {spl.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
                                             </Tooltip>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" fontWeight="medium">
-                                                {total.toFixed(1)}
-                                            </Typography>
+                                            <Typography variant="body2" fontWeight="medium">{total.toFixed(1)}</Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" color="error.main">
-                                                {summary.used_days?.toFixed(1) || 0}
-                                            </Typography>
+                                            <Typography variant="body2" color="error.main">{summary.used_days?.toFixed(1) || 0}</Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" color="warning.main">
-                                                {summary.pending_days?.toFixed(1) || 0}
-                                            </Typography>
+                                            <Typography variant="body2" color="warning.main">{summary.pending_days?.toFixed(1) || 0}</Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" fontWeight="bold" color="success.main">
-                                                {remaining.toFixed(1)}
-                                            </Typography>
+                                            <Typography variant="body2" fontWeight="bold" color="success.main">{remaining.toFixed(1)}</Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Chip 
-                                                label={statusLabel} 
-                                                color={statusColor} 
-                                                size="small"
-                                                icon={
-                                                    statusColor === 'error' ? <ErrorIcon /> :
-                                                    statusColor === 'warning' ? <WarningIcon /> :
-                                                    <CheckCircleIcon />
-                                                }
-                                            />
+                                            <Chip label={statusLabel} color={statusColor} size="small" />
                                         </TableCell>
                                         <TableCell align="center">
                                             <Tooltip title="Edit Balance">
-                                                <IconButton 
-                                                    size="small" 
+                                                <IconButton
+                                                    size="small"
                                                     color="primary"
                                                     onClick={() => {
                                                         const firstBalance = employee.leave_balances?.[0];
@@ -662,8 +621,8 @@ const AllLeaveBalances = () => {
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
                 anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
             >
-                <Alert 
-                    severity={snackbar.severity} 
+                <Alert
+                    severity={snackbar.severity}
                     onClose={() => setSnackbar({ ...snackbar, open: false })}
                     variant="filled"
                 >

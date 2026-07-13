@@ -35,6 +35,7 @@ import {
     Visibility as VisibilityIcon,
     Download as DownloadIcon,
     Refresh as RefreshIcon,
+    Person as PersonIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import leaveService from '../../services/leaveService';
@@ -59,24 +60,14 @@ const LeaveApproval = () => {
 
     const loadData = async () => {
         setLoading(true);
-        setError(null);
         try {
-            console.log('📤 Fetching pending approvals...');
             const data = await leaveService.getPendingApprovals();
-            console.log('📥 Pending approvals data:', data);
             setPendingApprovals(data || []);
         } catch (err) {
-            console.error('❌ Error loading pending approvals:', err);
-            setError('Failed to load pending approvals: ' + (err.response?.data?.message || err.message));
+            setError('Failed to load pending approvals');
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleRefresh = () => {
-        loadData();
-        setSuccess('Data refreshed!');
-        setTimeout(() => setSuccess(null), 3000);
     };
 
     const handleApprove = async (id) => {
@@ -150,7 +141,6 @@ const LeaveApproval = () => {
 
     return (
         <Box>
-            {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h4" fontWeight="bold">
                     ✅ Leave Approvals
@@ -158,7 +148,7 @@ const LeaveApproval = () => {
                 <Button
                     variant="outlined"
                     startIcon={<RefreshIcon />}
-                    onClick={handleRefresh}
+                    onClick={loadData}
                     disabled={loading}
                 >
                     Refresh
@@ -179,9 +169,7 @@ const LeaveApproval = () => {
 
             {pendingApprovals.length === 0 ? (
                 <Paper sx={{ p: 4, textAlign: 'center' }}>
-                    <Typography color="textSecondary">
-                        No pending approvals at this time.
-                    </Typography>
+                    <Typography color="textSecondary">No pending approvals at this time.</Typography>
                 </Paper>
             ) : (
                 <TableContainer component={Paper}>
@@ -221,11 +209,7 @@ const LeaveApproval = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell>
-                                            <Chip
-                                                label={leave?.leave_type?.name || 'Unknown'}
-                                                size="small"
-                                                variant="outlined"
-                                            />
+                                            <Chip label={leave?.leave_type?.name} size="small" variant="outlined" />
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2">
@@ -245,11 +229,7 @@ const LeaveApproval = () => {
                                                 <Typography variant="caption">
                                                     {currentLevel}/{totalLevels}
                                                 </Typography>
-                                                <Stepper
-                                                    activeStep={currentLevel}
-                                                    alternativeLabel
-                                                    sx={{ width: 120 }}
-                                                >
+                                                <Stepper activeStep={currentLevel} alternativeLabel sx={{ width: 120 }}>
                                                     {[...Array(totalLevels)].map((_, i) => (
                                                         <Step key={i}>
                                                             <StepLabel />
@@ -259,11 +239,7 @@ const LeaveApproval = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell>
-                                            <Chip
-                                                label="Pending"
-                                                color="warning"
-                                                size="small"
-                                            />
+                                            <Chip label="Pending" color="warning" size="small" />
                                         </TableCell>
                                         <TableCell align="center">
                                             <Stack direction="row" spacing={0.5} justifyContent="center">

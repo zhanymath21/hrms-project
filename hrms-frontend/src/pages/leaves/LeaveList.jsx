@@ -29,6 +29,10 @@ import {
     Avatar,
     Tabs,
     Tab,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
@@ -41,11 +45,14 @@ import {
     Pending as PendingIcon,
     Check as CheckIcon,
     Close as CloseIcon,
+    Block as BlockIcon,
+    Download as DownloadIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import { useNavigate } from 'react-router-dom';
 import LeaveStatusBadge from '../../components/leaves/LeaveStatusBadge';
 import { formatDate } from '../../utils/dateFormat';
+import leaveService from '../../services/leaveService';
 
 const LeaveList = () => {
     const navigate = useNavigate();
@@ -64,6 +71,8 @@ const LeaveList = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [tabValue, setTabValue] = useState(0);
+    const [showCancelDialog, setShowCancelDialog] = useState(false);
+    const [selectedLeave, setSelectedLeave] = useState(null);
 
     useEffect(() => {
         loadData();
@@ -76,7 +85,7 @@ const LeaveList = () => {
         };
         if (search) params.search = search;
         if (statusFilter !== 'all') params.status = statusFilter;
-        
+
         await fetchLeaves(params);
         await fetchPendingLeaves();
     };
@@ -88,12 +97,30 @@ const LeaveList = () => {
         setStatusFilter(statusMap[newValue] || 'all');
     };
 
-    const getStatusIcon = (status) => {
-        switch (status) {
-            case 'pending': return <PendingIcon fontSize="small" />;
-            case 'approved': return <CheckIcon fontSize="small" />;
-            case 'rejected': return <CloseIcon fontSize="small" />;
-            default: return null;
+    const handleCancel = async () => {
+        try {
+            await cancelLeave(selectedLeave.id);
+            setShowCancelDialog(false);
+            setSelectedLeave(null);
+            loadData();
+        } catch (err) {
+            alert('Failed to cancel leave: ' + err.message);
+        }
+    };
+
+    const handleDownloadAttachment = async (id) => {
+        try {
+            const response = await leaveService.downloadLeaveAttachment(id);
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'leave_attachment.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            alert('Failed to download attachment: ' + err.message);
         }
     };
 
@@ -131,19 +158,11 @@ const LeaveList = () => {
                 </Stack>
             </Box>
 
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                </Alert>
-            )}
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
             {/* Tabs */}
             <Paper sx={{ mb: 2 }}>
-                <Tabs
-                    value={tabValue}
-                    onChange={handleTabChange}
-                    sx={{ borderBottom: 1, borderColor: 'divider' }}
-                >
+                <Tabs value={tabValue} onChange={handleTabChange}>
                     <Tab label="All" />
                     <Tab label="Pending" />
                     <Tab label="Approved" />
@@ -162,11 +181,7 @@ const LeaveList = () => {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <SearchIcon />
-                                    </InputAdornment>
-                                ),
+                                startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
                                 endAdornment: search && (
                                     <InputAdornment position="end">
                                         <IconButton size="small" onClick={() => setSearch('')}>
@@ -214,8 +229,8 @@ const LeaveList = () => {
                             <TableRow>
                                 <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                                     <Typography color="textSecondary">
-                                        {search || statusFilter !== 'all' 
-                                            ? 'No leave requests match your filters' 
+                                        {search || statusFilter !== 'all'
+                                            ? 'No leave requests match your filters'
                                             : 'No leave requests found'}
                                     </Typography>
                                 </TableCell>
@@ -266,20 +281,30 @@ const LeaveList = () => {
                                                 </IconButton>
                                             </Tooltip>
                                             {leave.status === 'pending' && (
-                                                <Tooltip title="Cancel">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="error"
-                                                        onClick={() => {
-                                                            if (window.confirm('Cancel this leave request?')) {
-                                                                cancelLeave(leave.id);
-                                                                loadData();
-                                                            }
-                                                        }}
-                                                    >
-                                                        <CancelIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
+                                                <>
+                                                    <Tooltip title="Cancel">
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            onClick={() => {
+                                                                setSelectedLeave(leave);
+                                                                setShowCancelDialog(true);
+                                                            }}
+                                                        >
+                                                            <BlockIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Tooltip title="Download Attachment">
+                                                        <IconButton
+                                                            size="small"
+                                                            color="primary"
+                                                            onClick={() => handleDownloadAttachment(leave.id)}
+                                                            disabled={!leave.attachment}
+                                                        >
+                                                            <DownloadIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </>
                                             )}
                                         </Stack>
                                     </TableCell>
@@ -301,6 +326,31 @@ const LeaveList = () => {
                     }}
                 />
             </TableContainer>
+
+            {/* Cancel Dialog */}
+            <Dialog open={showCancelDialog} onClose={() => setShowCancelDialog(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Cancel Leave Request</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" gutterBottom>
+                        Are you sure you want to cancel this leave request?
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                        <strong>Type:</strong> {selectedLeave?.leave_type?.name}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                        <strong>Duration:</strong> {formatDate(selectedLeave?.start_date)} - {formatDate(selectedLeave?.end_date)}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                        <strong>Days:</strong> {selectedLeave?.total_days} days
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setShowCancelDialog(false)}>No, Keep</Button>
+                    <Button variant="contained" color="error" onClick={handleCancel}>
+                        Yes, Cancel
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

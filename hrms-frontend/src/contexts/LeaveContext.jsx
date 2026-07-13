@@ -14,11 +14,11 @@ export const useLeave = () => {
 };
 
 export const LeaveProvider = ({ children }) => {
-    // ===== STATES =====
+    // States
     const [leaves, setLeaves] = useState([]);
     const [pendingLeaves, setPendingLeaves] = useState([]);
     const [balances, setBalances] = useState([]);
-    const [allBalances, setAllBalances] = useState([]); // 🔥 TAMBAHKAN
+    const [allBalances, setAllBalances] = useState([]);
     const [leaveTypes, setLeaveTypes] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -29,7 +29,7 @@ export const LeaveProvider = ({ children }) => {
         last_page: 1,
     });
 
-    // ===== 1. FETCH LEAVE TYPES =====
+    // 1. FETCH LEAVE TYPES
     const fetchLeaveTypes = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -47,7 +47,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 2. FETCH LEAVES =====
+    // 2. FETCH LEAVES
     const fetchLeaves = useCallback(async (params = {}) => {
         setLoading(true);
         setError(null);
@@ -71,7 +71,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 3. FETCH PENDING LEAVES =====
+    // 3. FETCH PENDING LEAVES
     const fetchPendingLeaves = useCallback(async (params = {}) => {
         try {
             const data = await leaveService.getPendingLeaves(params);
@@ -85,7 +85,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 4. FETCH MY BALANCE =====
+    // 4. FETCH MY BALANCE
     const fetchMyBalance = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -103,16 +103,12 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 5. FETCH ALL BALANCES (HR/Admin) =====
+    // 5. FETCH ALL BALANCES (HR)
     const fetchAllBalances = useCallback(async (params = {}) => {
         setLoading(true);
         setError(null);
         try {
-            console.log('📤 Fetching all balances with params:', params);
             const response = await leaveService.getAllBalances(params);
-            console.log('📥 All balances response:', response);
-            
-            // 🔥 PASTIKAN RESPONSE FORMATNYA
             const data = response?.data || [];
             const paginationData = response?.pagination || {
                 current_page: 1,
@@ -120,25 +116,20 @@ export const LeaveProvider = ({ children }) => {
                 total: 0,
                 last_page: 1,
             };
-            
             setAllBalances(data);
             setPagination(paginationData);
-            
-            return {
-                data: data,
-                pagination: paginationData,
-            };
+            return { data, pagination: paginationData };
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Failed to fetch all balances';
             setError(msg);
             console.error('❌ Fetch all balances error:', err);
-            return null;
+            return { data: [], pagination: { current_page: 1, per_page: 20, total: 0, last_page: 1 } };
         } finally {
             setLoading(false);
         }
     }, []);
 
-    // ===== 6. CREATE LEAVE =====
+    // 6. CREATE LEAVE
     const createLeave = useCallback(async (data) => {
         setLoading(true);
         setError(null);
@@ -157,7 +148,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 7. APPROVE LEAVE =====
+    // 7. APPROVE LEAVE
     const approveLeave = useCallback(async (id, notes) => {
         setLoading(true);
         setError(null);
@@ -176,7 +167,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 8. REJECT LEAVE =====
+    // 8. REJECT LEAVE
     const rejectLeave = useCallback(async (id, reason) => {
         setLoading(true);
         setError(null);
@@ -195,7 +186,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // ===== 9. CANCEL LEAVE =====
+    // 9. CANCEL LEAVE
     const cancelLeave = useCallback(async (id) => {
         setLoading(true);
         setError(null);
@@ -213,7 +204,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchLeaves]);
 
-    // ===== 10. UPDATE BALANCE =====
+    // 10. UPDATE BALANCE
     const updateBalance = useCallback(async (id, data) => {
         setLoading(true);
         setError(null);
@@ -231,26 +222,20 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchAllBalances]);
 
-    // ===== VALUE =====
     const value = {
-        // States
         leaves,
         pendingLeaves,
         balances,
-        allBalances, // 🔥 TAMBAHKAN
+        allBalances,
         leaveTypes,
         loading,
         error,
         pagination,
-
-        // Fetch functions
         fetchLeaveTypes,
         fetchLeaves,
         fetchPendingLeaves,
         fetchMyBalance,
-        fetchAllBalances, // 🔥 TAMBAHKAN
-
-        // Actions
+        fetchAllBalances,
         createLeave,
         approveLeave,
         rejectLeave,

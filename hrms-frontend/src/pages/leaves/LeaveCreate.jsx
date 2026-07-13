@@ -68,15 +68,16 @@ const LeaveCreate = () => {
         if (file) {
             const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
             if (!validTypes.includes(file.type)) {
-                alert('Please upload PDF, JPG, PNG, or DOC file');
+                setSubmitError('Please upload PDF, JPG, PNG, or DOC file');
                 return;
             }
             if (file.size > 5 * 1024 * 1024) {
-                alert('File size must be less than 5MB');
+                setSubmitError('File size must be less than 5MB');
                 return;
             }
             setFormData((prev) => ({ ...prev, attachment: file }));
             setAttachmentPreview(URL.createObjectURL(file));
+            setSubmitError('');
         }
     };
 
@@ -117,30 +118,10 @@ const LeaveCreate = () => {
                 data.append('attachment', formData.attachment);
             }
 
-            // 🔥 TAMBAHKAN LOG UNTUK DEBUG
-            console.log('Submitting data:', {
-                leave_type_id: formData.leave_type_id,
-                start_date: format(formData.start_date, 'yyyy-MM-dd'),
-                end_date: format(formData.end_date, 'yyyy-MM-dd'),
-                reason: formData.reason,
-                attachment: formData.attachment?.name || 'No attachment',
-            });
-
-            const result = await createLeave(data);
-            console.log('Result:', result);
-            
+            await createLeave(data);
             navigate('/leaves');
         } catch (err) {
-            console.error('Error creating leave:', err);
-            console.error('Error response:', err.response);
-            
-            // 🔥 TAMPILKAN ERROR DETAIL
-            if (err.response?.data?.errors) {
-                const errorMessages = Object.values(err.response.data.errors).flat().join('\n');
-                setSubmitError(errorMessages);
-            } else {
-                setSubmitError(err.response?.data?.message || err.message || 'Failed to create leave request');
-            }
+            setSubmitError(err.message || 'Failed to create leave request');
         }
     };
 
@@ -177,6 +158,7 @@ const LeaveCreate = () => {
                                     {leaveTypes.map((type) => (
                                         <MenuItem key={type.id} value={type.id}>
                                             {type.name} ({type.code}) - {type.days_per_year} days/year
+                                            {type.require_attachment && ' 📎'}
                                         </MenuItem>
                                     ))}
                                 </Select>
