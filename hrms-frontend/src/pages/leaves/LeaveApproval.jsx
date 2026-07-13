@@ -27,12 +27,14 @@ import {
     Stepper,
     Step,
     StepLabel,
+    Avatar,
 } from '@mui/material';
 import {
     CheckCircle as CheckCircleIcon,
     Cancel as CancelIcon,
     Visibility as VisibilityIcon,
     Download as DownloadIcon,
+    Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import leaveService from '../../services/leaveService';
@@ -57,21 +59,31 @@ const LeaveApproval = () => {
 
     const loadData = async () => {
         setLoading(true);
+        setError(null);
         try {
+            console.log('📤 Fetching pending approvals...');
             const data = await leaveService.getPendingApprovals();
+            console.log('📥 Pending approvals data:', data);
             setPendingApprovals(data || []);
         } catch (err) {
-            setError('Failed to load pending approvals');
+            console.error('❌ Error loading pending approvals:', err);
+            setError('Failed to load pending approvals: ' + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleRefresh = () => {
+        loadData();
+        setSuccess('Data refreshed!');
+        setTimeout(() => setSuccess(null), 3000);
     };
 
     const handleApprove = async (id) => {
         if (window.confirm('Are you sure you want to approve this leave request?')) {
             try {
                 await approveLeave(id);
-                setSuccess('Leave approved successfully!');
+                setSuccess('✅ Leave approved successfully!');
                 loadData();
                 setTimeout(() => setSuccess(null), 3000);
             } catch (err) {
@@ -87,7 +99,7 @@ const LeaveApproval = () => {
         }
         try {
             await rejectLeave(selectedLeave.id, rejectReason);
-            setSuccess('Leave rejected successfully!');
+            setSuccess('✅ Leave rejected successfully!');
             setShowRejectDialog(false);
             setRejectReason('');
             setSelectedLeave(null);
@@ -119,6 +131,15 @@ const LeaveApproval = () => {
         }
     };
 
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.split(' ');
+        if (parts.length >= 2) {
+            return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -129,11 +150,17 @@ const LeaveApproval = () => {
 
     return (
         <Box>
+            {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h4" fontWeight="bold">
                     ✅ Leave Approvals
                 </Typography>
-                <Button variant="outlined" onClick={loadData} disabled={loading}>
+                <Button
+                    variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    onClick={handleRefresh}
+                    disabled={loading}
+                >
                     Refresh
                 </Button>
             </Box>
@@ -152,7 +179,9 @@ const LeaveApproval = () => {
 
             {pendingApprovals.length === 0 ? (
                 <Paper sx={{ p: 4, textAlign: 'center' }}>
-                    <Typography color="textSecondary">No pending approvals at this time.</Typography>
+                    <Typography color="textSecondary">
+                        No pending approvals at this time.
+                    </Typography>
                 </Paper>
             ) : (
                 <TableContainer component={Paper}>
@@ -160,7 +189,7 @@ const LeaveApproval = () => {
                         <TableHead>
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                 <TableCell>Employee</TableCell>
-                                <TableCell>Type</TableCell>
+                                <TableCell>Leave Type</TableCell>
                                 <TableCell>Duration</TableCell>
                                 <TableCell>Days</TableCell>
                                 <TableCell>Progress</TableCell>
@@ -177,15 +206,26 @@ const LeaveApproval = () => {
                                 return (
                                     <TableRow key={approval.id} hover>
                                         <TableCell>
-                                            <Typography variant="body2" fontWeight="medium">
-                                                {leave?.employee?.first_name} {leave?.employee?.last_name}
-                                            </Typography>
-                                            <Typography variant="caption" color="textSecondary">
-                                                {leave?.employee?.employee_id}
-                                            </Typography>
+                                            <Box display="flex" alignItems="center" gap={1}>
+                                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
+                                                    {getInitials(leave?.employee?.first_name + ' ' + leave?.employee?.last_name)}
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight="medium">
+                                                        {leave?.employee?.first_name} {leave?.employee?.last_name}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {leave?.employee?.employee_id}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
                                         </TableCell>
                                         <TableCell>
-                                            <Chip label={leave?.leave_type?.name} size="small" variant="outlined" />
+                                            <Chip
+                                                label={leave?.leave_type?.name || 'Unknown'}
+                                                size="small"
+                                                variant="outlined"
+                                            />
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2">
@@ -205,7 +245,11 @@ const LeaveApproval = () => {
                                                 <Typography variant="caption">
                                                     {currentLevel}/{totalLevels}
                                                 </Typography>
-                                                <Stepper activeStep={currentLevel} alternativeLabel sx={{ width: 120 }}>
+                                                <Stepper
+                                                    activeStep={currentLevel}
+                                                    alternativeLabel
+                                                    sx={{ width: 120 }}
+                                                >
                                                     {[...Array(totalLevels)].map((_, i) => (
                                                         <Step key={i}>
                                                             <StepLabel />
@@ -215,7 +259,11 @@ const LeaveApproval = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell>
-                                            <Chip label="Pending" color="warning" size="small" />
+                                            <Chip
+                                                label="Pending"
+                                                color="warning"
+                                                size="small"
+                                            />
                                         </TableCell>
                                         <TableCell align="center">
                                             <Stack direction="row" spacing={0.5} justifyContent="center">

@@ -80,6 +80,17 @@ const leaveService = {
         return response.data.data;
     },
 
+    getPendingApprovals: async () => {
+        try {
+            // 🔥 GUNAKAN ROUTE YANG BENAR
+            const response = await api.get('/leaves/pending-approvals');
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching pending approvals:', error);
+            throw error;
+        }
+    },
+
     getLeave: async (id) => {
         // 🔥 Gunakan route /leaves/{id}
         const response = await api.get(`/leaves/${id}`);
