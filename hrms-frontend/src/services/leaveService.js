@@ -11,14 +11,23 @@ const leaveService = {
 
     // ========== LEAVE BALANCE ==========
     getMyBalance: async () => {
-        const response = await api.get('/leave-balances/my');
+        const response = await api.get('/employees/my-leave-balance');
         return response.data.data;
     },
 
-    // 🔥 TAMBAHKAN INI
+    // 🔥 PERBAIKI INI
     getAllBalances: async (params = {}) => {
-        const response = await api.get('/employees/leave-balances', { params });
-        return response.data.data;
+        try {
+            console.log('📤 getAllBalances called with params:', params);
+            const response = await api.get('/employees/leave-balances', { params });
+            console.log('📥 getAllBalances response:', response.data);
+            
+            // Return the data in the expected format
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ getAllBalances error:', error);
+            throw error;
+        }
     },
 
     updateBalance: async (id, data) => {

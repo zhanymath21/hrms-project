@@ -108,9 +108,26 @@ export const LeaveProvider = ({ children }) => {
         setLoading(true);
         setError(null);
         try {
-            const data = await leaveService.getAllBalances(params);
-            setAllBalances(data?.data || []);
-            return data;
+            console.log('📤 Fetching all balances with params:', params);
+            const response = await leaveService.getAllBalances(params);
+            console.log('📥 All balances response:', response);
+            
+            // 🔥 PASTIKAN RESPONSE FORMATNYA
+            const data = response?.data || [];
+            const paginationData = response?.pagination || {
+                current_page: 1,
+                per_page: 20,
+                total: 0,
+                last_page: 1,
+            };
+            
+            setAllBalances(data);
+            setPagination(paginationData);
+            
+            return {
+                data: data,
+                pagination: paginationData,
+            };
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Failed to fetch all balances';
             setError(msg);

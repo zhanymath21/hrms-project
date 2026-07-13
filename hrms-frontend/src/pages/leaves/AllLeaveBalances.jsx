@@ -47,9 +47,11 @@ import {
     Save as SaveIcon,
     Close as CloseIcon,
     Person as PersonIcon,
+    BeachAccess as BeachIcon,
+    LocalHospital as SickIcon,
+    Celebration as SpecialIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
-import leaveService from '../../services/leaveService';
 import api from '../../services/axios';
 
 const AllLeaveBalances = () => {
@@ -73,7 +75,6 @@ const AllLeaveBalances = () => {
         totalSpecialLeave: 0,
         totalRemaining: 0,
     });
-    const [success, setSuccess] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     // Edit Dialog
@@ -115,9 +116,10 @@ const AllLeaveBalances = () => {
             if (search) params.search = search;
             if (departmentFilter) params.department_id = departmentFilter;
 
+            console.log('📤 Fetching all balances...');
             const response = await fetchAllBalances(params);
-            console.log('📊 All balances response:', response); // 🔥 DEBUG
-            
+            console.log('📥 Response:', response);
+
             const data = response?.data || {};
             const employeesData = data?.data || [];
             
@@ -129,17 +131,12 @@ const AllLeaveBalances = () => {
                 last_page: data?.pagination?.last_page || 1,
             });
 
-            // 🔥 PERBAIKI STATS - Gunakan leave_balances
+            // Calculate stats
             let totalAL = 0, totalSL = 0, totalSPL = 0, totalRemaining = 0;
             employeesData.forEach(emp => {
-                // Cari balance berdasarkan leave_code
-                const al = emp.leave_balances?.find(b => b.leave_code === 'AL');
-                const sl = emp.leave_balances?.find(b => b.leave_code === 'SL');
-                const spl = emp.leave_balances?.find(b => b.leave_code === 'SPL');
-                
-                totalAL += al?.remaining_days || 0;
-                totalSL += sl?.remaining_days || 0;
-                totalSPL += spl?.remaining_days || 0;
+                totalAL += emp.annual_leave?.remaining_days || 0;
+                totalSL += emp.sick_leave?.remaining_days || 0;
+                totalSPL += emp.special_leave?.remaining_days || 0;
                 totalRemaining += emp.summary?.remaining_days || 0;
             });
 
@@ -152,7 +149,7 @@ const AllLeaveBalances = () => {
             });
 
         } catch (err) {
-            console.error('Error loading data:', err);
+            console.error('❌ Error loading data:', err);
             setSnackbar({
                 open: true,
                 message: 'Failed to load data: ' + err.message,
@@ -186,7 +183,7 @@ const AllLeaveBalances = () => {
         setPage(0);
     };
 
-    // 🔥 PERBAIKI EDIT BALANCE
+    // Edit Balance
     const handleOpenEdit = (employee, leaveType, balance) => {
         if (!balance || !balance.id) {
             setSnackbar({
@@ -202,13 +199,13 @@ const AllLeaveBalances = () => {
             balanceId: balance.id,
             employeeName: employee.name,
             employeeId: employee.employee_id,
-            leaveType: leaveType.name,
-            leaveCode: leaveType.code,
-            currentRemaining: balance.remaining || 0,
-            currentTotal: balance.total || 0,
-            usedDays: balance.used || 0,
-            pendingDays: balance.pending || 0,
-            newTotal: balance.total || 0,
+            leaveType: leaveType.leave_type || leaveType.name,
+            leaveCode: leaveType.leave_code || leaveType.code,
+            currentRemaining: balance.remaining_days || 0,
+            currentTotal: balance.total_entitlement || 0,
+            usedDays: balance.used_days || 0,
+            pendingDays: balance.pending_days || 0,
+            newTotal: balance.total_entitlement || 0,
             adjustmentReason: '',
             isLoading: false,
         });
@@ -314,7 +311,7 @@ const AllLeaveBalances = () => {
             {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h4" fontWeight="bold">
-                    📊 Employee Leave Balances
+                    📊 All Employee Leave Balances
                 </Typography>
                 <Button
                     variant="outlined"
@@ -325,12 +322,6 @@ const AllLeaveBalances = () => {
                     Refresh
                 </Button>
             </Box>
-
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => {}}>
-                    {error}
-                </Alert>
-            )}
 
             {/* Stats */}
             <Grid container spacing={2} mb={3}>
@@ -431,15 +422,15 @@ const AllLeaveBalances = () => {
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell>Employee</TableCell>
                             <TableCell>Department</TableCell>
-                            <TableCell align="center">🏖️ AL</TableCell>
-                            <TableCell align="center">🏥 SL</TableCell>
-                            <TableCell align="center">🎉 SPL</TableCell>
-                            <TableCell align="center">Total</TableCell>
-                            <TableCell align="center">Used</TableCell>
-                            <TableCell align="center">Pending</TableCell>
-                            <TableCell align="center">Remaining</TableCell>
-                            <TableCell align="center">Status</TableCell>
-                            <TableCell align="center">Actions</TableCell>
+                            <TableCell align="center" width="80">🏖️ AL</TableCell>
+                            <TableCell align="center" width="80">🏥 SL</TableCell>
+                            <TableCell align="center" width="80">🎉 SPL</TableCell>
+                            <TableCell align="center" width="60">Total</TableCell>
+                            <TableCell align="center" width="60">Used</TableCell>
+                            <TableCell align="center" width="60">Pending</TableCell>
+                            <TableCell align="center" width="80">Remaining</TableCell>
+                            <TableCell align="center" width="90">Status</TableCell>
+                            <TableCell align="center" width="50">Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -455,10 +446,9 @@ const AllLeaveBalances = () => {
                             </TableRow>
                         ) : (
                             employees.map((employee) => {
-                                // 🔥 CARI BALANCE DARI leave_balances
-                                const al = employee.leave_balances?.find(b => b.leave_code === 'AL') || {};
-                                const sl = employee.leave_balances?.find(b => b.leave_code === 'SL') || {};
-                                const spl = employee.leave_balances?.find(b => b.leave_code === 'SPL') || {};
+                                const al = employee.annual_leave || {};
+                                const sl = employee.sick_leave || {};
+                                const spl = employee.special_leave || {};
                                 const summary = employee.summary || {};
                                 const remaining = summary.remaining_days || 0;
                                 const total = summary.total_entitlement || 0;
@@ -485,9 +475,8 @@ const AllLeaveBalances = () => {
                                         <TableCell>
                                             <Chip label={employee.department?.name || 'N/A'} size="small" variant="outlined" />
                                         </TableCell>
-                                        {/* AL */}
                                         <TableCell align="center">
-                                            <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                            <Tooltip title={`Annual Leave: ${al.remaining_days || 0} days remaining`}>
                                                 <Typography 
                                                     variant="body2" 
                                                     fontWeight="bold" 
@@ -495,23 +484,10 @@ const AllLeaveBalances = () => {
                                                 >
                                                     {al.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
-                                                <Typography variant="caption" color="textSecondary">
-                                                    / {al.total_entitlement?.toFixed(1) || 0}
-                                                </Typography>
-                                                <Tooltip title="Edit AL Balance">
-                                                    <IconButton 
-                                                        size="small" 
-                                                        color="primary" 
-                                                        onClick={() => handleOpenEdit(employee, { name: 'Annual Leave', code: 'AL' }, al)}
-                                                    >
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
+                                            </Tooltip>
                                         </TableCell>
-                                        {/* SL */}
                                         <TableCell align="center">
-                                            <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                            <Tooltip title={`Sick Leave: ${sl.remaining_days || 0} days remaining`}>
                                                 <Typography 
                                                     variant="body2" 
                                                     fontWeight="bold" 
@@ -519,23 +495,10 @@ const AllLeaveBalances = () => {
                                                 >
                                                     {sl.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
-                                                <Typography variant="caption" color="textSecondary">
-                                                    / {sl.total_entitlement?.toFixed(1) || 0}
-                                                </Typography>
-                                                <Tooltip title="Edit SL Balance">
-                                                    <IconButton 
-                                                        size="small" 
-                                                        color="primary" 
-                                                        onClick={() => handleOpenEdit(employee, { name: 'Sick Leave', code: 'SL' }, sl)}
-                                                    >
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
+                                            </Tooltip>
                                         </TableCell>
-                                        {/* SPL */}
                                         <TableCell align="center">
-                                            <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                            <Tooltip title={`Special Leave: ${spl.remaining_days || 0} days remaining`}>
                                                 <Typography 
                                                     variant="body2" 
                                                     fontWeight="bold" 
@@ -543,39 +506,53 @@ const AllLeaveBalances = () => {
                                                 >
                                                     {spl.remaining_days?.toFixed(1) || 0}
                                                 </Typography>
-                                                <Typography variant="caption" color="textSecondary">
-                                                    / {spl.total_entitlement?.toFixed(1) || 0}
-                                                </Typography>
-                                                <Tooltip title="Edit SPL Balance">
-                                                    <IconButton 
-                                                        size="small" 
-                                                        color="primary" 
-                                                        onClick={() => handleOpenEdit(employee, { name: 'Special Leave', code: 'SPL' }, spl)}
-                                                    >
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
+                                            </Tooltip>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" fontWeight="medium">{total.toFixed(1)}</Typography>
+                                            <Typography variant="body2" fontWeight="medium">
+                                                {total.toFixed(1)}
+                                            </Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" color="error.main">{summary.used_days?.toFixed(1) || 0}</Typography>
+                                            <Typography variant="body2" color="error.main">
+                                                {summary.used_days?.toFixed(1) || 0}
+                                            </Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" color="warning.main">{summary.pending_days?.toFixed(1) || 0}</Typography>
+                                            <Typography variant="body2" color="warning.main">
+                                                {summary.pending_days?.toFixed(1) || 0}
+                                            </Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" fontWeight="bold" color="success.main">{remaining.toFixed(1)}</Typography>
+                                            <Typography variant="body2" fontWeight="bold" color="success.main">
+                                                {remaining.toFixed(1)}
+                                            </Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Chip label={statusLabel} color={statusColor} size="small" />
+                                            <Chip 
+                                                label={statusLabel} 
+                                                color={statusColor} 
+                                                size="small"
+                                                icon={
+                                                    statusColor === 'error' ? <ErrorIcon /> :
+                                                    statusColor === 'warning' ? <WarningIcon /> :
+                                                    <CheckCircleIcon />
+                                                }
+                                            />
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Tooltip title="View Details">
-                                                <IconButton size="small" color="info">
-                                                    <PersonIcon fontSize="small" />
+                                            <Tooltip title="Edit Balance">
+                                                <IconButton 
+                                                    size="small" 
+                                                    color="primary"
+                                                    onClick={() => {
+                                                        const firstBalance = employee.leave_balances?.[0];
+                                                        if (firstBalance) {
+                                                            handleOpenEdit(employee, firstBalance, firstBalance);
+                                                        }
+                                                    }}
+                                                >
+                                                    <EditIcon fontSize="small" />
                                                 </IconButton>
                                             </Tooltip>
                                         </TableCell>

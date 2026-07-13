@@ -111,27 +111,41 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==========================================
-    // LEAVE BALANCE MANAGEMENT
+    // LEAVE BALANCE MANAGEMENT - UNIFIED
     // ==========================================
-    Route::prefix('leave-balances')->group(function () {
-        // Employee own balance
-        Route::get('/my', [LeaveBalanceController::class, 'myBalance']);
 
-        // Admin/HR operations
-        Route::get('/', [LeaveBalanceController::class, 'allBalances']);
-        Route::get('/summary', [LeaveBalanceController::class, 'getBalanceSummary']);
-        Route::get('/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
-        Route::put('/{id}', [LeaveBalanceController::class, 'updateBalance']);
-        Route::get('/{employeeId}/history', [LeaveBalanceController::class, 'getAdjustmentHistory']);
+    // 🔥 SEMUA ROUTE LEAVE BALANCE DISATUKAN DI SINI
+    Route::prefix('employees')->group(function () {
+        // My balance (Employee)
+        Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
 
-        // Bulk operations
-        Route::post('/generate', [LeaveBalanceController::class, 'generateBalance']);
-        Route::post('/generate-all', [LeaveBalanceController::class, 'generateAllBalances']);
-        Route::post('/carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
+        // All balances (Admin/HR)
+        Route::get('/leave-balances', [LeaveBalanceController::class, 'allBalances']);
+
+        // Single employee balance (Admin/HR)
+        Route::get('/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
+
+        // Balance detail (Admin/HR)
+        Route::get('/leave-balance/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
+
+        // Update balance (Admin/HR)
+        Route::put('/leave-balance/{id}', [LeaveBalanceController::class, 'updateBalance']);
+
+        // Adjustment history (Admin/HR)
+        Route::get('/leave-balance/{employeeId}/history', [LeaveBalanceController::class, 'getAdjustmentHistory']);
+
+        // Generate balance (Admin/HR)
+        Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
+
+        // Generate all balances (Admin/HR)
+        Route::post('/generate-all-balances', [LeaveBalanceController::class, 'generateAllBalances']);
+
+        // Process carry forward (Admin/HR)
+        Route::post('/process-carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
+
+        // Balance summary (Admin/HR)
+        Route::get('/leave-balance-summary', [LeaveBalanceController::class, 'getBalanceSummary']);
     });
-
-    // Employee-specific balance (keep for backward compatibility)
-    Route::get('/employees/{employeeId}/leave-balance', [LeaveBalanceController::class, 'getEmployeeBalance']);
 
     // ==========================================
     // LEAVE REQUESTS
@@ -143,11 +157,7 @@ Route::middleware('auth:api')->group(function () {
         // Leave Requests - CRUD
         Route::get('/', [LeaveController::class, 'index']);
         Route::get('/pending', [LeaveController::class, 'pendingRequests']);
-        Route::get('/all-pending', [LeaveController::class, 'allPendingRequests']);
         Route::get('/pending-approvals', [LeaveController::class, 'pendingApprovals']);
-        Route::get('/approval-flow', [LeaveController::class, 'getApprovalFlow']);
-        Route::post('/approval-flow', [LeaveController::class, 'updateApprovalFlow']);
-        Route::get('/employee-approval-flow/{employeeId}', [LeaveController::class, 'getEmployeeApprovalFlow']);
         Route::get('/{id}', [LeaveController::class, 'show']);
         Route::post('/', [LeaveController::class, 'store']);
 
@@ -158,6 +168,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{id}/download-attachment', [LeaveController::class, 'downloadAttachment']);
     });
 
+    // ==========================================
+    // APPROVAL FLOW
+    // ==========================================
     Route::prefix('approval-flow')->group(function () {
         Route::get('/', [ApprovalFlowController::class, 'index']);
         Route::post('/', [ApprovalFlowController::class, 'update']);

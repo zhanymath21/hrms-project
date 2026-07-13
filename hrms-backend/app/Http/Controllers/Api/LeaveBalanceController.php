@@ -25,13 +25,58 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Get all employees leave balances (Admin/HR only)
+     * ==========================================
+     * CHECK IF USER IS ADMIN OR HR
+     * ==========================================
+     */
+    private function isAdminOrHR($user): bool
+    {
+        if (!$user) return false;
+
+        $adminPositions = [
+            'HR Manager',
+            'HR Officer',
+            'HR Assistant',
+            'Admin',
+            'System Admin',
+            'Director',
+            'CEO',
+            'Manager'
+        ];
+
+        // Check by position
+        if ($user->position && in_array($user->position->title ?? '', $adminPositions)) {
+            return true;
+        }
+
+        // Check by role
+        if ($user->role && in_array($user->role, ['admin', 'hr', 'manager', 'director'])) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * ==========================================
+     * 1. GET ALL EMPLOYEES LEAVE BALANCES (ADMIN/HR)
      * GET /api/employees/leave-balances
+     * ==========================================
      */
     public function allBalances(Request $request): JsonResponse
     {
         try {
             Log::info('📊 Fetching all employees leave balances');
+
+            $user = $request->user();
+
+            // Check if user is Admin/HR
+            if (!$this->isAdminOrHR($user)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Only Admin/HR can view all balances.'
+                ], 403);
+            }
 
             // Get all leave types
             $leaveTypes = LeaveType::where('is_active', true)->get();
@@ -68,11 +113,12 @@ class LeaveBalanceController extends Controller
             // Format response
             $result = $employees->map(function ($employee) use ($leaveTypes) {
                 $balanceData = [];
+                $leaveTypeMap = [];
 
                 foreach ($leaveTypes as $leaveType) {
                     $balance = $employee->leaveBalances->firstWhere('leave_type_id', $leaveType->id);
 
-                    $balanceData[] = [
+                    $balanceItem = [
                         'id' => $balance->id ?? null,
                         'leave_type_id' => $leaveType->id,
                         'leave_type' => $leaveType->name,
@@ -82,11 +128,9 @@ class LeaveBalanceController extends Controller
                         'pending_days' => (float) ($balance->pending_days ?? 0),
                         'remaining_days' => (float) ($balance->remaining_days ?? 0),
                     ];
+                    $balanceData[] = $balanceItem;
+                    $leaveTypeMap[$leaveType->code] = $balanceItem;
                 }
-
-                $annualLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'AL');
-                $sickLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'SL');
-                $specialLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'SPL');
 
                 return [
                     'id' => $employee->id,
@@ -100,34 +144,13 @@ class LeaveBalanceController extends Controller
                     ],
                     'hire_date' => $employee->hire_date,
                     'years_of_service' => Carbon::parse($employee->hire_date)->diffInYears(Carbon::now()),
-
-                    // Detailed balances per leave type
                     'leave_balances' => $balanceData,
 
-                    // Quick access for common leave types
-                    'annual_leave' => [
-                        'id' => $annualLeave->id ?? null,
-                        'total' => (float) ($annualLeave->total_entitlement ?? 0),
-                        'used' => (float) ($annualLeave->used_days ?? 0),
-                        'pending' => (float) ($annualLeave->pending_days ?? 0),
-                        'remaining' => (float) ($annualLeave->remaining_days ?? 0),
-                    ],
-                    'sick_leave' => [
-                        'id' => $sickLeave->id ?? null,
-                        'total' => (float) ($sickLeave->total_entitlement ?? 0),
-                        'used' => (float) ($sickLeave->used_days ?? 0),
-                        'pending' => (float) ($sickLeave->pending_days ?? 0),
-                        'remaining' => (float) ($sickLeave->remaining_days ?? 0),
-                    ],
-                    'special_leave' => [
-                        'id' => $specialLeave->id ?? null,
-                        'total' => (float) ($specialLeave->total_entitlement ?? 0),
-                        'used' => (float) ($specialLeave->used_days ?? 0),
-                        'pending' => (float) ($specialLeave->pending_days ?? 0),
-                        'remaining' => (float) ($specialLeave->remaining_days ?? 0),
-                    ],
+                    // Quick access by leave code
+                    'annual_leave' => $leaveTypeMap['AL'] ?? null,
+                    'sick_leave' => $leaveTypeMap['SL'] ?? null,
+                    'special_leave' => $leaveTypeMap['SPL'] ?? null,
 
-                    // Summary
                     'summary' => [
                         'total_entitlement' => array_sum(array_column($balanceData, 'total_entitlement')),
                         'used_days' => array_sum(array_column($balanceData, 'used_days')),
@@ -161,8 +184,10 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Get my leave balance (Employee)
+     * ==========================================
+     * 2. GET MY LEAVE BALANCE (EMPLOYEE)
      * GET /api/employees/my-leave-balance
+     * ==========================================
      */
     public function myBalance(Request $request): JsonResponse
     {
@@ -181,17 +206,34 @@ class LeaveBalanceController extends Controller
 
             Log::info('User ID: ' . $user->id . ', Email: ' . $user->email);
 
-            // Ensure balance exists
-            $this->balanceService->ensureBalanceExists($user);
+            // Find employee by user_id or email
+            $employee = Employee::where('user_id', $user->id)->first();
 
-            $balances = LeaveBalance::where('employee_id', $user->id)
+            if (!$employee) {
+                $employee = Employee::where('email', $user->email)->first();
+            }
+
+            if (!$employee) {
+                Log::error('Employee not found for user: ' . $user->id);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Employee not found. Please contact HR.'
+                ], 404);
+            }
+
+            Log::info('Employee found: ' . $employee->id . ' - ' . $employee->first_name . ' ' . $employee->last_name);
+
+            // Ensure balance exists
+            $this->balanceService->ensureBalanceExists($employee);
+
+            $balances = LeaveBalance::where('employee_id', $employee->id)
                 ->where('year', date('Y'))
                 ->with('leaveType')
                 ->get();
 
             Log::info('Found ' . $balances->count() . ' balances');
 
-            $yearsOfService = Carbon::parse($user->hire_date)->diffInYears(Carbon::now());
+            $yearsOfService = Carbon::parse($employee->hire_date)->diffInYears(Carbon::now());
 
             $result = [
                 'balances' => $balances->map(function ($balance) use ($yearsOfService) {
@@ -213,10 +255,10 @@ class LeaveBalanceController extends Controller
                     ];
                 }),
                 'employee' => [
-                    'id' => $user->id,
-                    'name' => $user->first_name . ' ' . $user->last_name,
-                    'employee_id' => $user->employee_id,
-                    'hire_date' => $user->hire_date,
+                    'id' => $employee->id,
+                    'name' => $employee->first_name . ' ' . $employee->last_name,
+                    'employee_id' => $employee->employee_id,
+                    'hire_date' => $employee->hire_date,
                     'years_of_service' => $yearsOfService,
                 ],
             ];
@@ -238,13 +280,25 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Get employee balance by ID (Admin/HR only)
+     * ==========================================
+     * 3. GET EMPLOYEE BALANCE BY ID (ADMIN/HR)
      * GET /api/employees/{employeeId}/leave-balance
+     * ==========================================
      */
     public function getEmployeeBalance(Request $request, $employeeId): JsonResponse
     {
         try {
             Log::info('📊 Fetching employee balance for: ' . $employeeId);
+
+            $user = $request->user();
+
+            // Check if user is Admin/HR
+            if (!$this->isAdminOrHR($user)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Only Admin/HR can view other employee balances.'
+                ], 403);
+            }
 
             $employee = Employee::with([
                 'department:id,name,code',
@@ -348,8 +402,10 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Get single balance detail for editing (Admin/HR only)
+     * ==========================================
+     * 4. GET SINGLE BALANCE DETAIL (ADMIN/HR)
      * GET /api/employees/leave-balance/{id}
+     * ==========================================
      */
     public function getBalanceDetail($id): JsonResponse
     {
@@ -383,13 +439,25 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Update leave balance (Admin/HR only)
+     * ==========================================
+     * 5. UPDATE LEAVE BALANCE (ADMIN/HR)
      * PUT /api/employees/leave-balance/{id}
+     * ==========================================
      */
     public function updateBalance(Request $request, $id): JsonResponse
     {
         try {
             Log::info('📝 Updating leave balance: ' . $id);
+
+            $user = $request->user();
+
+            // Check if user is Admin/HR
+            if (!$this->isAdminOrHR($user)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Only Admin/HR can update balances.'
+                ], 403);
+            }
 
             $validator = Validator::make($request->all(), [
                 'total_entitlement' => 'required|numeric|min:0',
@@ -413,7 +481,6 @@ class LeaveBalanceController extends Controller
                 ], 404);
             }
 
-            $user = $request->user();
             $oldRemaining = $balance->remaining_days;
             $oldTotal = $balance->total_entitlement;
             $newTotal = (float) $request->total_entitlement;
@@ -466,13 +533,24 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Get adjustment history for employee
+     * ==========================================
+     * 6. GET ADJUSTMENT HISTORY (ADMIN/HR)
      * GET /api/employees/leave-balance/{employeeId}/history
+     * ==========================================
      */
     public function getAdjustmentHistory($employeeId): JsonResponse
     {
         try {
             Log::info('📊 Fetching adjustment history for employee: ' . $employeeId);
+
+            $user = $request->user();
+
+            if (!$this->isAdminOrHR($user)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Only Admin/HR can view adjustment history.'
+                ], 403);
+            }
 
             $balances = LeaveBalance::where('employee_id', $employeeId)
                 ->where(function ($q) {
@@ -497,13 +575,24 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Generate balance for employee (Admin/HR only)
+     * ==========================================
+     * 7. GENERATE BALANCE FOR EMPLOYEE (ADMIN/HR)
      * POST /api/employees/generate-balance
+     * ==========================================
      */
     public function generateBalance(Request $request): JsonResponse
     {
         try {
             Log::info('📝 Generating balance');
+
+            $user = $request->user();
+
+            if (!$this->isAdminOrHR($user)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Only Admin/HR can generate balances.'
+                ], 403);
+            }
 
             $employeeId = $request->employee_id;
 
@@ -540,13 +629,24 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Generate balances for all employees (Admin/HR only)
+     * ==========================================
+     * 8. GENERATE BALANCES FOR ALL EMPLOYEES (ADMIN/HR)
      * POST /api/employees/generate-all-balances
+     * ==========================================
      */
     public function generateAllBalances(Request $request): JsonResponse
     {
         try {
             Log::info('📝 Generating balances for all employees');
+
+            $user = $request->user();
+
+            if (!$this->isAdminOrHR($user)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Only Admin/HR can generate all balances.'
+                ], 403);
+            }
 
             $employees = Employee::where('status', 'active')->get();
             $count = 0;
@@ -583,13 +683,24 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Process carry forward (Admin/HR only)
+     * ==========================================
+     * 9. PROCESS CARRY FORWARD (ADMIN/HR)
      * POST /api/employees/process-carry-forward
+     * ==========================================
      */
     public function processCarryForward(Request $request): JsonResponse
     {
         try {
             Log::info('📝 Processing carry forward');
+
+            $user = $request->user();
+
+            if (!$this->isAdminOrHR($user)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Only Admin/HR can process carry forward.'
+                ], 403);
+            }
 
             $year = $request->year ?? date('Y') - 1;
             $processed = $this->balanceService->processCarryForward($year);
@@ -615,13 +726,24 @@ class LeaveBalanceController extends Controller
     }
 
     /**
-     * Get leave balance summary for dashboard (Admin/HR only)
+     * ==========================================
+     * 10. GET BALANCE SUMMARY (ADMIN/HR)
      * GET /api/employees/leave-balance-summary
+     * ==========================================
      */
     public function getBalanceSummary(Request $request): JsonResponse
     {
         try {
             Log::info('📊 Fetching leave balance summary');
+
+            $user = $request->user();
+
+            if (!$this->isAdminOrHR($user)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Only Admin/HR can view balance summary.'
+                ], 403);
+            }
 
             $year = $request->year ?? date('Y');
 
