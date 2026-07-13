@@ -1,12 +1,14 @@
 <?php
+// app/Models/ReplacementLeave.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ReplacementLeave extends Model
 {
-    protected $table = 'replacement_leaves';
+    use SoftDeletes;
 
     protected $fillable = [
         'employee_id',
@@ -14,20 +16,22 @@ class ReplacementLeave extends Model
         'work_day_type',
         'hours_worked',
         'replacement_date',
-        'reason',
         'days_to_add',
+        'reason',
+        'attachment',
         'status',
-        'approved_by',
-        'approved_at',
+        'approval_level',
+        'total_approval_levels',
         'rejection_reason',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected $casts = [
         'work_date' => 'date',
         'replacement_date' => 'date',
-        'approved_at' => 'datetime',
-        'hours_worked' => 'integer',
-        'days_to_add' => 'decimal:2',
+        'days_to_add' => 'decimal:1',
+        'cancelled_at' => 'datetime',
     ];
 
     public function employee()
@@ -35,18 +39,13 @@ class ReplacementLeave extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function approvedBy()
+    public function approvals()
     {
-        return $this->belongsTo(Employee::class, 'approved_by');
+        return $this->hasMany(ReplacementLeaveApproval::class)->orderBy('level');
     }
 
-    // Auto generate days_to_add before saving
-    protected static function boot()
+    public function cancelledBy()
     {
-        parent::boot();
-
-        static::creating(function ($model) {
-            $model->days_to_add = $model->hours_worked >= 8 ? 1 : 0.5;
-        });
+        return $this->belongsTo(Employee::class, 'cancelled_by');
     }
 }

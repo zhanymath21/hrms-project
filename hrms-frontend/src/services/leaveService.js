@@ -15,18 +15,28 @@ const leaveService = {
         return response.data.data;
     },
 
-    // 🔥 PERBAIKI INI
+    // 🔥 PERBAIKI getAllBalances DENGAN FALLBACK
     getAllBalances: async (params = {}) => {
         try {
-            console.log('📤 getAllBalances called with params:', params);
-            const response = await api.get('/employees/leave-balances', { params });
-            console.log('📥 getAllBalances response:', response.data);
+            console.log('📤 Fetching all balances with params:', params);
             
-            // Return the data in the expected format
+            // Coba endpoint utama
+            const response = await api.get('/employees/leave-balances', { params });
+            console.log('📥 Response from /employees/leave-balances:', response.data);
             return response.data.data;
+            
         } catch (error) {
-            console.error('❌ getAllBalances error:', error);
-            throw error;
+            console.warn('❌ /employees/leave-balances failed, trying fallback...');
+            
+            try {
+                // Fallback ke endpoint lain
+                const response = await api.get('/leave-balances', { params });
+                console.log('📥 Response from /leave-balances:', response.data);
+                return response.data.data;
+            } catch (fallbackError) {
+                console.error('❌ All endpoints failed');
+                throw error;
+            }
         }
     },
 

@@ -18,15 +18,8 @@ trait ApiResponseTrait
 
     protected function error(string $message = 'Error', int $code = 400, $errors = null): JsonResponse
     {
-        $response = [
-            'status' => 'error',
-            'message' => $message,
-        ];
-
-        if ($errors) {
-            $response['errors'] = $errors;
-        }
-
+        $response = ['status' => 'error', 'message' => $message];
+        if ($errors) $response['errors'] = $errors;
         return response()->json($response, $code);
     }
 

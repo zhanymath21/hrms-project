@@ -48,5 +48,8 @@ class LeaveApprovalFlowSeeder extends Seeder
         }
 
         $this->command->info('✅ Leave approval flows seeded successfully!');
+        $this->command->info('   Level 1: Manager');
+        $this->command->info('   Level 2: HR');
+        $this->command->info('   Level 3: Director');
     }
 }

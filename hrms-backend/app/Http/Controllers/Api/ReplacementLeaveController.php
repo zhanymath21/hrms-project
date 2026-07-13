@@ -7,9 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Models\ReplacementLeave;
 use App\Services\Leave\ReplacementLeaveService;
 use App\Traits\ApiResponseTrait;
-use Illuminate\Http\JsonResponse;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class ReplacementLeaveController extends Controller
 {
@@ -22,16 +23,10 @@ class ReplacementLeaveController extends Controller
         $this->replacementService = $replacementService;
     }
 
-    /**
-     * Get replacement leaves list
-     */
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = ReplacementLeave::with([
-                'employee:id,first_name,last_name,employee_id,manager_id',
-                'approvedBy:id,first_name,last_name'
-            ]);
+            $query = ReplacementLeave::with(['employee', 'approvals.approver']);
 
             if ($request->filled('employee_id')) {
                 $query->where('employee_id', $request->employee_id);
@@ -50,77 +45,69 @@ class ReplacementLeaveController extends Controller
         }
     }
 
-    /**
-     * Get pending replacement requests
-     */
-    public function pending(Request $request): JsonResponse
-    {
-        try {
-            $query = ReplacementLeave::with([
-                'employee:id,first_name,last_name,employee_id,manager_id',
-                'approvedBy:id,first_name,last_name'
-            ])->where('status', 'pending');
-
-            if ($request->filled('employee_id')) {
-                $query->where('employee_id', $request->employee_id);
-            }
-
-            $perPage = $request->input('per_page', 15);
-            $replacements = $query->orderBy('created_at', 'desc')->paginate($perPage);
-
-            return $this->success($replacements, 'Pending replacements fetched');
-        } catch (\Exception $e) {
-            return $this->error('Failed to fetch pending replacements: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * Request replacement leave
-     */
     public function store(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'work_date' => 'required|date',
-            'work_day_type' => 'required|in:weekend,public_holiday',
-            'hours_worked' => 'required|integer|min:1|max:12',
-            'replacement_date' => 'required|date|after:today',
-            'reason' => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->validationError($validator->errors());
-        }
-
         try {
+            $validator = Validator::make($request->all(), [
+                'work_date' => 'required|date',
+                'work_day_type' => 'required|in:weekend,public_holiday',
+                'hours_worked' => 'required|integer|min:1|max:12',
+                'replacement_date' => 'required|date|after:today',
+                'reason' => 'nullable|string|max:500',
+                'attachment' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:5120',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->validationError($validator->errors());
+            }
+
             $employee = $request->user();
-            $replacement = $this->replacementService->createRequest($employee, $request->all());
+
+            $data = $request->all();
+            if ($request->hasFile('attachment')) {
+                $data['attachment'] = $this->replacementService->uploadAttachment($request->file('attachment'));
+            }
+
+            $replacement = $this->replacementService->createRequest($employee, $data);
 
             return $this->success(
-                $replacement->load('employee'),
-                'Replacement leave request submitted!',
+                $replacement->load('approvals.approver'),
+                'Replacement request submitted!',
                 201
             );
         } catch (\Exception $e) {
+            Log::error('Error creating replacement: ' . $e->getMessage());
             return $this->error($e->getMessage(), 422);
         }
     }
 
-    /**
-     * Approve replacement leave
-     */
+    public function pendingApprovals(Request $request): JsonResponse
+    {
+        try {
+            $employee = $request->user();
+            $approvals = $this->replacementService->getPendingApprovals($employee);
+
+            return $this->success($approvals, 'Pending approvals fetched');
+        } catch (\Exception $e) {
+            return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function approve(Request $request, $id): JsonResponse
     {
         try {
-            $replacement = ReplacementLeave::with(['employee'])->findOrFail($id);
-            $user = $request->user();
+            $replacement = ReplacementLeave::with(['approvals'])->find($id);
 
-            if ($user->id === $replacement->employee_id) {
-                return $this->unauthorized('You cannot approve your own replacement request');
+            if (!$replacement) {
+                return $this->notFound('Replacement not found');
             }
 
-            $this->replacementService->approve($replacement, $user);
+            $employee = $request->user();
+
+            $replacement = $this->replacementService->approve($replacement, $employee, $request->only(['notes']));
+
             return $this->success(
-                null,
+                $replacement,
                 "Replacement approved! +{$replacement->days_to_add} day(s) added to Annual Leave."
             );
         } catch (\Exception $e) {
@@ -128,35 +115,83 @@ class ReplacementLeaveController extends Controller
         }
     }
 
-    /**
-     * Reject replacement leave
-     */
     public function reject(Request $request, $id): JsonResponse
     {
         try {
-            $replacement = ReplacementLeave::findOrFail($id);
-            $this->replacementService->reject($replacement, $request->reason);
+            $replacement = ReplacementLeave::find($id);
 
-            return $this->success(null, 'Replacement leave rejected');
+            if (!$replacement) {
+                return $this->notFound('Replacement not found');
+            }
+
+            $validator = Validator::make($request->all(), [
+                'rejection_reason' => 'required|string|min:5',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->validationError($validator->errors());
+            }
+
+            $employee = $request->user();
+            $replacement = $this->replacementService->reject($replacement, $employee, $request->rejection_reason);
+
+            return $this->success($replacement, 'Replacement rejected');
         } catch (\Exception $e) {
             return $this->error('Failed to reject: ' . $e->getMessage(), 500);
         }
     }
 
-    /**
-     * Cancel replacement leave
-     */
     public function cancel(Request $request, $id): JsonResponse
     {
         try {
-            $replacement = ReplacementLeave::with(['employee'])->findOrFail($id);
-            $user = $request->user();
+            $replacement = ReplacementLeave::find($id);
 
-            $this->replacementService->cancel($replacement, $user, $request->reason);
+            if (!$replacement) {
+                return $this->notFound('Replacement not found');
+            }
 
-            return $this->success(null, 'Replacement request cancelled');
+            $employee = $request->user();
+            $this->replacementService->cancel($replacement, $employee, $request->reason);
+
+            return $this->success(null, 'Replacement cancelled');
         } catch (\Exception $e) {
-            return $this->error($e->getMessage(), 422);
+            return $this->error('Failed to cancel: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function show($id): JsonResponse
+    {
+        try {
+            $replacement = ReplacementLeave::with(['employee', 'approvals.approver'])->find($id);
+
+            if (!$replacement) {
+                return $this->notFound('Replacement not found');
+            }
+
+            return $this->success($replacement, 'Replacement details fetched');
+        } catch (\Exception $e) {
+            return $this->error('Failed to fetch replacement details: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function downloadAttachment($id): JsonResponse
+    {
+        try {
+            $replacement = ReplacementLeave::find($id);
+
+            if (!$replacement || !$replacement->attachment) {
+                return $this->notFound('Attachment not found');
+            }
+
+            $path = storage_path('app/public/' . $replacement->attachment);
+
+            if (!file_exists($path)) {
+                return $this->notFound('File not found');
+            }
+
+            return response()->download($path);
+        } catch (\Exception $e) {
+            return $this->error('Failed to download attachment: ' . $e->getMessage(), 500);
         }
     }
 }
