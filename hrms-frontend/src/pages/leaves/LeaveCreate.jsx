@@ -117,10 +117,30 @@ const LeaveCreate = () => {
                 data.append('attachment', formData.attachment);
             }
 
-            await createLeave(data);
+            // 🔥 TAMBAHKAN LOG UNTUK DEBUG
+            console.log('Submitting data:', {
+                leave_type_id: formData.leave_type_id,
+                start_date: format(formData.start_date, 'yyyy-MM-dd'),
+                end_date: format(formData.end_date, 'yyyy-MM-dd'),
+                reason: formData.reason,
+                attachment: formData.attachment?.name || 'No attachment',
+            });
+
+            const result = await createLeave(data);
+            console.log('Result:', result);
+            
             navigate('/leaves');
         } catch (err) {
-            setSubmitError(err.message || 'Failed to create leave request');
+            console.error('Error creating leave:', err);
+            console.error('Error response:', err.response);
+            
+            // 🔥 TAMPILKAN ERROR DETAIL
+            if (err.response?.data?.errors) {
+                const errorMessages = Object.values(err.response.data.errors).flat().join('\n');
+                setSubmitError(errorMessages);
+            } else {
+                setSubmitError(err.response?.data?.message || err.message || 'Failed to create leave request');
+            }
         }
     };
 

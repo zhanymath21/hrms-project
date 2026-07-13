@@ -102,7 +102,7 @@ export const LeaveProvider = ({ children }) => {
         }
     }, []);
 
-    // ===== 5. FETCH ALL BALANCES (HR) =====
+    // ===== 5. FETCH ALL BALANCES =====
     const fetchAllBalances = useCallback(async (params = {}) => {
         setLoading(true);
         setError(null);

@@ -134,10 +134,6 @@ class LeaveController extends Controller
         }
     }
 
-    // ==========================================
-    // 🔥 TAMBAHKAN METHOD INI - pendingRequests
-    // ==========================================
-
     /**
      * Get pending leave requests
      * GET /api/leaves/pending
@@ -154,12 +150,10 @@ class LeaveController extends Controller
                 'approvals.approver:id,first_name,last_name',
             ])->where('status', 'pending');
 
-            // Filter by employee
             if ($request->filled('employee_id')) {
                 $query->where('employee_id', $request->employee_id);
             }
 
-            // Filter by date range
             if ($request->filled('start_date')) {
                 $query->whereDate('start_date', '>=', $request->start_date);
             }
@@ -180,83 +174,6 @@ class LeaveController extends Controller
     }
 
     /**
-     * Get pending approvals for current user
-     * GET /api/leaves/pending-approvals
-     */
-    public function pendingApprovals(Request $request): JsonResponse
-    {
-        try {
-            $employee = $request->user();
-            $approvals = $this->approvalService->getPendingApprovals($employee);
-
-            return $this->success($approvals, 'Pending approvals fetched');
-        } catch (\Exception $e) {
-            Log::error('Error fetching pending approvals: ' . $e->getMessage());
-            return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * Get all pending leaves (Admin/HR only)
-     * GET /api/leaves/all-pending
-     */
-    public function allPendingRequests(Request $request): JsonResponse
-    {
-        try {
-            Log::info('📋 Fetching all pending leave requests');
-
-            $user = $request->user();
-
-            // Check if user is Admin/HR
-            if (!$this->isAdminOrHR($user)) {
-                return $this->unauthorized('Only Admin/HR can view all pending requests');
-            }
-
-            $query = Leave::with([
-                'employee:id,first_name,last_name,employee_id,department_id,manager_id',
-                'employee.department:id,name',
-                'leaveType:id,name,code',
-                'approvals.approver:id,first_name,last_name',
-            ])->where('status', 'pending');
-
-            // Filter by employee
-            if ($request->filled('employee_id')) {
-                $query->where('employee_id', $request->employee_id);
-            }
-
-            // Filter by department
-            if ($request->filled('department_id')) {
-                $query->whereHas('employee', function ($q) use ($request) {
-                    $q->where('department_id', $request->department_id);
-                });
-            }
-
-            // Filter by date range
-            if ($request->filled('start_date')) {
-                $query->whereDate('start_date', '>=', $request->start_date);
-            }
-            if ($request->filled('end_date')) {
-                $query->whereDate('end_date', '<=', $request->end_date);
-            }
-
-            // Filter by leave type
-            if ($request->filled('leave_type_id')) {
-                $query->where('leave_type_id', $request->leave_type_id);
-            }
-
-            $perPage = $request->input('per_page', 15);
-            $leaves = $query->orderBy('created_at', 'desc')->paginate($perPage);
-
-            Log::info('✅ Found ' . $leaves->total() . ' pending requests');
-
-            return $this->success($leaves, 'All pending requests fetched');
-        } catch (\Exception $e) {
-            Log::error('❌ Error fetching all pending requests: ' . $e->getMessage());
-            return $this->error('Failed to fetch all pending requests: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
      * Create leave request with attachment
      * POST /api/leaves
      */
@@ -264,25 +181,45 @@ class LeaveController extends Controller
     {
         try {
             Log::info('📝 Creating leave request');
+            Log::info('Request data:', $request->all());
 
+            // 🔥 PERBAIKI VALIDASI - TAMBAHKAN ERROR MESSAGE YANG JELAS
             $validator = Validator::make($request->all(), [
                 'leave_type_id' => 'required|exists:leave_types,id',
                 'start_date' => 'required|date|after_or_equal:today',
                 'end_date' => 'required|date|after_or_equal:start_date',
                 'reason' => 'required|string|min:5',
                 'attachment' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:5120',
+            ], [
+                'leave_type_id.required' => 'Leave type is required',
+                'leave_type_id.exists' => 'Selected leave type is invalid',
+                'start_date.required' => 'Start date is required',
+                'start_date.after_or_equal' => 'Start date must be today or later',
+                'end_date.required' => 'End date is required',
+                'end_date.after_or_equal' => 'End date must be after start date',
+                'reason.required' => 'Reason is required',
+                'reason.min' => 'Reason must be at least 5 characters',
+                'attachment.mimes' => 'Attachment must be PDF, JPG, PNG, or DOC file',
+                'attachment.max' => 'Attachment size must be less than 5MB',
             ]);
 
             if ($validator->fails()) {
+                Log::error('Validation failed:', $validator->errors()->toArray());
                 return $this->validationError($validator->errors());
             }
 
             $employee = $request->user();
 
+            if (!$employee) {
+                return $this->error('User not authenticated', 401);
+            }
+
             // Calculate total days
             $startDate = Carbon::parse($request->start_date);
             $endDate = Carbon::parse($request->end_date);
             $totalDays = $this->calculateWorkingDays($startDate, $endDate);
+
+            Log::info('Total days: ' . $totalDays);
 
             // Check balance
             $balance = LeaveBalance::where([
@@ -291,7 +228,21 @@ class LeaveController extends Controller
                 'year' => date('Y'),
             ])->first();
 
-            if (!$balance || $balance->remaining_days < $totalDays) {
+            if (!$balance) {
+                // Try to generate balance
+                $this->balanceService->ensureBalanceExists($employee);
+                $balance = LeaveBalance::where([
+                    'employee_id' => $employee->id,
+                    'leave_type_id' => $request->leave_type_id,
+                    'year' => date('Y'),
+                ])->first();
+            }
+
+            if (!$balance) {
+                return $this->error('Leave balance not found. Please contact HR.', 422);
+            }
+
+            if ($balance->remaining_days < $totalDays) {
                 return $this->error(
                     "Insufficient balance! Need {$totalDays} days, available: " . ($balance->remaining_days ?? 0),
                     422
@@ -302,6 +253,7 @@ class LeaveController extends Controller
             $attachmentPath = null;
             if ($request->hasFile('attachment')) {
                 $attachmentPath = $this->approvalService->uploadAttachment($request->file('attachment'));
+                Log::info('Attachment uploaded: ' . $attachmentPath);
             }
 
             $data = $request->all();
@@ -328,6 +280,23 @@ class LeaveController extends Controller
             Log::error('❌ Error creating leave: ' . $e->getMessage());
             Log::error($e->getTraceAsString());
             return $this->error('Failed to submit leave: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get pending approvals for current user
+     * GET /api/leaves/pending-approvals
+     */
+    public function pendingApprovals(Request $request): JsonResponse
+    {
+        try {
+            $employee = $request->user();
+            $approvals = $this->approvalService->getPendingApprovals($employee);
+
+            return $this->success($approvals, 'Pending approvals fetched');
+        } catch (\Exception $e) {
+            Log::error('Error fetching pending approvals: ' . $e->getMessage());
+            return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
         }
     }
 
