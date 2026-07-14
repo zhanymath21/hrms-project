@@ -99,37 +99,37 @@ Route::middleware('auth:api')->group(function () {
     // ==========================================
     // These routes are at /api/xxx to avoid conflict with /api/employees/{id}
 
-    // My balance (Employee)
+    // My balance (Employee) - GET /api/my-leave-balance
     Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
 
-    // All balances (Admin/HR)
+    // All balances (Admin/HR) - GET /api/leave-balances
     Route::get('/leave-balances', [LeaveBalanceController::class, 'allBalances']);
 
-    // Balance summary (Admin/HR)
+    // Balance summary (Admin/HR) - GET /api/leave-balance-summary
     Route::get('/leave-balance-summary', [LeaveBalanceController::class, 'getBalanceSummary']);
 
-    // Balance report (Admin/HR)
+    // Balance report (Admin/HR) - GET /api/leave-balance-report
     Route::get('/leave-balance-report', [LeaveBalanceController::class, 'getBalanceReport']);
 
-    // Balance detail by ID (Admin/HR)
+    // Balance detail by ID (Admin/HR) - GET /api/leave-balance/{id}
     Route::get('/leave-balance/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
 
-    // Update balance (Admin/HR)
+    // Update balance (Admin/HR) - PUT /api/leave-balance/{id}
     Route::put('/leave-balance/{id}', [LeaveBalanceController::class, 'updateBalance']);
 
-    // Adjustment history for employee (Admin/HR)
+    // Adjustment history for employee (Admin/HR) - GET /api/leave-balance-history/{employeeId}
     Route::get('/leave-balance-history/{employeeId}', [LeaveBalanceController::class, 'getAdjustmentHistory']);
 
-    // Get balance for specific employee (Admin/HR)
+    // Get balance for specific employee (Admin/HR) - GET /api/employee-balance/{employeeId}
     Route::get('/employee-balance/{employeeId}', [LeaveBalanceController::class, 'getEmployeeBalance']);
 
-    // Generate balance (Admin/HR)
+    // Generate balance (Admin/HR) - POST /api/generate-balance
     Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
 
-    // Generate all balances (Admin/HR)
+    // Generate all balances (Admin/HR) - POST /api/generate-all-balances
     Route::post('/generate-all-balances', [LeaveBalanceController::class, 'generateAllBalances']);
 
-    // Process carry forward (Admin/HR)
+    // Process carry forward (Admin/HR) - POST /api/process-carry-forward
     Route::post('/process-carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
 
     // ==========================================
