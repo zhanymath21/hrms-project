@@ -41,12 +41,8 @@ class LeaveBalanceController extends Controller
                 ], 401);
             }
 
-            // Find employee by user_id or email
-            $employee = Employee::where('user_id', $user->id)->first();
-
-            if (!$employee) {
-                $employee = Employee::where('email', $user->email)->first();
-            }
+            // ✅ FIX: Find employee by email directly (since Employee is the User model)
+            $employee = Employee::where('email', $user->email)->first();
 
             if (!$employee) {
                 return response()->json([
@@ -383,7 +379,7 @@ class LeaveBalanceController extends Controller
                         'old_remaining' => $oldRemaining,
                         'new_remaining' => $balance->remaining_days,
                         'adjustment_reason' => $request->adjustment_reason,
-                        'adjusted_by' => $user->name ?? $user->email,
+                        'adjusted_by' => $user->email,
                         'adjusted_at' => $balance->adjusted_at,
                     ]
                 ]);
@@ -434,7 +430,7 @@ class LeaveBalanceController extends Controller
                         'base_entitlement' => $balance->base_entitlement,
                         'manual_adjustment' => $balance->manual_adjustment,
                         'adjustment_reason' => $balance->adjustment_reason,
-                        'adjusted_by' => $balance->adjustedBy->name ?? 'System',
+                        'adjusted_by' => $balance->adjustedBy->email ?? 'System',
                         'adjusted_at' => $balance->adjusted_at,
                     ];
                 }

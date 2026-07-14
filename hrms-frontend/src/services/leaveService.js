@@ -17,13 +17,13 @@ const leaveService = {
     },
 
     // ==========================================
-    // LEAVE BALANCE - UPDATED ROUTES
+    // LEAVE BALANCE
     // ==========================================
     
     // My balance (Employee)
     getMyBalance: async () => {
         try {
-            const response = await api.get('/my-leave-balance'); // ✅ No 'employees/' prefix
+            const response = await api.get('/my-leave-balance');
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching my balance:', error);
@@ -34,7 +34,7 @@ const leaveService = {
     // All balances (Admin/HR)
     getAllBalances: async (params = {}) => {
         try {
-            const response = await api.get('/leave-balances', { params }); // ✅ No 'employees/' prefix
+            const response = await api.get('/leave-balances', { params });
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching all balances:', error);
@@ -86,6 +86,17 @@ const leaveService = {
         }
     },
 
+    // Balance report (Admin/HR)
+    getBalanceReport: async (params = {}) => {
+        try {
+            const response = await api.get('/leave-balance-report', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching balance report:', error);
+            throw error;
+        }
+    },
+
     // Generate balance for specific employee (Admin/HR)
     generateBalance: async (data) => {
         try {
@@ -130,20 +141,11 @@ const leaveService = {
         }
     },
 
-    // Balance report (Admin/HR)
-    getBalanceReport: async (params = {}) => {
-        try {
-            const response = await api.get('/leave-balance-report', { params });
-            return response.data.data;
-        } catch (error) {
-            console.error('❌ Error fetching balance report:', error);
-            throw error;
-        }
-    },
-
     // ==========================================
     // LEAVE REQUESTS
     // ==========================================
+    
+    // Get all leaves
     getLeaves: async (params = {}) => {
         try {
             const response = await api.get('/leaves', { params });
@@ -154,6 +156,7 @@ const leaveService = {
         }
     },
 
+    // Get pending leaves (as approver)
     getPendingLeaves: async (params = {}) => {
         try {
             const response = await api.get('/leaves/pending', { params });
@@ -164,6 +167,7 @@ const leaveService = {
         }
     },
 
+    // Get single leave
     getLeave: async (id) => {
         try {
             const response = await api.get(`/leaves/${id}`);
@@ -174,6 +178,7 @@ const leaveService = {
         }
     },
 
+    // Create leave
     createLeave: async (data) => {
         try {
             const formData = new FormData();
@@ -193,6 +198,7 @@ const leaveService = {
         }
     },
 
+    // Approve leave
     approveLeave: async (id, notes = null) => {
         try {
             const data = notes ? { notes } : {};
@@ -204,6 +210,7 @@ const leaveService = {
         }
     },
 
+    // Reject leave
     rejectLeave: async (id, rejection_reason) => {
         try {
             const response = await api.put(`/leaves/${id}/reject`, { rejection_reason });
@@ -214,6 +221,7 @@ const leaveService = {
         }
     },
 
+    // Cancel leave
     cancelLeave: async (id) => {
         try {
             const response = await api.put(`/leaves/${id}/cancel`);
@@ -224,6 +232,7 @@ const leaveService = {
         }
     },
 
+    // Download leave attachment
     downloadLeaveAttachment: async (id) => {
         try {
             const response = await api.get(`/leaves/${id}/download-attachment`, {
@@ -236,6 +245,7 @@ const leaveService = {
         }
     },
 
+    // Get leave statistics
     getLeaveStatistics: async (params = {}) => {
         try {
             const response = await api.get('/leaves/statistics', { params });
@@ -246,6 +256,7 @@ const leaveService = {
         }
     },
 
+    // Get my leave history
     getMyLeaveHistory: async (params = {}) => {
         try {
             const response = await api.get('/leaves/my-history', { params });
@@ -256,6 +267,7 @@ const leaveService = {
         }
     },
 
+    // Get employee leaves (Admin/HR)
     getEmployeeLeaves: async (employeeId, params = {}) => {
         try {
             const response = await api.get(`/leaves/employee/${employeeId}`, { params });
@@ -269,6 +281,8 @@ const leaveService = {
     // ==========================================
     // REPLACEMENT LEAVES
     // ==========================================
+    
+    // Get all replacement leaves
     getReplacements: async (params = {}) => {
         try {
             const response = await api.get('/replacement-leaves', { params });
@@ -279,6 +293,7 @@ const leaveService = {
         }
     },
 
+    // Get pending replacement approvals
     getPendingReplacementApprovals: async () => {
         try {
             const response = await api.get('/replacement-leaves/pending-approvals');
@@ -289,6 +304,7 @@ const leaveService = {
         }
     },
 
+    // Get single replacement
     getReplacement: async (id) => {
         try {
             const response = await api.get(`/replacement-leaves/${id}`);
@@ -299,6 +315,7 @@ const leaveService = {
         }
     },
 
+    // Create replacement leave
     createReplacement: async (data) => {
         try {
             const formData = new FormData();
@@ -318,6 +335,7 @@ const leaveService = {
         }
     },
 
+    // Approve replacement
     approveReplacement: async (id, notes = null) => {
         try {
             const data = notes ? { notes } : {};
@@ -329,6 +347,7 @@ const leaveService = {
         }
     },
 
+    // Reject replacement
     rejectReplacement: async (id, rejection_reason) => {
         try {
             const response = await api.put(`/replacement-leaves/${id}/reject`, { rejection_reason });
@@ -339,6 +358,7 @@ const leaveService = {
         }
     },
 
+    // Cancel replacement
     cancelReplacement: async (id, reason = null) => {
         try {
             const data = reason ? { reason } : {};
@@ -350,6 +370,7 @@ const leaveService = {
         }
     },
 
+    // Download replacement attachment
     downloadReplacementAttachment: async (id) => {
         try {
             const response = await api.get(`/replacement-leaves/${id}/download-attachment`, {
@@ -404,6 +425,191 @@ const leaveService = {
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching employee approval flow:', error);
+            throw error;
+        }
+    },
+
+    // ==========================================
+    // ATTENDANCE (Additional)
+    // ==========================================
+    checkIn: async (data) => {
+        try {
+            const response = await api.post('/attendance/check-in', data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error checking in:', error);
+            throw error;
+        }
+    },
+
+    checkOut: async (data) => {
+        try {
+            const response = await api.post('/attendance/check-out', data);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error checking out:', error);
+            throw error;
+        }
+    },
+
+    getTodayAttendance: async () => {
+        try {
+            const response = await api.get('/attendance/today');
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching today attendance:', error);
+            throw error;
+        }
+    },
+
+    getAttendanceReport: async (params = {}) => {
+        try {
+            const response = await api.get('/attendance/report', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching attendance report:', error);
+            throw error;
+        }
+    },
+
+    getAttendanceHistory: async (params = {}) => {
+        try {
+            const response = await api.get('/attendance/history', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching attendance history:', error);
+            throw error;
+        }
+    },
+
+    // ==========================================
+    // DASHBOARD / STATISTICS
+    // ==========================================
+    getDashboardStats: async () => {
+        try {
+            const response = await api.get('/dashboard/stats');
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching dashboard stats:', error);
+            throw error;
+        }
+    },
+
+    // ==========================================
+    // REPORTS
+    // ==========================================
+    getLeaveReport: async (params = {}) => {
+        try {
+            const response = await api.get('/reports/leaves', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching leave report:', error);
+            throw error;
+        }
+    },
+
+    getAttendanceDailyReport: async (params = {}) => {
+        try {
+            const response = await api.get('/reports/attendance/daily', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching daily attendance report:', error);
+            throw error;
+        }
+    },
+
+    getAttendanceMonthlyReport: async (params = {}) => {
+        try {
+            const response = await api.get('/reports/attendance/monthly', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching monthly attendance report:', error);
+            throw error;
+        }
+    },
+
+    getTurnoverReport: async (params = {}) => {
+        try {
+            const response = await api.get('/reports/turnover', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching turnover report:', error);
+            throw error;
+        }
+    },
+
+    // ==========================================
+    // NOTIFICATIONS
+    // ==========================================
+    getNotifications: async (params = {}) => {
+        try {
+            const response = await api.get('/notifications', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching notifications:', error);
+            throw error;
+        }
+    },
+
+    getUnreadNotificationCount: async () => {
+        try {
+            const response = await api.get('/notifications/unread-count');
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching unread count:', error);
+            throw error;
+        }
+    },
+
+    markNotificationAsRead: async (id) => {
+        try {
+            const response = await api.put(`/notifications/${id}/read`);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error marking notification as read:', error);
+            throw error;
+        }
+    },
+
+    markAllNotificationsAsRead: async () => {
+        try {
+            const response = await api.put('/notifications/read-all');
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error marking all notifications as read:', error);
+            throw error;
+        }
+    },
+
+    // ==========================================
+    // AUTH
+    // ==========================================
+    login: async (credentials) => {
+        try {
+            const response = await api.post('/login', credentials);
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error logging in:', error);
+            throw error;
+        }
+    },
+
+    logout: async () => {
+        try {
+            const response = await api.post('/auth/logout');
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error logging out:', error);
+            throw error;
+        }
+    },
+
+    getProfile: async () => {
+        try {
+            const response = await api.get('/auth/profile');
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching profile:', error);
             throw error;
         }
     },
