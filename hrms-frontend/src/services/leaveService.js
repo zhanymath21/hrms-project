@@ -181,19 +181,44 @@ const leaveService = {
     // Create leave
     createLeave: async (data) => {
         try {
-            const formData = new FormData();
-            Object.keys(data).forEach(key => {
-                if (data[key] !== null && data[key] !== undefined) {
-                    formData.append(key, data[key]);
-                }
+            console.log('📤 Creating leave with data:', data);
+            
+            // Ensure data is FormData
+            let formData;
+            if (data instanceof FormData) {
+                formData = data;
+            } else {
+                formData = new FormData();
+                Object.keys(data).forEach(key => {
+                    if (data[key] !== null && data[key] !== undefined) {
+                        // Handle file
+                        if (key === 'attachment' && data[key] instanceof File) {
+                            formData.append(key, data[key]);
+                        } else {
+                            formData.append(key, data[key]);
+                        }
+                    }
+                });
+            }
+
+            // Log form data entries for debugging
+            console.log('📋 FormData entries:');
+            for (let pair of formData.entries()) {
+                console.log(pair[0] + ': ' + (pair[1] instanceof File ? pair[1].name : pair[1]));
+            }
+
+            const response = await api.post('/leaves', formData, {
+                headers: { 
+                    'Content-Type': 'multipart/form-data',
+                },
             });
             
-            const response = await api.post('/leaves', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            console.log('✅ Leave created:', response.data);
             return response.data.data;
         } catch (error) {
             console.error('❌ Error creating leave:', error);
+            console.error('❌ Response data:', error.response?.data);
+            console.error('❌ Validation errors:', error.response?.data?.errors);
             throw error;
         }
     },

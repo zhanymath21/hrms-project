@@ -54,6 +54,7 @@ class LeaveController extends Controller
     {
         try {
             Log::info('📝 Creating leave request');
+            Log::info('Request data:', $request->all());
 
             $validator = Validator::make($request->all(), [
                 'leave_type_id' => 'required|exists:leave_types,id',
@@ -64,19 +65,29 @@ class LeaveController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return $this->validationError($validator->errors());
+                Log::error('Validation failed:', $validator->errors()->toArray());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
             }
 
             $employee = $request->user();
 
             // Check if employee exists
             if (!$employee) {
-                return $this->error('Employee not found', 404);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Employee not found'
+                ], 404);
             }
 
             $startDate = Carbon::parse($request->start_date);
             $endDate = Carbon::parse($request->end_date);
             $totalDays = $this->calculateWorkingDays($startDate, $endDate);
+
+            Log::info("Total days calculated: {$totalDays}");
 
             // Check leave balance
             $balance = LeaveBalance::where([
@@ -85,11 +96,25 @@ class LeaveController extends Controller
                 'year' => date('Y'),
             ])->first();
 
+            if (!$balance) {
+                // Ensure balance exists
+                $this->balanceService->ensureBalanceExists($employee);
+                $balance = LeaveBalance::where([
+                    'employee_id' => $employee->id,
+                    'leave_type_id' => $request->leave_type_id,
+                    'year' => date('Y'),
+                ])->first();
+            }
+
             if (!$balance || $balance->remaining_days < $totalDays) {
-                return $this->error(
-                    "Insufficient balance! Need {$totalDays} days, available: " . ($balance->remaining_days ?? 0),
-                    422
-                );
+                $available = $balance ? $balance->remaining_days : 0;
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Insufficient balance! Need {$totalDays} days, available: {$available} days",
+                    'errors' => [
+                        'balance' => ["Insufficient balance! Need {$totalDays} days, available: {$available} days"]
+                    ]
+                ], 422);
             }
 
             // Handle attachment upload
@@ -115,14 +140,18 @@ class LeaveController extends Controller
                 $totalDays
             );
 
-            return $this->success(
-                $leave->load(['leaveType', 'approvals.approver']),
-                'Leave request submitted successfully!',
-                201
-            );
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Leave request submitted successfully!',
+                'data' => $leave->load(['leaveType', 'approvals.approver'])
+            ], 201);
         } catch (\Exception $e) {
             Log::error('❌ Error creating leave: ' . $e->getMessage());
-            return $this->error('Failed to submit leave: ' . $e->getMessage(), 500);
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to submit leave: ' . $e->getMessage()
+            ], 500);
         }
     }
 
