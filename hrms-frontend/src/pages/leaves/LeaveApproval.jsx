@@ -39,11 +39,10 @@ import {
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import leaveService from '../../services/leaveService';
-import LeaveStatusBadge from '../../components/leaves/LeaveStatusBadge';
 import { formatDate } from '../../utils/dateFormat';
 
 const LeaveApproval = () => {
-    const { approveLeave, rejectLeave } = useLeave();
+    const { approveLeave, rejectLeave, fetchPendingLeaves } = useLeave();
     const [loading, setLoading] = useState(true);
     const [pendingApprovals, setPendingApprovals] = useState([]);
     const [error, setError] = useState(null);
@@ -60,11 +59,22 @@ const LeaveApproval = () => {
 
     const loadData = async () => {
         setLoading(true);
+        setError(null);
         try {
-            const data = await leaveService.getPendingApprovals();
-            setPendingApprovals(data || []);
+            // ✅ Gunakan fetchPendingLeaves dari context
+            const response = await fetchPendingLeaves();
+            // Response dari fetchPendingLeaves mengembalikan data.data
+            const data = response?.data || [];
+            setPendingApprovals(data);
+            
+            // Log untuk debugging
+            console.log('📊 Pending approvals loaded:', data.length);
+            if (data.length > 0) {
+                console.log('📊 First approval:', data[0]);
+            }
         } catch (err) {
-            setError('Failed to load pending approvals');
+            console.error('❌ Error loading pending approvals:', err);
+            setError('Failed to load pending approvals: ' + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
         }
@@ -72,22 +82,28 @@ const LeaveApproval = () => {
 
     const handleApprove = async (id) => {
         if (window.confirm('Are you sure you want to approve this leave request?')) {
+            setError(null);
+            setSuccess(null);
             try {
                 await approveLeave(id);
                 setSuccess('✅ Leave approved successfully!');
                 loadData();
                 setTimeout(() => setSuccess(null), 3000);
             } catch (err) {
-                setError('Failed to approve: ' + err.message);
+                setError('Failed to approve: ' + (err.response?.data?.message || err.message));
             }
         }
     };
 
     const handleReject = async () => {
         if (!rejectReason.trim()) {
-            alert('Please provide a rejection reason');
+            setError('Please provide a rejection reason');
             return;
         }
+        
+        setError(null);
+        setSuccess(null);
+        
         try {
             await rejectLeave(selectedLeave.id, rejectReason);
             setSuccess('✅ Leave rejected successfully!');
@@ -97,7 +113,7 @@ const LeaveApproval = () => {
             loadData();
             setTimeout(() => setSuccess(null), 3000);
         } catch (err) {
-            setError('Failed to reject: ' + err.message);
+            setError('Failed to reject: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -118,7 +134,7 @@ const LeaveApproval = () => {
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
         } catch (err) {
-            alert('Failed to download attachment: ' + err.message);
+            setError('Failed to download attachment: ' + err.message);
         }
     };
 
@@ -129,6 +145,18 @@ const LeaveApproval = () => {
             return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
         }
         return name.substring(0, 2).toUpperCase();
+    };
+
+    const getLeaveTypeColor = (code) => {
+        const colors = {
+            AL: '#4CAF50',
+            SL: '#2196F3',
+            SPL: '#FF9800',
+            ML: '#9C27B0',
+            BL: '#F44336',
+            CL: '#00BCD4',
+        };
+        return colors[code] || '#757575';
     };
 
     if (loading) {
@@ -142,9 +170,14 @@ const LeaveApproval = () => {
     return (
         <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4" fontWeight="bold">
-                    ✅ Leave Approvals
-                </Typography>
+                <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                        ✅ Leave Approvals
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                        Manage pending leave requests
+                    </Typography>
+                </Box>
                 <Button
                     variant="outlined"
                     startIcon={<RefreshIcon />}
@@ -179,20 +212,21 @@ const LeaveApproval = () => {
                                 <TableCell>Employee</TableCell>
                                 <TableCell>Leave Type</TableCell>
                                 <TableCell>Duration</TableCell>
-                                <TableCell>Days</TableCell>
-                                <TableCell>Progress</TableCell>
-                                <TableCell>Status</TableCell>
+                                <TableCell align="center">Days</TableCell>
+                                <TableCell align="center">Progress</TableCell>
+                                <TableCell align="center">Status</TableCell>
                                 <TableCell align="center">Actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {pendingApprovals.map((approval) => {
-                                const leave = approval.leave;
+                                // approval bisa berupa leave object atau approval object
+                                const leave = approval.leave || approval;
                                 const totalLevels = leave?.total_approval_levels || 1;
-                                const currentLevel = approval.level || 0;
+                                const currentLevel = approval.level || leave?.approval_level || 0;
 
                                 return (
-                                    <TableRow key={approval.id} hover>
+                                    <TableRow key={approval.id || leave?.id} hover>
                                         <TableCell>
                                             <Box display="flex" alignItems="center" gap={1}>
                                                 <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
@@ -209,7 +243,12 @@ const LeaveApproval = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell>
-                                            <Chip label={leave?.leave_type?.name} size="small" variant="outlined" />
+                                            <Chip 
+                                                label={leave?.leave_type?.name} 
+                                                size="small" 
+                                                variant="outlined"
+                                                sx={{ borderColor: getLeaveTypeColor(leave?.leave_type?.code) }}
+                                            />
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2">
@@ -219,18 +258,18 @@ const LeaveApproval = () => {
                                                 → {formatDate(leave?.end_date)}
                                             </Typography>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell align="center">
                                             <Typography variant="body2" fontWeight="medium">
                                                 {leave?.total_days} days
                                             </Typography>
                                         </TableCell>
-                                        <TableCell>
-                                            <Box display="flex" alignItems="center" gap={1}>
-                                                <Typography variant="caption">
+                                        <TableCell align="center">
+                                            <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
+                                                <Typography variant="caption" color="textSecondary">
                                                     {currentLevel}/{totalLevels}
                                                 </Typography>
-                                                <Stepper activeStep={currentLevel} alternativeLabel sx={{ width: 120 }}>
-                                                    {[...Array(totalLevels)].map((_, i) => (
+                                                <Stepper activeStep={currentLevel} alternativeLabel sx={{ width: 100 }}>
+                                                    {[...Array(Math.min(totalLevels, 3))].map((_, i) => (
                                                         <Step key={i}>
                                                             <StepLabel />
                                                         </Step>
@@ -238,18 +277,24 @@ const LeaveApproval = () => {
                                                 </Stepper>
                                             </Box>
                                         </TableCell>
-                                        <TableCell>
-                                            <Chip label="Pending" color="warning" size="small" />
+                                        <TableCell align="center">
+                                            <Chip 
+                                                label="Pending" 
+                                                color="warning" 
+                                                size="small" 
+                                                icon={<PersonIcon />}
+                                            />
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Stack direction="row" spacing={0.5} justifyContent="center">
+                                            <Stack direction="row" spacing={0.5} justifyContent="center" flexWrap="wrap">
                                                 <Tooltip title="Approve">
                                                     <Button
                                                         size="small"
                                                         variant="contained"
                                                         color="success"
                                                         startIcon={<CheckCircleIcon />}
-                                                        onClick={() => handleApprove(approval.leave_id)}
+                                                        onClick={() => handleApprove(leave?.id || approval.leave_id)}
+                                                        sx={{ minWidth: 70 }}
                                                     >
                                                         Approve
                                                     </Button>
@@ -264,6 +309,7 @@ const LeaveApproval = () => {
                                                             setSelectedLeave(leave);
                                                             setShowRejectDialog(true);
                                                         }}
+                                                        sx={{ minWidth: 60 }}
                                                     >
                                                         Reject
                                                     </Button>
@@ -303,6 +349,9 @@ const LeaveApproval = () => {
                 <DialogTitle>Reject Leave Request</DialogTitle>
                 <DialogContent>
                     <Box mt={2}>
+                        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                            Rejecting leave request for <strong>{selectedLeave?.employee?.first_name} {selectedLeave?.employee?.last_name}</strong>
+                        </Typography>
                         <TextField
                             fullWidth
                             multiline
@@ -312,12 +361,18 @@ const LeaveApproval = () => {
                             onChange={(e) => setRejectReason(e.target.value)}
                             placeholder="Please provide reason for rejection..."
                             required
+                            autoFocus
                         />
                     </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setShowRejectDialog(false)}>Cancel</Button>
-                    <Button variant="contained" color="error" onClick={handleReject}>
+                    <Button 
+                        variant="contained" 
+                        color="error" 
+                        onClick={handleReject}
+                        disabled={!rejectReason.trim()}
+                    >
                         Reject
                     </Button>
                 </DialogActions>
@@ -340,33 +395,54 @@ const LeaveApproval = () => {
                     </Box>
                 </DialogTitle>
                 <DialogContent>
-                    <Grid container spacing={2}>
+                    <Grid container spacing={2} sx={{ mt: 1 }}>
                         <Grid item xs={12} sm={6}>
                             <Paper variant="outlined" sx={{ p: 2 }}>
                                 <Typography variant="subtitle2" color="textSecondary">Employee</Typography>
-                                <Typography variant="body1">
+                                <Typography variant="body1" fontWeight="medium">
                                     {selectedLeaveDetail?.employee?.first_name} {selectedLeaveDetail?.employee?.last_name}
+                                </Typography>
+                                <Typography variant="caption" color="textSecondary">
+                                    {selectedLeaveDetail?.employee?.employee_id}
                                 </Typography>
                             </Paper>
                         </Grid>
                         <Grid item xs={12} sm={6}>
                             <Paper variant="outlined" sx={{ p: 2 }}>
                                 <Typography variant="subtitle2" color="textSecondary">Leave Type</Typography>
-                                <Typography variant="body1">{selectedLeaveDetail?.leave_type?.name}</Typography>
+                                <Typography variant="body1" fontWeight="medium">
+                                    {selectedLeaveDetail?.leave_type?.name}
+                                </Typography>
+                                <Typography variant="caption" color="textSecondary">
+                                    {selectedLeaveDetail?.leave_type?.code}
+                                </Typography>
                             </Paper>
                         </Grid>
                         <Grid item xs={12}>
                             <Paper variant="outlined" sx={{ p: 2 }}>
                                 <Typography variant="subtitle2" color="textSecondary">Duration</Typography>
                                 <Typography variant="body1">
-                                    {formatDate(selectedLeaveDetail?.start_date)} - {formatDate(selectedLeaveDetail?.end_date)}
+                                    {formatDate(selectedLeaveDetail?.start_date)} → {formatDate(selectedLeaveDetail?.end_date)}
+                                </Typography>
+                                <Typography variant="caption" color="textSecondary">
+                                    Total: {selectedLeaveDetail?.total_days} days
                                 </Typography>
                             </Paper>
                         </Grid>
                         <Grid item xs={12}>
                             <Paper variant="outlined" sx={{ p: 2 }}>
                                 <Typography variant="subtitle2" color="textSecondary">Reason</Typography>
-                                <Typography variant="body1">{selectedLeaveDetail?.reason}</Typography>
+                                <Typography variant="body1">{selectedLeaveDetail?.reason || 'No reason provided'}</Typography>
+                            </Paper>
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Paper variant="outlined" sx={{ p: 2 }}>
+                                <Typography variant="subtitle2" color="textSecondary">Status</Typography>
+                                <Chip 
+                                    label={selectedLeaveDetail?.status || 'Pending'} 
+                                    color={selectedLeaveDetail?.status === 'approved' ? 'success' : 'warning'}
+                                    size="small"
+                                />
                             </Paper>
                         </Grid>
                     </Grid>

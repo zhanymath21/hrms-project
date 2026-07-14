@@ -46,6 +46,8 @@ import {
     Business as BusinessIcon,
     Person as PersonIcon,
     LocationOn as LocationOnIcon,
+    ArrowUpward as ArrowUpwardIcon,
+    ArrowDownward as ArrowDownwardIcon,
 } from '@mui/icons-material';
 import api from '../../services/axios';
 
@@ -76,12 +78,14 @@ const ApprovalFlowList = () => {
 
     const loadData = async () => {
         setLoading(true);
+        setError(null);
         try {
             const response = await api.get('/approval-flow');
             setFlows(response.data.data || []);
+            console.log('📊 Approval flows loaded:', response.data.data);
         } catch (err) {
-            setError('Failed to load approval flow');
-            console.error(err);
+            console.error('❌ Error loading approval flows:', err);
+            setError(err.response?.data?.message || 'Failed to load approval flow');
         } finally {
             setLoading(false);
         }
@@ -89,6 +93,7 @@ const ApprovalFlowList = () => {
 
     const loadSelectData = async () => {
         try {
+            // Try to get data from dedicated endpoints
             const [deptRes, posRes, empRes] = await Promise.all([
                 api.get('/departments'),
                 api.get('/positions'),
@@ -99,6 +104,19 @@ const ApprovalFlowList = () => {
             setEmployees(empRes.data.data?.data || []);
         } catch (err) {
             console.error('Error loading select data:', err);
+            // Fallback: try alternative endpoints
+            try {
+                const [deptRes, posRes, empRes] = await Promise.all([
+                    api.get('/departments/all'),
+                    api.get('/positions/all'),
+                    api.get('/employees/all'),
+                ]);
+                setDepartments(deptRes.data.data || []);
+                setPositions(posRes.data.data || []);
+                setEmployees(empRes.data.data || []);
+            } catch (fallbackErr) {
+                console.error('Fallback error:', fallbackErr);
+            }
         }
     };
 
@@ -130,20 +148,38 @@ const ApprovalFlowList = () => {
     const handleCloseDialog = () => {
         setOpenDialog(false);
         setEditingFlow(null);
+        setFormData({
+            level: flows.length + 1,
+            approver_type: 'manager',
+            approver_id: '',
+            department_id: '',
+            position_id: '',
+            is_active: true,
+        });
         setError(null);
     };
 
     const handleSave = async () => {
+        setError(null);
         try {
             let flowsData = [...flows];
             
             if (editingFlow) {
                 // Update existing
                 const index = flowsData.findIndex(f => f.id === editingFlow.id);
-                flowsData[index] = { ...flowsData[index], ...formData };
+                if (index !== -1) {
+                    flowsData[index] = { 
+                        ...flowsData[index], 
+                        ...formData,
+                        id: editingFlow.id // Keep the same ID
+                    };
+                }
             } else {
                 // Add new
-                flowsData.push({ ...formData, id: Date.now() });
+                flowsData.push({ 
+                    ...formData, 
+                    id: Date.now() // Temporary ID
+                });
             }
 
             // Sort by level
@@ -152,26 +188,32 @@ const ApprovalFlowList = () => {
             // Send to API
             await api.post('/approval-flow', { flows: flowsData });
             
-            setSuccess(editingFlow ? 'Flow updated successfully!' : 'Flow added successfully!');
+            setSuccess(editingFlow ? '✅ Flow updated successfully!' : '✅ Flow added successfully!');
             setOpenDialog(false);
             loadData();
             setTimeout(() => setSuccess(null), 3000);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to save approval flow');
+            const errorMsg = err.response?.data?.message || 'Failed to save approval flow';
+            setError(errorMsg);
+            console.error('❌ Save error:', err);
         }
     };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Are you sure you want to delete this approval flow?')) return;
 
+        setError(null);
         try {
             const flowsData = flows.filter(f => f.id !== id);
+            flowsData.sort((a, b) => a.level - b.level);
+            flowsData.forEach((f, i) => f.level = i + 1);
+            
             await api.post('/approval-flow', { flows: flowsData });
-            setSuccess('Flow deleted successfully!');
+            setSuccess('✅ Flow deleted successfully!');
             loadData();
             setTimeout(() => setSuccess(null), 3000);
         } catch (err) {
-            setError('Failed to delete approval flow');
+            setError('Failed to delete approval flow: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -179,15 +221,14 @@ const ApprovalFlowList = () => {
         if (index === 0) return;
         const flowsData = [...flows];
         [flowsData[index], flowsData[index - 1]] = [flowsData[index - 1], flowsData[index]];
-        // Reassign levels
         flowsData.forEach((f, i) => f.level = i + 1);
         try {
             await api.post('/approval-flow', { flows: flowsData });
-            setSuccess('Flow reordered successfully!');
+            setSuccess('✅ Flow reordered successfully!');
             loadData();
             setTimeout(() => setSuccess(null), 3000);
         } catch (err) {
-            setError('Failed to reorder flow');
+            setError('Failed to reorder flow: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -198,11 +239,11 @@ const ApprovalFlowList = () => {
         flowsData.forEach((f, i) => f.level = i + 1);
         try {
             await api.post('/approval-flow', { flows: flowsData });
-            setSuccess('Flow reordered successfully!');
+            setSuccess('✅ Flow reordered successfully!');
             loadData();
             setTimeout(() => setSuccess(null), 3000);
         } catch (err) {
-            setError('Failed to reorder flow');
+            setError('Failed to reorder flow: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -221,6 +262,7 @@ const ApprovalFlowList = () => {
             const employee = employees.find(e => e.id === flow.approver_id);
             return employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown';
         }
+        if (flow.approver_name) return flow.approver_name;
         return getApproverTypeLabel(flow.approver_type);
     };
 
@@ -248,9 +290,14 @@ const ApprovalFlowList = () => {
         <Box>
             {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4" fontWeight="bold">
-                    📋 Approval Flow Configuration
-                </Typography>
+                <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                        📋 Approval Flow Configuration
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                        Configure approval levels for leave requests
+                    </Typography>
+                </Box>
                 <Stack direction="row" spacing={1}>
                     <Button
                         variant="outlined"
@@ -419,7 +466,7 @@ const ApprovalFlowList = () => {
                                                     onClick={() => handleMoveUp(index)}
                                                     disabled={index === 0}
                                                 >
-                                                    ↑
+                                                    <ArrowUpwardIcon fontSize="small" />
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Move Down">
@@ -429,7 +476,7 @@ const ApprovalFlowList = () => {
                                                     onClick={() => handleMoveDown(index)}
                                                     disabled={index === flows.length - 1}
                                                 >
-                                                    ↓
+                                                    <ArrowDownwardIcon fontSize="small" />
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Edit">

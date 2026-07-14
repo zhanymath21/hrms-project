@@ -235,6 +235,16 @@ const leaveService = {
         }
     },
 
+    getPendingApprovals: async () => {
+        try {
+            const response = await api.get('/leaves/pending');
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching pending approvals:', error);
+            throw error;
+        }
+    },
+
     // Reject leave
     rejectLeave: async (id, rejection_reason) => {
         try {
