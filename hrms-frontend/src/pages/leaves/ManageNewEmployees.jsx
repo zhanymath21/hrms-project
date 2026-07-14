@@ -59,7 +59,7 @@ const ManageNewEmployees = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            // Get employees without balances
+            // ✅ CORRECT ENDPOINT
             const response = await api.get('/employees-without-balances');
             const data = response.data.data;
             
@@ -73,7 +73,7 @@ const ManageNewEmployees = () => {
             console.error('Error loading data:', err);
             setSnackbar({
                 open: true,
-                message: 'Failed to load data: ' + err.message,
+                message: 'Failed to load data: ' + (err.response?.data?.message || err.message),
                 severity: 'error',
             });
         } finally {
@@ -89,6 +89,7 @@ const ManageNewEmployees = () => {
     const confirmGenerate = async () => {
         setGenerating(true);
         try {
+            // ✅ CORRECT ENDPOINT
             const response = await api.post('/generate-balance', {
                 employee_id: selectedEmployee.id,
             });
@@ -143,6 +144,7 @@ const ManageNewEmployees = () => {
         setProgress(0);
 
         try {
+            // ✅ CORRECT ENDPOINT
             const response = await api.post('/generate-new-employees-balances');
             
             if (response.data.status === 'success') {
@@ -169,6 +171,15 @@ const ManageNewEmployees = () => {
         } finally {
             setGeneratingAll(false);
         }
+    };
+
+    const handleRefresh = () => {
+        loadData();
+        setSnackbar({
+            open: true,
+            message: 'Data refreshed successfully!',
+            severity: 'success',
+        });
     };
 
     const formatDate = (date) => {
@@ -204,7 +215,7 @@ const ManageNewEmployees = () => {
                     <Button
                         variant="outlined"
                         startIcon={<RefreshIcon />}
-                        onClick={loadData}
+                        onClick={handleRefresh}
                         disabled={loading}
                     >
                         Refresh

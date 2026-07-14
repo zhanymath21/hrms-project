@@ -126,6 +126,12 @@ Route::middleware('auth:api')->group(function () {
     // Generate balance (Admin/HR) - POST /api/generate-balance
     Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
 
+    // Generate balances for all new employees
+    Route::post('/generate-new-employees-balances', [LeaveBalanceController::class, 'generateForNewEmployees']);
+
+    // Get employees without balances - ✅ FIXED ROUTE
+    Route::get('/employees-without-balances', [LeaveBalanceController::class, 'getEmployeesWithoutBalances']);
+
     // Generate all balances (Admin/HR) - POST /api/generate-all-balances
     Route::post('/generate-all-balances', [LeaveBalanceController::class, 'generateAllBalances']);
 
