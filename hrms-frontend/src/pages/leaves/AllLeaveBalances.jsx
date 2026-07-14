@@ -129,12 +129,12 @@ const AllLeaveBalances = () => {
                 last_page: response?.pagination?.last_page || 1,
             });
 
-            // ✅ FIX: Calculate stats from leave_balances array
+            // Calculate stats
             let totalAL = 0, totalSL = 0, totalSPL = 0, totalRemaining = 0;
             let totalUsed = 0, totalPending = 0;
             
             employeesData.forEach(emp => {
-                // ✅ Find balances by leave code
+                // ✅ Get balances from leave_balances array
                 const alBalance = emp.leave_balances?.find(b => 
                     b.leave_code === 'AL' || b.leave_type?.code === 'AL'
                 );
@@ -161,15 +161,6 @@ const AllLeaveBalances = () => {
                 totalRemaining: totalRemaining,
                 totalUsed: totalUsed,
                 totalPending: totalPending,
-            });
-
-            console.log('📊 Stats calculated:', {
-                totalAL,
-                totalSL,
-                totalSPL,
-                totalRemaining,
-                totalUsed,
-                totalPending
             });
 
         } catch (err) {
@@ -605,8 +596,9 @@ const AllLeaveBalances = () => {
                                 </TableCell>
                             </TableRow>
                         ) : (
+                            // ✅ CORRECT: Map through employees array
                             employees.map((employee) => {
-                                // ✅ FIX: Get balances from leave_balances array
+                                // Get balances from leave_balances array
                                 const al = getBalanceByCode(employee, 'AL');
                                 const sl = getBalanceByCode(employee, 'SL');
                                 const spl = getBalanceByCode(employee, 'SPL');

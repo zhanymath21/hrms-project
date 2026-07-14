@@ -1,6 +1,6 @@
 // src/pages/leaves/LeaveDashboard.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Box,
     Grid,
@@ -8,55 +8,77 @@ import {
     CardContent,
     Typography,
     Button,
-    Stack,
     Chip,
-    Avatar,
-    Paper,
-    Alert,
     LinearProgress,
+    Avatar,
+    List,
+    ListItem,
+    ListItemText,
+    ListItemAvatar,
+    Divider,
+    Paper,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    CircularProgress,
+    Alert,
+    IconButton,
+    Tooltip,
 } from '@mui/material';
 import {
-    CalendarToday as CalendarIcon,
-    Add as AddIcon,
-    CheckCircle as CheckCircleIcon,
-    Pending as PendingIcon,
-    Cancel as CancelIcon,
-    History as HistoryIcon,
-    BeachAccess as BeachIcon,
-    LocalHospital as SickIcon,
-    Celebration as SpecialIcon,
-    People as PeopleIcon,
-    Refresh as RefreshIcon,
+    BeachAccess,
+    Sick,
+    Celebration,
+    TrendingUp,
+    TrendingDown,
+    Pending,
+    CheckCircle,
+    Cancel,
+    Refresh,
+    Add,
+    Visibility,
+    People,
+    CalendarToday,
+    EventNote,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { useLeave } from '../../contexts/LeaveContext';
-import { formatDate } from '../../utils/dateFormat';
+import { useNavigate } from 'react-router-dom';
 
 const LeaveDashboard = () => {
-    const navigate = useNavigate();
     const {
+        leaveTypes,
         leaves,
         pendingLeaves,
         balances,
-        loading,
+        fetchLeaveTypes,
         fetchLeaves,
         fetchPendingLeaves,
         fetchMyBalance,
+        loading,
+        error,
+        clearError,
     } = useLeave();
 
+    const navigate = useNavigate();
     const [stats, setStats] = useState({
-        total: 0,
-        pending: 0,
-        approved: 0,
-        rejected: 0,
+        totalLeaves: 0,
+        approvedLeaves: 0,
+        pendingLeaves: 0,
+        rejectedLeaves: 0,
+        cancelledLeaves: 0,
+        totalDaysUsed: 0,
     });
 
     useEffect(() => {
-        loadData();
+        loadDashboardData();
     }, []);
 
-    const loadData = async () => {
+    const loadDashboardData = async () => {
         await Promise.all([
+            fetchLeaveTypes(),
             fetchLeaves(),
             fetchPendingLeaves(),
             fetchMyBalance(),
@@ -64,322 +86,374 @@ const LeaveDashboard = () => {
     };
 
     useEffect(() => {
-        if (leaves.length > 0) {
+        if (leaves?.data) {
+            const allLeaves = leaves.data || [];
+            const approved = allLeaves.filter(l => l.status === 'approved');
+            const pending = allLeaves.filter(l => l.status === 'pending');
+            const rejected = allLeaves.filter(l => l.status === 'rejected');
+            const cancelled = allLeaves.filter(l => l.status === 'cancelled');
+            
             setStats({
-                total: leaves.length,
-                pending: leaves.filter(l => l.status === 'pending').length,
-                approved: leaves.filter(l => l.status === 'approved').length,
-                rejected: leaves.filter(l => l.status === 'rejected').length,
+                totalLeaves: allLeaves.length,
+                approvedLeaves: approved.length,
+                pendingLeaves: pending.length,
+                rejectedLeaves: rejected.length,
+                cancelledLeaves: cancelled.length,
+                totalDaysUsed: approved.reduce((sum, l) => sum + (l.total_days || 0), 0),
             });
         }
     }, [leaves]);
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'pending': return 'warning';
-            case 'approved': return 'success';
-            case 'rejected': return 'error';
-            default: return 'default';
-        }
+    const handleRefresh = () => {
+        loadDashboardData();
     };
 
-    const getStatusIcon = (status) => {
-        switch (status) {
-            case 'pending': return <PendingIcon />;
-            case 'approved': return <CheckCircleIcon />;
-            case 'rejected': return <CancelIcon />;
-            default: return <HistoryIcon />;
-        }
-    };
-
-    const QuickActionCard = ({ icon, title, subtitle, color, onClick, badge }) => (
-        <Card
-            sx={{
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 6,
-                },
-                height: '100%',
-                borderLeft: `4px solid ${color}`,
-            }}
-            onClick={onClick}
-        >
-            <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Box>
-                        <Typography variant="caption" color="textSecondary">
-                            {subtitle}
-                        </Typography>
-                        <Typography variant="h6" fontWeight="bold">
-                            {title}
-                        </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: `${color}20`, color: color }}>
-                        {icon}
-                    </Avatar>
-                </Box>
-                {badge > 0 && (
-                    <Chip
-                        label={`${badge} pending`}
-                        size="small"
-                        color="error"
-                        sx={{ mt: 1 }}
-                    />
-                )}
-            </CardContent>
-        </Card>
-    );
-
-    const BalanceCard = ({ icon, title, value, color, subtitle }) => (
-        <Card sx={{ height: '100%' }}>
-            <CardContent>
-                <Box display="flex" alignItems="center" gap={2}>
-                    <Avatar sx={{ bgcolor: `${color}20`, color: color }}>
-                        {icon}
-                    </Avatar>
-                    <Box flex={1}>
-                        <Typography variant="body2" color="textSecondary">
-                            {title}
-                        </Typography>
-                        <Typography variant="h4" fontWeight="bold" color={color}>
-                            {value || 0}
-                        </Typography>
-                    </Box>
-                </Box>
-                {subtitle && (
-                    <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
-                        {subtitle}
-                    </Typography>
-                )}
-            </CardContent>
-        </Card>
-    );
-
-    if (loading) {
+    const getStatusChip = (status) => {
+        const configs = {
+            pending: { color: 'warning', icon: <Pending />, label: 'Pending' },
+            approved: { color: 'success', icon: <CheckCircle />, label: 'Approved' },
+            rejected: { color: 'error', icon: <Cancel />, label: 'Rejected' },
+            cancelled: { color: 'default', icon: <Cancel />, label: 'Cancelled' },
+        };
+        const config = configs[status] || configs.pending;
         return (
-            <Box>
-                <LinearProgress />
-                <Typography sx={{ mt: 2, textAlign: 'center' }}>Loading leave data...</Typography>
+            <Chip
+                size="small"
+                label={config.label}
+                color={config.color}
+                icon={config.icon}
+            />
+        );
+    };
+
+    // ✅ FIX: Map through leaveTypes properly
+    const renderLeaveTypes = () => {
+        if (!leaveTypes || leaveTypes.length === 0) {
+            return (
+                <Typography color="textSecondary" align="center" sx={{ py: 3 }}>
+                    No leave types available
+                </Typography>
+            );
+        }
+
+        return leaveTypes.map((type) => (
+            <Grid item xs={12} sm={6} md={4} key={type.id}>
+                <Card sx={{ 
+                    height: '100%', 
+                    transition: 'transform 0.2s',
+                    '&:hover': { transform: 'translateY(-4px)', boxShadow: 4 }
+                }}>
+                    <CardContent>
+                        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                            <Box>
+                                <Typography variant="h6" fontWeight="bold">
+                                    {type.name}
+                                </Typography>
+                                <Typography variant="caption" color="textSecondary">
+                                    {type.code}
+                                </Typography>
+                            </Box>
+                            <Chip 
+                                label={type.is_active ? 'Active' : 'Inactive'} 
+                                color={type.is_active ? 'success' : 'default'}
+                                size="small"
+                            />
+                        </Box>
+                        <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                            {type.description || 'No description available'}
+                        </Typography>
+                        <Box display="flex" gap={1} mt={2}>
+                            <Chip 
+                                label={`${type.days_per_year} days/year`} 
+                                size="small" 
+                                variant="outlined"
+                            />
+                            {type.is_paid && (
+                                <Chip 
+                                    label="Paid" 
+                                    size="small" 
+                                    color="success" 
+                                    variant="outlined"
+                                />
+                            )}
+                            {type.allow_carry_forward && (
+                                <Chip 
+                                    label={`Carry Forward (${type.max_carry_forward_days} max)`} 
+                                    size="small" 
+                                    color="info" 
+                                    variant="outlined"
+                                />
+                            )}
+                        </Box>
+                    </CardContent>
+                </Card>
+            </Grid>
+        ));
+    };
+
+    if (loading && !leaveTypes.length && !leaves?.data?.length) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+                <CircularProgress />
             </Box>
         );
     }
 
     return (
-        <Box>
+        <Box sx={{ p: 3 }}>
             {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4" fontWeight="bold">
-                    🏖️ Leave Dashboard
-                </Typography>
-                <Stack direction="row" spacing={1}>
-                    <Button
-                        variant="outlined"
-                        startIcon={<RefreshIcon />}
-                        onClick={loadData}
-                        disabled={loading}
-                        size="small"
-                    >
-                        Refresh
-                    </Button>
+                <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                        📊 Leave Dashboard
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                        Overview of leave requests and balances
+                    </Typography>
+                </Box>
+                <Box display="flex" gap={1}>
+                    <Tooltip title="Refresh Data">
+                        <IconButton onClick={handleRefresh} disabled={loading}>
+                            <Refresh />
+                        </IconButton>
+                    </Tooltip>
                     <Button
                         variant="contained"
-                        startIcon={<AddIcon />}
+                        startIcon={<Add />}
                         onClick={() => navigate('/leaves/create')}
                     >
                         Request Leave
                     </Button>
-                </Stack>
+                </Box>
             </Box>
 
-            {/* Stats */}
-            <Grid container spacing={2} mb={3}>
-                <Grid item xs={6} sm={3}>
-                    <Card>
-                        <CardContent sx={{ textAlign: 'center' }}>
-                            <Typography variant="body2" color="textSecondary">Total</Typography>
-                            <Typography variant="h4" fontWeight="bold" color="primary.main">
-                                {stats.total}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                    <Card sx={{ borderTop: '3px solid #ff9800' }}>
-                        <CardContent sx={{ textAlign: 'center' }}>
-                            <Typography variant="body2" color="textSecondary">Pending</Typography>
-                            <Typography variant="h4" fontWeight="bold" color="warning.main">
-                                {stats.pending}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                    <Card sx={{ borderTop: '3px solid #4caf50' }}>
-                        <CardContent sx={{ textAlign: 'center' }}>
-                            <Typography variant="body2" color="textSecondary">Approved</Typography>
-                            <Typography variant="h4" fontWeight="bold" color="success.main">
-                                {stats.approved}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                    <Card sx={{ borderTop: '3px solid #f44336' }}>
-                        <CardContent sx={{ textAlign: 'center' }}>
-                            <Typography variant="body2" color="textSecondary">Rejected</Typography>
-                            <Typography variant="h4" fontWeight="bold" color="error.main">
-                                {stats.rejected}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-            </Grid>
+            {/* Error Alert */}
+            {error && (
+                <Alert severity="error" sx={{ mb: 3 }} onClose={clearError}>
+                    {error}
+                </Alert>
+            )}
 
-            {/* Quick Actions */}
-            <Typography variant="h6" fontWeight="bold" mb={2}>
-                Quick Actions
-            </Typography>
-            <Grid container spacing={2} mb={4}>
+            {/* Stats Cards */}
+            <Grid container spacing={3} mb={4}>
                 <Grid item xs={12} sm={6} md={3}>
-                    <QuickActionCard
-                        icon={<AddIcon />}
-                        title="Request Leave"
-                        subtitle="Apply for leave"
-                        color="#1976d2"
-                        onClick={() => navigate('/leaves/create')}
-                    />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <QuickActionCard
-                        icon={<PendingIcon />}
-                        title="My Requests"
-                        subtitle="View all requests"
-                        color="#ff9800"
-                        badge={stats.pending}
-                        onClick={() => navigate('/leaves')}
-                    />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <QuickActionCard
-                        icon={<PeopleIcon />}
-                        title="All Balances"
-                        subtitle="View all employees"
-                        color="#9e9e9e"
-                        onClick={() => navigate('/leaves/all-balances')}
-                    />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <QuickActionCard
-                        icon={<CheckCircleIcon />}
-                        title="Approvals"
-                        subtitle="Pending approvals"
-                        color="#4caf50"
-                        badge={pendingLeaves.length}
-                        onClick={() => navigate('/leaves/approval')}
-                    />
-                </Grid>
-            </Grid>
-
-            {/* Leave Balance */}
-            <Typography variant="h6" fontWeight="bold" mb={2}>
-                📊 My Leave Balance
-            </Typography>
-            <Grid container spacing={2} mb={4}>
-                {balances.length === 0 ? (
-                    <Grid item xs={12}>
-                        <Alert severity="info">
-                            No leave balance found. Contact HR for assistance.
-                        </Alert>
-                    </Grid>
-                ) : (
-                    balances.map((balance) => {
-                        const icons = {
-                            'Annual Leave': <BeachIcon />,
-                            'Sick Leave': <SickIcon />,
-                            'Special Leave': <SpecialIcon />,
-                        };
-                        const colors = {
-                            'Annual Leave': '#1976d2',
-                            'Sick Leave': '#f44336',
-                            'Special Leave': '#ff9800',
-                        };
-                        return (
-                            <Grid item xs={12} sm={6} md={4} key={balance.id}>
-                                <BalanceCard
-                                    icon={icons[balance.leave_type] || <BeachIcon />}
-                                    title={balance.leave_type}
-                                    value={balance.remaining_days || 0}
-                                    color={colors[balance.leave_type] || '#1976d2'}
-                                    subtitle={`Total: ${balance.total_entitlement || 0} days`}
-                                />
-                            </Grid>
-                        );
-                    })
-                )}
-            </Grid>
-
-            {/* Recent Requests */}
-            <Typography variant="h6" fontWeight="bold" mb={2}>
-                📋 Recent Requests
-            </Typography>
-            <Paper>
-                {leaves.length === 0 ? (
-                    <Box p={4} textAlign="center">
-                        <Typography color="textSecondary">
-                            No leave requests yet. Click "Request Leave" to apply.
-                        </Typography>
-                    </Box>
-                ) : (
-                    leaves.slice(0, 5).map((leave) => (
-                        <Box
-                            key={leave.id}
-                            sx={{
-                                p: 2,
-                                borderBottom: '1px solid #f0f0f0',
-                                '&:last-child': { borderBottom: 'none' },
-                                cursor: 'pointer',
-                                '&:hover': { bgcolor: '#f8f9fa' },
-                            }}
-                            onClick={() => navigate(`/leaves/${leave.id}`)}
-                        >
+                    <Card sx={{ bgcolor: '#e3f2fd', borderLeft: '4px solid #1976d2' }}>
+                        <CardContent>
                             <Box display="flex" justifyContent="space-between" alignItems="center">
-                                <Box display="flex" alignItems="center" gap={2}>
-                                    <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
-                                        {leave.leave_type?.code?.charAt(0) || 'L'}
-                                    </Avatar>
-                                    <Box>
-                                        <Typography variant="body2" fontWeight="medium">
-                                            {leave.leave_type?.name || 'Leave'}
-                                        </Typography>
-                                        <Typography variant="caption" color="textSecondary">
-                                            {formatDate(leave.start_date)} - {formatDate(leave.end_date)}
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                                <Box display="flex" alignItems="center" gap={2}>
-                                    <Chip
-                                        label={leave.status}
-                                        color={getStatusColor(leave.status)}
-                                        size="small"
-                                    />
-                                    <Typography variant="caption" color="textSecondary">
-                                        {leave.total_days} days
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">
+                                        Total Requests
+                                    </Typography>
+                                    <Typography variant="h4" fontWeight="bold">
+                                        {stats.totalLeaves}
                                     </Typography>
                                 </Box>
+                                <Avatar sx={{ bgcolor: '#1976d2' }}>
+                                    <EventNote />
+                                </Avatar>
                             </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ bgcolor: '#e8f5e9', borderLeft: '4px solid #4caf50' }}>
+                        <CardContent>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">
+                                        Approved
+                                    </Typography>
+                                    <Typography variant="h4" fontWeight="bold" color="success.main">
+                                        {stats.approvedLeaves}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#4caf50' }}>
+                                    <CheckCircle />
+                                </Avatar>
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ bgcolor: '#fff3e0', borderLeft: '4px solid #ff9800' }}>
+                        <CardContent>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">
+                                        Pending
+                                    </Typography>
+                                    <Typography variant="h4" fontWeight="bold" color="warning.main">
+                                        {stats.pendingLeaves}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#ff9800' }}>
+                                    <Pending />
+                                </Avatar>
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ bgcolor: '#ffebee', borderLeft: '4px solid #f44336' }}>
+                        <CardContent>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">
+                                        Days Used
+                                    </Typography>
+                                    <Typography variant="h4" fontWeight="bold" color="error.main">
+                                        {stats.totalDaysUsed.toFixed(1)}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#f44336' }}>
+                                    <TrendingUp />
+                                </Avatar>
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+
+            {/* Leave Types */}
+            <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+                Leave Types
+            </Typography>
+            <Grid container spacing={2} sx={{ mb: 4 }}>
+                {renderLeaveTypes()}
+            </Grid>
+
+            {/* Recent Pending Requests & Balance */}
+            <Grid container spacing={3}>
+                <Grid item xs={12} md={8}>
+                    <Paper sx={{ p: 2 }}>
+                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+                            Recent Pending Requests
+                        </Typography>
+                        {pendingLeaves?.data && pendingLeaves.data.length > 0 ? (
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Employee</TableCell>
+                                            <TableCell>Type</TableCell>
+                                            <TableCell>Days</TableCell>
+                                            <TableCell>Date</TableCell>
+                                            <TableCell>Status</TableCell>
+                                            <TableCell align="center">Action</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {pendingLeaves.data.slice(0, 5).map((leave) => (
+                                            <TableRow key={leave.id} hover>
+                                                <TableCell>
+                                                    <Box display="flex" alignItems="center" gap={1}>
+                                                        <Avatar sx={{ width: 24, height: 24, fontSize: 12 }}>
+                                                            {leave.employee?.first_name?.[0] || 'U'}
+                                                        </Avatar>
+                                                        <Typography variant="body2">
+                                                            {leave.employee?.first_name} {leave.employee?.last_name}
+                                                        </Typography>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell>{leave.leave_type?.name}</TableCell>
+                                                <TableCell>{leave.total_days}</TableCell>
+                                                <TableCell>
+                                                    {new Date(leave.start_date).toLocaleDateString()}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {getStatusChip(leave.status)}
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <Tooltip title="View Details">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => navigate(`/leaves/${leave.id}`)}
+                                                        >
+                                                            <Visibility fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        ) : (
+                            <Typography color="textSecondary" align="center" sx={{ py: 3 }}>
+                                No pending requests
+                            </Typography>
+                        )}
+                        {pendingLeaves?.data?.length > 5 && (
+                            <Box display="flex" justifyContent="flex-end" mt={1}>
+                                <Button size="small" onClick={() => navigate('/leaves/approval')}>
+                                    View All
+                                </Button>
+                            </Box>
+                        )}
+                    </Paper>
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2 }}>
+                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+                            My Balance Summary
+                        </Typography>
+                        {balances && balances.length > 0 ? (
+                            <List>
+                                {balances.map((balance) => (
+                                    <React.Fragment key={balance.id}>
+                                        <ListItem>
+                                            <ListItemAvatar>
+                                                <Avatar sx={{ bgcolor: '#6366f1' }}>
+                                                    {balance.leave_type?.code?.[0] || 'L'}
+                                                </Avatar>
+                                            </ListItemAvatar>
+                                            <ListItemText
+                                                primary={
+                                                    <Typography variant="body2" fontWeight="medium">
+                                                        {balance.leave_type?.name}
+                                                    </Typography>
+                                                }
+                                                secondary={
+                                                    <Box>
+                                                        <Typography variant="caption" color="textSecondary">
+                                                            Used: {balance.used_days || 0} / {balance.total_entitlement || 0} days
+                                                        </Typography>
+                                                        <LinearProgress
+                                                            variant="determinate"
+                                                            value={balance.total_entitlement > 0 
+                                                                ? (balance.used_days / balance.total_entitlement) * 100 
+                                                                : 0
+                                                            }
+                                                            sx={{ mt: 0.5, height: 6, borderRadius: 3 }}
+                                                        />
+                                                        <Typography variant="caption" color="success.main" fontWeight="bold">
+                                                            Remaining: {balance.remaining_days || 0} days
+                                                        </Typography>
+                                                    </Box>
+                                                }
+                                            />
+                                        </ListItem>
+                                        <Divider variant="inset" component="li" />
+                                    </React.Fragment>
+                                ))}
+                            </List>
+                        ) : (
+                            <Typography color="textSecondary" align="center" sx={{ py: 3 }}>
+                                No balance data available
+                            </Typography>
+                        )}
+                        <Box display="flex" justifyContent="flex-end" mt={1}>
+                            <Button size="small" onClick={() => navigate('/leaves/balance')}>
+                                View Full Balance
+                            </Button>
                         </Box>
-                    ))
-                )}
-                {leaves.length > 5 && (
-                    <Box p={2} textAlign="center">
-                        <Button onClick={() => navigate('/leaves')} size="small">
-                            View All Requests →
-                        </Button>
-                    </Box>
-                )}
-            </Paper>
+                    </Paper>
+                </Grid>
+            </Grid>
         </Box>
     );
 };
