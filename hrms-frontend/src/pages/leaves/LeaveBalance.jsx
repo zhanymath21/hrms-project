@@ -57,7 +57,9 @@ import {
     Receipt as ReceiptIcon,
     Download as DownloadIcon,
     Print as PrintIcon,
-    Search as SearchIcon, // ✅ ADD THIS IMPORT
+    Search as SearchIcon,
+    ArrowForward as ArrowForwardIcon,
+    History as HistoryIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -87,7 +89,9 @@ const LeaveBalance = () => {
     } = useLeave();
 
     const { user } = useAuth();
-    const isAdmin = user?.position?.title === 'HR Manager' || user?.position?.title === 'Admin' || user?.position?.title === 'System Admin';
+    const isAdmin = user?.position?.title === 'HR Manager' || 
+                    user?.position?.title === 'Admin' || 
+                    user?.position?.title === 'System Admin';
 
     // State
     const [tabValue, setTabValue] = useState(0);
@@ -107,6 +111,7 @@ const LeaveBalance = () => {
         key: 'name',
         direction: 'asc',
     });
+    const [showCarryForward, setShowCarryForward] = useState(false);
 
     // Load data on mount
     useEffect(() => {
@@ -212,17 +217,21 @@ const LeaveBalance = () => {
         return colors[code] || '#757575';
     };
 
-    // Get status chip
-    const getStatusChip = (status) => {
-        const statusMap = {
-            active: { label: 'Active', color: 'success' },
-            inactive: { label: 'Inactive', color: 'error' },
-            pending: { label: 'Pending', color: 'warning' },
-            approved: { label: 'Approved', color: 'success' },
-            rejected: { label: 'Rejected', color: 'error' },
-            cancelled: { label: 'Cancelled', color: 'default' },
-        };
-        return statusMap[status] || { label: status, color: 'default' };
+    // Check if leave type allows carry forward
+    const allowCarryForward = (leaveType) => {
+        return leaveType?.allow_carry_forward || false;
+    };
+
+    // Get max carry forward days
+    const getMaxCarryForward = (leaveType) => {
+        return leaveType?.max_carry_forward_days || 6;
+    };
+
+    // Calculate carry forward amount
+    const calculateCarryForward = (balance) => {
+        if (!balance || !allowCarryForward(balance.leave_type)) return 0;
+        const maxCarry = getMaxCarryForward(balance.leave_type);
+        return Math.min(balance.remaining_days || 0, maxCarry);
     };
 
     // Loading state
@@ -245,10 +254,10 @@ const LeaveBalance = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                 <Box>
                     <Typography variant="h4" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                        Leave Balance
+                        My Leave Balance
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        {isAdmin ? 'Manage all employee leave balances' : 'View your leave balance'}
+                        View your leave balance and carry forward details
                     </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
@@ -257,15 +266,6 @@ const LeaveBalance = () => {
                             <RefreshIcon />
                         </IconButton>
                     </Tooltip>
-                    {isAdmin && (
-                        <Button
-                            variant="contained"
-                            startIcon={<AddIcon />}
-                            onClick={() => {/* Navigate to generate balance */}}
-                        >
-                            Generate Balances
-                        </Button>
-                    )}
                 </Box>
             </Box>
 
@@ -280,591 +280,257 @@ const LeaveBalance = () => {
                 </Alert>
             )}
 
-            {/* Tabs */}
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', borderRadius: 2 }}>
-                <Tabs value={tabValue} onChange={handleTabChange} sx={{ px: 2 }}>
-                    <Tab label="My Balance" icon={<ReceiptIcon />} />
-                    {isAdmin && (
-                        <Tab label="All Employees" icon={<PeopleIcon />} />
-                    )}
-                    {isAdmin && (
-                        <Tab label="Summary" icon={<TrendingUpIcon />} />
-                    )}
-                </Tabs>
-            </Box>
-
             {/* My Balance Tab */}
-            <TabPanel value={tabValue} index={0}>
-                <Grid container spacing={3}>
-                    {/* Summary Cards */}
-                    <Grid item xs={12} md={3}>
-                        <Card sx={{ bgcolor: '#6366f1', color: 'white' }}>
-                            <CardContent>
-                                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
-                                    Total Entitlement
-                                </Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                                    {balances.reduce((sum, b) => sum + (b.total_entitlement || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                        <Card sx={{ bgcolor: '#10b981', color: 'white' }}>
-                            <CardContent>
-                                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
-                                    Used Days
-                                </Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                                    {balances.reduce((sum, b) => sum + (b.used_days || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                        <Card sx={{ bgcolor: '#f59e0b', color: 'white' }}>
-                            <CardContent>
-                                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
-                                    Pending Days
-                                </Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                                    {balances.reduce((sum, b) => sum + (b.pending_days || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                        <Card sx={{ bgcolor: '#3b82f6', color: 'white' }}>
-                            <CardContent>
-                                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
-                                    Remaining Days
-                                </Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                                    {balances.reduce((sum, b) => sum + (b.remaining_days || 0), 0)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
+            <Grid container spacing={3}>
+                {/* Summary Cards */}
+                <Grid item xs={12} md={3}>
+                    <Card sx={{ bgcolor: '#6366f1', color: 'white' }}>
+                        <CardContent>
+                            <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                                Total Entitlement
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                                {balances.reduce((sum, b) => sum + (b.total_entitlement || 0), 0)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                    <Card sx={{ bgcolor: '#10b981', color: 'white' }}>
+                        <CardContent>
+                            <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                                Used Days
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                                {balances.reduce((sum, b) => sum + (b.used_days || 0), 0)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                    <Card sx={{ bgcolor: '#f59e0b', color: 'white' }}>
+                        <CardContent>
+                            <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                                Pending Days
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                                {balances.reduce((sum, b) => sum + (b.pending_days || 0), 0)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                    <Card sx={{ bgcolor: '#3b82f6', color: 'white' }}>
+                        <CardContent>
+                            <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                                Remaining Days
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                                {balances.reduce((sum, b) => sum + (b.remaining_days || 0), 0)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
 
-                    {/* Balance Details */}
-                    <Grid item xs={12}>
-                        <Card>
-                            <CardContent>
-                                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                {/* Balance Details with Carry Forward */}
+                <Grid item xs={12}>
+                    <Card>
+                        <CardContent>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>
                                     Balance Details
                                 </Typography>
-                                <TableContainer>
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Leave Type</TableCell>
-                                                <TableCell align="center">Entitlement</TableCell>
-                                                <TableCell align="center">Used</TableCell>
-                                                <TableCell align="center">Pending</TableCell>
-                                                <TableCell align="center">Remaining</TableCell>
-                                                <TableCell align="center">Progress</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {balances && balances.length > 0 ? (
-                                                balances.map((balance) => {
-                                                    const percentage = balance.total_entitlement > 0
-                                                        ? (balance.used_days / balance.total_entitlement) * 100
-                                                        : 0;
-                                                    const color = percentage > 80 ? 'error' : percentage > 50 ? 'warning' : 'success';
-                                                    
-                                                    return (
-                                                        <TableRow key={balance.id}>
-                                                            <TableCell>
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                    <Avatar
-                                                                        sx={{
-                                                                            width: 32,
-                                                                            height: 32,
-                                                                            bgcolor: getLeaveTypeColor(balance.leave_type?.code),
-                                                                            fontSize: 14,
-                                                                        }}
-                                                                    >
-                                                                        {balance.leave_type?.code?.substring(0, 2) || 'L'}
-                                                                    </Avatar>
-                                                                    <Box>
-                                                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                                            {balance.leave_type?.name}
-                                                                        </Typography>
-                                                                        <Typography variant="caption" color="text.secondary">
-                                                                            {balance.leave_type?.code}
-                                                                        </Typography>
-                                                                    </Box>
-                                                                </Box>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                                    {balance.total_entitlement || 0}
-                                                                </Typography>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Typography variant="body2">
-                                                                    {balance.used_days || 0}
-                                                                </Typography>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                {balance.pending_days > 0 ? (
-                                                                    <Chip
-                                                                        label={balance.pending_days}
-                                                                        size="small"
-                                                                        color="warning"
-                                                                        icon={<PendingIcon />}
-                                                                    />
-                                                                ) : (
-                                                                    <Typography variant="body2">0</Typography>
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Typography variant="body2" sx={{ fontWeight: 700, color: balance.remaining_days <= 0 ? 'error.main' : 'text.primary' }}>
-                                                                    {balance.remaining_days || 0}
-                                                                </Typography>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                    <LinearProgress
-                                                                        variant="determinate"
-                                                                        value={Math.min(percentage, 100)}
-                                                                        sx={{
-                                                                            width: 100,
-                                                                            borderRadius: 2,
-                                                                            bgcolor: 'grey.200',
-                                                                            '& .MuiLinearProgress-bar': {
-                                                                                bgcolor: color === 'success' ? '#10b981' : color === 'warning' ? '#f59e0b' : '#ef4444',
-                                                                            }
-                                                                        }}
-                                                                    />
+                                <Button
+                                    size="small"
+                                    startIcon={<HistoryIcon />}
+                                    onClick={() => setShowCarryForward(!showCarryForward)}
+                                >
+                                    {showCarryForward ? 'Hide Carry Forward' : 'Show Carry Forward'}
+                                </Button>
+                            </Box>
+                            <TableContainer>
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Leave Type</TableCell>
+                                            <TableCell align="center">Entitlement</TableCell>
+                                            <TableCell align="center">Used</TableCell>
+                                            <TableCell align="center">Pending</TableCell>
+                                            <TableCell align="center">Remaining</TableCell>
+                                            {showCarryForward && (
+                                                <>
+                                                    <TableCell align="center">Carry Forward</TableCell>
+                                                    <TableCell align="center">Max Carry Forward</TableCell>
+                                                </>
+                                            )}
+                                            <TableCell align="center">Progress</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {balances && balances.length > 0 ? (
+                                            balances.map((balance) => {
+                                                const percentage = balance.total_entitlement > 0
+                                                    ? (balance.used_days / balance.total_entitlement) * 100
+                                                    : 0;
+                                                const color = percentage > 80 ? 'error' : percentage > 50 ? 'warning' : 'success';
+                                                const carryForward = calculateCarryForward(balance);
+                                                const maxCarry = getMaxCarryForward(balance.leave_type);
+                                                
+                                                return (
+                                                    <TableRow key={balance.id}>
+                                                        <TableCell>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                <Avatar
+                                                                    sx={{
+                                                                        width: 32,
+                                                                        height: 32,
+                                                                        bgcolor: getLeaveTypeColor(balance.leave_type?.code),
+                                                                        fontSize: 14,
+                                                                    }}
+                                                                >
+                                                                    {balance.leave_type?.code?.substring(0, 2) || 'L'}
+                                                                </Avatar>
+                                                                <Box>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                                        {balance.leave_type?.name}
+                                                                    </Typography>
                                                                     <Typography variant="caption" color="text.secondary">
-                                                                        {Math.round(percentage)}%
+                                                                        {balance.leave_type?.code}
                                                                     </Typography>
                                                                 </Box>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })
-                                            ) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={6} align="center">
-                                                        <Typography color="text.secondary">
-                                                            No balance records found
-                                                        </Typography>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
+                                                            </Box>
+                                                        </TableCell>
+                                                        <TableCell align="center">
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                                {balance.total_entitlement || 0}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell align="center">
+                                                            <Typography variant="body2">
+                                                                {balance.used_days || 0}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell align="center">
+                                                            {balance.pending_days > 0 ? (
+                                                                <Chip
+                                                                    label={balance.pending_days}
+                                                                    size="small"
+                                                                    color="warning"
+                                                                    icon={<PendingIcon />}
+                                                                />
+                                                            ) : (
+                                                                <Typography variant="body2">0</Typography>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell align="center">
+                                                            <Typography 
+                                                                variant="body2" 
+                                                                sx={{ 
+                                                                    fontWeight: 700, 
+                                                                    color: balance.remaining_days <= 0 ? 'error.main' : 'text.primary' 
+                                                                }}
+                                                            >
+                                                                {balance.remaining_days || 0}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        {showCarryForward && (
+                                                            <>
+                                                                <TableCell align="center">
+                                                                    {allowCarryForward(balance.leave_type) ? (
+                                                                        <Chip
+                                                                            label={carryForward > 0 ? `${carryForward} days` : '0 days'}
+                                                                            size="small"
+                                                                            color={carryForward > 0 ? 'success' : 'default'}
+                                                                            icon={carryForward > 0 ? <ArrowForwardIcon /> : null}
+                                                                        />
+                                                                    ) : (
+                                                                        <Chip
+                                                                            label="Not Allowed"
+                                                                            size="small"
+                                                                            color="default"
+                                                                            variant="outlined"
+                                                                        />
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell align="center">
+                                                                    {allowCarryForward(balance.leave_type) ? (
+                                                                        <Chip
+                                                                            label={`${maxCarry} days`}
+                                                                            size="small"
+                                                                            color="info"
+                                                                            variant="outlined"
+                                                                        />
+                                                                    ) : (
+                                                                        <Typography variant="body2" color="text.secondary">
+                                                                            -
+                                                                        </Typography>
+                                                                    )}
+                                                                </TableCell>
+                                                            </>
+                                                        )}
+                                                        <TableCell align="center">
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                <LinearProgress
+                                                                    variant="determinate"
+                                                                    value={Math.min(percentage, 100)}
+                                                                    sx={{
+                                                                        width: 100,
+                                                                        borderRadius: 2,
+                                                                        bgcolor: 'grey.200',
+                                                                        '& .MuiLinearProgress-bar': {
+                                                                            bgcolor: color === 'success' ? '#10b981' : color === 'warning' ? '#f59e0b' : '#ef4444',
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    {Math.round(percentage)}%
+                                                                </Typography>
+                                                            </Box>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={showCarryForward ? 9 : 7} align="center">
+                                                    <Typography color="text.secondary">
+                                                        No balance records found
+                                                    </Typography>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* Carry Forward Information Card */}
+                {showCarryForward && (
+                    <Grid item xs={12}>
+                        <Card sx={{ bgcolor: '#f8fafc' }}>
+                            <CardContent>
+                                <Box display="flex" alignItems="center" gap={2}>
+                                    <Avatar sx={{ bgcolor: '#6366f1' }}>
+                                        <HistoryIcon />
+                                    </Avatar>
+                                    <Box>
+                                        <Typography variant="subtitle1" fontWeight="600">
+                                            Carry Forward Information
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            • Annual Leave (AL) allows carry forward up to 6 days
+                                            • Sick Leave (SL) and Special Leave (SPL) do not allow carry forward
+                                            • Carry forward will be applied automatically at the end of the year
+                                        </Typography>
+                                    </Box>
+                                </Box>
                             </CardContent>
                         </Card>
                     </Grid>
-                </Grid>
-            </TabPanel>
-
-            {/* All Employees Tab (Admin Only) */}
-            {isAdmin && (
-                <TabPanel value={tabValue} index={1}>
-                    <Grid container spacing={3}>
-                        {/* Filters */}
-                        <Grid item xs={12}>
-                            <Card>
-                                <CardContent>
-                                    <Grid container spacing={2} alignItems="center">
-                                        <Grid item xs={12} md={4}>
-                                            <TextField
-                                                fullWidth
-                                                size="small"
-                                                placeholder="Search employees..."
-                                                value={filter.search}
-                                                onChange={(e) => setFilter({ ...filter, search: e.target.value })}
-                                                InputProps={{
-                                                    startAdornment: <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />,
-                                                }}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} md={3}>
-                                            <FormControl fullWidth size="small">
-                                                <InputLabel>Department</InputLabel>
-                                                <Select
-                                                    value={filter.department_id}
-                                                    onChange={(e) => setFilter({ ...filter, department_id: e.target.value })}
-                                                    label="Department"
-                                                >
-                                                    <MenuItem value="">All Departments</MenuItem>
-                                                    {/* Add departments from your data */}
-                                                </Select>
-                                            </FormControl>
-                                        </Grid>
-                                        <Grid item xs={12} md={3}>
-                                            <FormControl fullWidth size="small">
-                                                <InputLabel>Leave Type</InputLabel>
-                                                <Select
-                                                    value={filter.leave_type_id}
-                                                    onChange={(e) => setFilter({ ...filter, leave_type_id: e.target.value })}
-                                                    label="Leave Type"
-                                                >
-                                                    <MenuItem value="">All Types</MenuItem>
-                                                    {leaveTypes.map((type) => (
-                                                        <MenuItem key={type.id} value={type.id}>
-                                                            {type.name}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                            </FormControl>
-                                        </Grid>
-                                        <Grid item xs={12} md={2}>
-                                            <Button
-                                                fullWidth
-                                                variant="outlined"
-                                                onClick={() => setFilter({ search: '', department_id: '', leave_type_id: '' })}
-                                            >
-                                                Clear Filters
-                                            </Button>
-                                        </Grid>
-                                    </Grid>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-
-                        {/* Employee List */}
-                        <Grid item xs={12}>
-                            <Card>
-                                <CardContent sx={{ p: 0 }}>
-                                    <TableContainer>
-                                        <Table>
-                                            <TableHead>
-                                                <TableRow>
-                                                    <TableCell onClick={() => handleSort('employee_id')} sx={{ cursor: 'pointer' }}>
-                                                        Employee ID
-                                                        {sortConfig.key === 'employee_id' && (
-                                                            <span>{sortConfig.direction === 'asc' ? ' ↑' : ' ↓'}</span>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer' }}>
-                                                        Name
-                                                        {sortConfig.key === 'name' && (
-                                                            <span>{sortConfig.direction === 'asc' ? ' ↑' : ' ↓'}</span>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>Department</TableCell>
-                                                    <TableCell align="center">Total</TableCell>
-                                                    <TableCell align="center">Used</TableCell>
-                                                    <TableCell align="center">Pending</TableCell>
-                                                    <TableCell align="center">Remaining</TableCell>
-                                                    <TableCell align="center">Action</TableCell>
-                                                </TableRow>
-                                            </TableHead>
-                                            <TableBody>
-                                                {sortedEmployees.length > 0 ? (
-                                                    sortedEmployees.map((emp) => (
-                                                        <TableRow key={emp.id} hover>
-                                                            <TableCell>
-                                                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                                    {emp.employee_id}
-                                                                </Typography>
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                    <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1' }}>
-                                                                        {emp.name?.charAt(0) || 'E'}
-                                                                    </Avatar>
-                                                                    <Box>
-                                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                                            {emp.name}
-                                                                        </Typography>
-                                                                        <Typography variant="caption" color="text.secondary">
-                                                                            {emp.email}
-                                                                        </Typography>
-                                                                    </Box>
-                                                                </Box>
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <Chip
-                                                                    label={emp.department?.name || 'N/A'}
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                />
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                                    {emp.summary?.total_entitlement || 0}
-                                                                </Typography>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Typography variant="body2">
-                                                                    {emp.summary?.used_days || 0}
-                                                                </Typography>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                {emp.summary?.pending_days > 0 ? (
-                                                                    <Chip
-                                                                        label={emp.summary?.pending_days || 0}
-                                                                        size="small"
-                                                                        color="warning"
-                                                                    />
-                                                                ) : (
-                                                                    <Typography variant="body2">0</Typography>
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Typography
-                                                                    variant="body2"
-                                                                    sx={{
-                                                                        fontWeight: 700,
-                                                                        color: (emp.summary?.remaining_days || 0) <= 0 ? 'error.main' : 'text.primary',
-                                                                    }}
-                                                                >
-                                                                    {emp.summary?.remaining_days || 0}
-                                                                </Typography>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Tooltip title="View/Edit Balance">
-                                                                    <IconButton
-                                                                        size="small"
-                                                                        onClick={() => {
-                                                                            // Navigate to employee balance detail
-                                                                            // or open dialog to edit
-                                                                        }}
-                                                                    >
-                                                                        <EditIcon fontSize="small" />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))
-                                                ) : (
-                                                    <TableRow>
-                                                        <TableCell colSpan={8} align="center">
-                                                            <Typography color="text.secondary" sx={{ py: 3 }}>
-                                                                No employees found
-                                                            </Typography>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    </TableContainer>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                    </Grid>
-                </TabPanel>
-            )}
-
-            {/* Summary Tab (Admin Only) */}
-            {isAdmin && (
-                <TabPanel value={tabValue} index={2}>
-                    <Grid container spacing={3}>
-                        {/* Summary Cards */}
-                        <Grid item xs={12} md={3}>
-                            <Card>
-                                <CardContent>
-                                    <Typography color="textSecondary" gutterBottom>
-                                        Total Employees
-                                    </Typography>
-                                    <Typography variant="h4">
-                                        {summary?.total_employees || 0}
-                                    </Typography>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                        <Grid item xs={12} md={3}>
-                            <Card>
-                                <CardContent>
-                                    <Typography color="textSecondary" gutterBottom>
-                                        Total Entitlement
-                                    </Typography>
-                                    <Typography variant="h4">
-                                        {summary?.total_entitlement || 0}
-                                    </Typography>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                        <Grid item xs={12} md={3}>
-                            <Card>
-                                <CardContent>
-                                    <Typography color="textSecondary" gutterBottom>
-                                        Total Used
-                                    </Typography>
-                                    <Typography variant="h4">
-                                        {summary?.total_used || 0}
-                                    </Typography>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                        <Grid item xs={12} md={3}>
-                            <Card>
-                                <CardContent>
-                                    <Typography color="textSecondary" gutterBottom>
-                                        Total Remaining
-                                    </Typography>
-                                    <Typography variant="h4">
-                                        {summary?.total_remaining || 0}
-                                    </Typography>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-
-                        {/* Summary by Leave Type */}
-                        <Grid item xs={12}>
-                            <Card>
-                                <CardContent>
-                                    <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                                        Summary by Leave Type
-                                    </Typography>
-                                    <TableContainer>
-                                        <Table>
-                                            <TableHead>
-                                                <TableRow>
-                                                    <TableCell>Leave Type</TableCell>
-                                                    <TableCell align="center">Entitlement</TableCell>
-                                                    <TableCell align="center">Used</TableCell>
-                                                    <TableCell align="center">Pending</TableCell>
-                                                    <TableCell align="center">Remaining</TableCell>
-                                                    <TableCell align="center">Usage %</TableCell>
-                                                </TableRow>
-                                            </TableHead>
-                                            <TableBody>
-                                                {summary?.by_leave_type?.map((item) => {
-                                                    const percentage = item.total_entitlement > 0
-                                                        ? (item.used_days / item.total_entitlement) * 100
-                                                        : 0;
-                                                    return (
-                                                        <TableRow key={item.leave_type_id}>
-                                                            <TableCell>
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                    <Avatar
-                                                                        sx={{
-                                                                            width: 32,
-                                                                            height: 32,
-                                                                            bgcolor: getLeaveTypeColor(item.code),
-                                                                            fontSize: 14,
-                                                                        }}
-                                                                    >
-                                                                        {item.code?.substring(0, 2) || 'L'}
-                                                                    </Avatar>
-                                                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                                        {item.leave_type}
-                                                                    </Typography>
-                                                                </Box>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                {item.total_entitlement}
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                {item.used_days}
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                {item.pending_days > 0 ? (
-                                                                    <Chip
-                                                                        label={item.pending_days}
-                                                                        size="small"
-                                                                        color="warning"
-                                                                    />
-                                                                ) : (
-                                                                    0
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Typography
-                                                                    variant="body2"
-                                                                    sx={{
-                                                                        fontWeight: 600,
-                                                                        color: item.remaining_days <= 0 ? 'error.main' : 'text.primary',
-                                                                    }}
-                                                                >
-                                                                    {item.remaining_days}
-                                                                </Typography>
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                    <LinearProgress
-                                                                        variant="determinate"
-                                                                        value={Math.min(percentage, 100)}
-                                                                        sx={{
-                                                                            width: 100,
-                                                                            borderRadius: 2,
-                                                                            bgcolor: 'grey.200',
-                                                                            '& .MuiLinearProgress-bar': {
-                                                                                bgcolor: percentage > 80 ? '#ef4444' : percentage > 50 ? '#f59e0b' : '#10b981',
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                    <Typography variant="caption" color="text.secondary">
-                                                                        {Math.round(percentage)}%
-                                                                    </Typography>
-                                                                </Box>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                            </TableBody>
-                                        </Table>
-                                    </TableContainer>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                    </Grid>
-                </TabPanel>
-            )}
-
-            {/* Edit Balance Dialog */}
-            <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-                <DialogTitle>
-                    Edit Leave Balance
-                    {selectedBalance && (
-                        <Typography variant="caption" display="block" color="text.secondary">
-                            {selectedBalance.employee?.name} - {selectedBalance.leave_type?.name}
-                        </Typography>
-                    )}
-                </DialogTitle>
-                <DialogContent>
-                    <Grid container spacing={3} sx={{ mt: 1 }}>
-                        <Grid item xs={12}>
-                            <TextField
-                                fullWidth
-                                label="Total Entitlement"
-                                type="number"
-                                value={formData.total_entitlement}
-                                onChange={(e) => setFormData({
-                                    ...formData,
-                                    total_entitlement: parseFloat(e.target.value) || 0,
-                                })}
-                                InputProps={{ inputProps: { min: 0 } }}
-                                helperText="Current remaining will be recalculated automatically"
-                            />
-                        </Grid>
-                        <Grid item xs={12}>
-                            <TextField
-                                fullWidth
-                                label="Adjustment Reason"
-                                multiline
-                                rows={3}
-                                value={formData.adjustment_reason}
-                                onChange={(e) => setFormData({
-                                    ...formData,
-                                    adjustment_reason: e.target.value,
-                                })}
-                                placeholder="Please provide a reason for this adjustment..."
-                                required
-                            />
-                        </Grid>
-                    </Grid>
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={handleCloseDialog}>Cancel</Button>
-                    <Button
-                        variant="contained"
-                        onClick={handleUpdateBalance}
-                        disabled={!formData.adjustment_reason}
-                    >
-                        Update Balance
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                )}
+            </Grid>
         </Box>
     );
 };
