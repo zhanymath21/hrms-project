@@ -7,18 +7,30 @@ use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveType;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class UpdateCarryForward extends Command
 {
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
     protected $signature = 'leave:update-carry-forward
                             {--year= : Year to process (default: current year)}
                             {--employee= : Specific employee ID to update}
                             {--force : Force update even if already set}';
 
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
     protected $description = 'Update carry forward values for employees';
 
+    /**
+     * Execute the console command.
+     */
     public function handle()
     {
         $year = $this->option('year') ?? date('Y');
@@ -85,11 +97,6 @@ class UpdateCarryForward extends Command
                     if ($force || $currentBalance->carry_forward != $carryForwardAmount) {
                         $oldValue = $currentBalance->carry_forward;
                         $currentBalance->carry_forward = $carryForwardAmount;
-
-                        // Update total entitlement to include carry forward
-                        // $currentBalance->total_entitlement = $currentBalance->base_entitlement + $carryForwardAmount;
-                        // $currentBalance->remaining_days = $currentBalance->total_entitlement - $currentBalance->used_days - $currentBalance->pending_days;
-
                         $currentBalance->save();
 
                         $employeeUpdated = true;
