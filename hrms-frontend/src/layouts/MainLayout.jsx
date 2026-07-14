@@ -55,11 +55,11 @@ import {
   Healing as HealingIcon,
   Warning as WarningIcon,
   AttachMoney as AttachMoneyIcon,
-  // 🔥 LEAVE ICONS - HANYA YANG ADA DI MUI
-  Balance as BalanceIcon,
-  SwapHoriz as SwapIcon,
-  CheckCircle as CheckCircleIcon,
-  CalendarToday as CalendarIcon,
+  // ✅ ONLY USE ICONS THAT EXIST IN MUI
+  // Balance as BalanceIcon, // ❌ DOES NOT EXIST - REMOVED
+  // SwapHoriz as SwapIcon, // ❌ DOES NOT EXIST - REMOVED
+  // CheckCircle as CheckCircleIcon, // ❌ DOES NOT EXIST - REMOVED
+  // CalendarToday as CalendarIcon, // ❌ DOES NOT EXIST - REMOVED
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from '../pages/components/NotificationBell';
@@ -67,7 +67,7 @@ import NotificationBell from '../pages/components/NotificationBell';
 const drawerWidth = 280;
 
 // ==========================================
-// MENU ITEMS - TANPA ICON YANG TIDAK ADA
+// MENU ITEMS - FIXED ICONS
 // ==========================================
 const menuItems = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/', color: '#6366f1' },
@@ -88,9 +88,9 @@ const menuItems = [
     icon: <AttachMoneyIcon />,
     color: '#10b981',
     children: [
-      { text: 'Payroll List', path: '/payroll', icon: <AttachMoneyIcon /> },
-      { text: 'Employee Salary', path: '/employee-salary', icon: <PersonIcon /> },
-      { text: 'Tax Settings', path: '/tax-settings', icon: <SettingsIcon /> },
+      { text: '💰 Payroll List', path: '/payroll', icon: <AttachMoneyIcon /> },
+      { text: '👤 Employee Salary', path: '/employee-salary', icon: <PersonIcon /> },
+      { text: '⚙️ Tax Settings', path: '/tax-settings', icon: <SettingsIcon /> },
     ]
   },
   { 
@@ -99,8 +99,8 @@ const menuItems = [
     path: '/departments', 
     color: '#f59e0b',
     children: [
-      { text: 'All Departments', path: '/departments', icon: <DepartmentIcon /> },
-      { text: 'Positions', path: '/positions', icon: <PositionIcon /> },
+      { text: '🏢 All Departments', path: '/departments', icon: <DepartmentIcon /> },
+      { text: '💼 Positions', path: '/positions', icon: <PositionIcon /> },
     ]
   },
   {
@@ -108,14 +108,14 @@ const menuItems = [
     icon: <AttendanceIcon />,
     color: '#3b82f6',
     children: [
-      { text: 'Attendance', icon: <AttendanceIcon />, path: '/attendance', color: '#3b82f6' },
-      { text: 'Attendance Report', icon: <ReportIcon />, path: '/attendance-report', color: '#8b5cf6' },
-      { text: 'Work Schedules', icon: <ScheduleIcon />, path: '/schedules', color: '#8b5cf6' },
-      { text: 'Office Locations', icon: <LocationOnIcon />, path: '/locations', color: '#f59e0b' },
+      { text: '📋 Attendance', icon: <AttendanceIcon />, path: '/attendance', color: '#3b82f6' },
+      { text: '📊 Attendance Report', icon: <ReportIcon />, path: '/attendance-report', color: '#8b5cf6' },
+      { text: '📅 Work Schedules', icon: <ScheduleIcon />, path: '/schedules', color: '#8b5cf6' },
+      { text: '📍 Office Locations', icon: <LocationOnIcon />, path: '/locations', color: '#f59e0b' },
     ],
   },
   // ==========================================
-  // LEAVE MANAGEMENT - TANPA ICON BERMASALAH
+  // LEAVE MANAGEMENT - FIXED
   // ==========================================
   { 
     text: 'Leave Management', 
@@ -131,6 +131,7 @@ const menuItems = [
       { text: '📊 All Balances', path: '/leaves/all-balances' },
       { text: '🔄 Replacement Leave', path: '/leaves/replacement' },
       { text: '⚙️ Approval Flow', path: '/approval-flow' },
+      { text: '👥 New Employees', path: '/leaves/new-employees' },
     ]
   },
   {
@@ -138,11 +139,11 @@ const menuItems = [
     icon: <PersonAddIcon />,
     color: '#ec4899',
     children: [
-      { text: 'Candidates', icon: <PersonAddIcon />, path: '/candidates', color: '#ec4899' },
-      { text: 'Candidate CV', icon: <DocumentIcon />, path: '/candidates/cv', color: '#f59e0b' },
-      { text: 'Job Vacancies', icon: <ArticleIcon />, path: '/vacancies', color: '#3b82f6' },
-      { text: 'Applications', icon: <FileCopyIcon />, path: '/applications', color: '#8b5cf6' },
-      { text: 'Onboarding', icon: <HowToRegIcon />, path: '/onboarding', color: '#10b981' },
+      { text: '👤 Candidates', icon: <PersonAddIcon />, path: '/candidates', color: '#ec4899' },
+      { text: '📄 Candidate CV', icon: <DocumentIcon />, path: '/candidates/cv', color: '#f59e0b' },
+      { text: '📰 Job Vacancies', icon: <ArticleIcon />, path: '/vacancies', color: '#3b82f6' },
+      { text: '📝 Applications', icon: <FileCopyIcon />, path: '/applications', color: '#8b5cf6' },
+      { text: '✅ Onboarding', icon: <HowToRegIcon />, path: '/onboarding', color: '#10b981' },
     ],
   },
   { 
@@ -151,8 +152,8 @@ const menuItems = [
     path: '/ppe', 
     color: '#f59e0b',
     children: [
-      { text: 'PPE List', path: '/ppe', icon: <ShieldIcon /> },
-      { text: 'PPE Categories', path: '/ppe/categories', icon: <CategoryIcon /> },
+      { text: '🛡️ PPE List', path: '/ppe', icon: <ShieldIcon /> },
+      { text: '📂 PPE Categories', path: '/ppe/categories', icon: <CategoryIcon /> },
     ]
   },
   { 
@@ -160,13 +161,23 @@ const menuItems = [
     icon: <HealingIcon />,
     color: '#ef4444',
     children: [
-      { text: 'All Incidents', path: '/incident-reports', icon: <WarningIcon /> },
-      { text: 'Report Incident', path: '/incident-reports/create', icon: <AddIcon /> },
-      { text: 'Lost Time Injury', path: '/lost-time-injuries', icon: <HealingIcon /> },
+      { text: '⚠️ All Incidents', path: '/incident-reports', icon: <WarningIcon /> },
+      { text: '➕ Report Incident', path: '/incident-reports/create', icon: <AddIcon /> },
+      { text: '🏥 Lost Time Injury', path: '/lost-time-injuries', icon: <HealingIcon /> },
     ]
   },
-  { text: 'Exchange Rates', icon: <AttachMoneyIcon />, path: '/exchange-rates', color: '#8b5cf6' },
-  { text: 'Settings', icon: <Settings />, path: '/settings', color: '#8b5cf6' },
+  { 
+    text: 'Exchange Rates', 
+    icon: <AttachMoneyIcon />, 
+    path: '/exchange-rates', 
+    color: '#8b5cf6' 
+  },
+  { 
+    text: 'Settings', 
+    icon: <Settings />, 
+    path: '/settings', 
+    color: '#8b5cf6' 
+  },
 ];
 
 // ==========================================

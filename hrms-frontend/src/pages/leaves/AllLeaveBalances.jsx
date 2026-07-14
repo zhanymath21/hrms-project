@@ -47,6 +47,8 @@ import {
     Save as SaveIcon,
     Close as CloseIcon,
     Person as PersonIcon,
+    TrendingUp as TrendingUpIcon,
+    TrendingDown as TrendingDownIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import api from '../../services/axios';
@@ -71,6 +73,8 @@ const AllLeaveBalances = () => {
         totalSickLeave: 0,
         totalSpecialLeave: 0,
         totalRemaining: 0,
+        totalUsed: 0,
+        totalPending: 0,
     });
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
@@ -79,6 +83,7 @@ const AllLeaveBalances = () => {
         open: false,
         balanceId: null,
         employeeName: '',
+        employeeId: '',
         leaveType: '',
         leaveCode: '',
         currentRemaining: 0,
@@ -124,13 +129,28 @@ const AllLeaveBalances = () => {
                 last_page: response?.pagination?.last_page || 1,
             });
 
-            // Calculate stats
+            // ✅ FIX: Calculate stats from leave_balances array
             let totalAL = 0, totalSL = 0, totalSPL = 0, totalRemaining = 0;
+            let totalUsed = 0, totalPending = 0;
+            
             employeesData.forEach(emp => {
-                totalAL += emp.annual_leave?.remaining_days || 0;
-                totalSL += emp.sick_leave?.remaining_days || 0;
-                totalSPL += emp.special_leave?.remaining_days || 0;
+                // ✅ Find balances by leave code
+                const alBalance = emp.leave_balances?.find(b => 
+                    b.leave_code === 'AL' || b.leave_type?.code === 'AL'
+                );
+                const slBalance = emp.leave_balances?.find(b => 
+                    b.leave_code === 'SL' || b.leave_type?.code === 'SL'
+                );
+                const splBalance = emp.leave_balances?.find(b => 
+                    b.leave_code === 'SPL' || b.leave_type?.code === 'SPL'
+                );
+                
+                totalAL += alBalance?.remaining_days || 0;
+                totalSL += slBalance?.remaining_days || 0;
+                totalSPL += splBalance?.remaining_days || 0;
                 totalRemaining += emp.summary?.remaining_days || 0;
+                totalUsed += emp.summary?.used_days || 0;
+                totalPending += emp.summary?.pending_days || 0;
             });
 
             setStats({
@@ -139,6 +159,17 @@ const AllLeaveBalances = () => {
                 totalSickLeave: totalSL,
                 totalSpecialLeave: totalSPL,
                 totalRemaining: totalRemaining,
+                totalUsed: totalUsed,
+                totalPending: totalPending,
+            });
+
+            console.log('📊 Stats calculated:', {
+                totalAL,
+                totalSL,
+                totalSPL,
+                totalRemaining,
+                totalUsed,
+                totalPending
             });
 
         } catch (err) {
@@ -176,7 +207,7 @@ const AllLeaveBalances = () => {
         setPage(0);
     };
 
-    const handleOpenEdit = (employee, leaveType, balance) => {
+    const handleOpenEdit = (employee, balance) => {
         if (!balance || !balance.id) {
             setSnackbar({
                 open: true,
@@ -191,8 +222,8 @@ const AllLeaveBalances = () => {
             balanceId: balance.id,
             employeeName: employee.name,
             employeeId: employee.employee_id,
-            leaveType: leaveType.leave_type || leaveType.name,
-            leaveCode: leaveType.leave_code || leaveType.code,
+            leaveType: balance.leave_type || balance.leaveType?.name || 'Unknown',
+            leaveCode: balance.leave_code || balance.leaveType?.code || 'N/A',
             currentRemaining: balance.remaining_days || 0,
             currentTotal: balance.total_entitlement || 0,
             usedDays: balance.used_days || 0,
@@ -290,6 +321,15 @@ const AllLeaveBalances = () => {
         return name.substring(0, 2).toUpperCase();
     };
 
+    // Helper to get balance by leave code
+    const getBalanceByCode = (employee, code) => {
+        if (!employee?.leave_balances) return {};
+        const balance = employee.leave_balances.find(b => 
+            b.leave_code === code || b.leave_type?.code === code
+        );
+        return balance || {};
+    };
+
     if (loading && employees.length === 0) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -299,12 +339,17 @@ const AllLeaveBalances = () => {
     }
 
     return (
-        <Box>
+        <Box sx={{ p: 3 }}>
             {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4" fontWeight="bold">
-                    📊 Employee Leave Balances
-                </Typography>
+                <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                        📊 Employee Leave Balances
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                        Manage and monitor all employee leave balances
+                    </Typography>
+                </Box>
                 <Button
                     variant="outlined"
                     startIcon={<RefreshIcon />}
@@ -315,45 +360,130 @@ const AllLeaveBalances = () => {
                 </Button>
             </Box>
 
-            {/* Stats */}
+            {/* Stats Cards */}
             <Grid container spacing={2} mb={3}>
-                <Grid item xs={12} sm={6} md={2.4}>
-                    <Card>
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ bgcolor: '#e3f2fd', borderLeft: '4px solid #1976d2' }}>
                         <CardContent>
-                            <Typography color="textSecondary" variant="body2">Total Employees</Typography>
-                            <Typography variant="h4" color="primary.main">{stats.totalEmployees}</Typography>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">Total Employees</Typography>
+                                    <Typography variant="h4" color="primary.main" fontWeight="bold">
+                                        {stats.totalEmployees}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#1976d2', width: 48, height: 48 }}>
+                                    <PersonIcon />
+                                </Avatar>
+                            </Box>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
-                    <Card sx={{ borderLeft: '4px solid #4caf50' }}>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ bgcolor: '#e8f5e9', borderLeft: '4px solid #4caf50' }}>
                         <CardContent>
-                            <Typography color="textSecondary" variant="body2">AL Remaining</Typography>
-                            <Typography variant="h4" color="success.main">{stats.totalAnnualLeave.toFixed(1)}</Typography>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">🏖️ Annual Leave</Typography>
+                                    <Typography variant="h4" color="success.main" fontWeight="bold">
+                                        {stats.totalAnnualLeave.toFixed(1)}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#4caf50', width: 48, height: 48 }}>
+                                    <TrendingUpIcon />
+                                </Avatar>
+                            </Box>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
-                    <Card sx={{ borderLeft: '4px solid #f44336' }}>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ bgcolor: '#ffebee', borderLeft: '4px solid #f44336' }}>
                         <CardContent>
-                            <Typography color="textSecondary" variant="body2">SL Remaining</Typography>
-                            <Typography variant="h4" color="error.main">{stats.totalSickLeave.toFixed(1)}</Typography>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">🏥 Sick Leave</Typography>
+                                    <Typography variant="h4" color="error.main" fontWeight="bold">
+                                        {stats.totalSickLeave.toFixed(1)}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#f44336', width: 48, height: 48 }}>
+                                    <WarningIcon />
+                                </Avatar>
+                            </Box>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
-                    <Card sx={{ borderLeft: '4px solid #ff9800' }}>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{ bgcolor: '#fff3e0', borderLeft: '4px solid #ff9800' }}>
                         <CardContent>
-                            <Typography color="textSecondary" variant="body2">SPL Remaining</Typography>
-                            <Typography variant="h4" color="warning.main">{stats.totalSpecialLeave.toFixed(1)}</Typography>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">🎉 Special Leave</Typography>
+                                    <Typography variant="h4" color="warning.main" fontWeight="bold">
+                                        {stats.totalSpecialLeave.toFixed(1)}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#ff9800', width: 48, height: 48 }}>
+                                    <CheckCircleIcon />
+                                </Avatar>
+                            </Box>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
-                    <Card sx={{ borderLeft: '4px solid #2196f3' }}>
+
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card sx={{ bgcolor: '#f3e5f5', borderLeft: '4px solid #9c27b0' }}>
                         <CardContent>
-                            <Typography color="textSecondary" variant="body2">Total Remaining</Typography>
-                            <Typography variant="h4" color="info.main">{stats.totalRemaining.toFixed(1)}</Typography>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">📊 Total Remaining</Typography>
+                                    <Typography variant="h4" color="secondary.main" fontWeight="bold">
+                                        {stats.totalRemaining.toFixed(1)}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#9c27b0', width: 48, height: 48 }}>
+                                    <TrendingUpIcon />
+                                </Avatar>
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card sx={{ bgcolor: '#e0f7fa', borderLeft: '4px solid #0097a7' }}>
+                        <CardContent>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">📈 Total Used</Typography>
+                                    <Typography variant="h4" color="info.main" fontWeight="bold">
+                                        {stats.totalUsed.toFixed(1)}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#0097a7', width: 48, height: 48 }}>
+                                    <TrendingDownIcon />
+                                </Avatar>
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card sx={{ bgcolor: '#fff8e1', borderLeft: '4px solid #f9a825' }}>
+                        <CardContent>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="textSecondary" variant="body2">⏳ Total Pending</Typography>
+                                    <Typography variant="h4" color="warning.main" fontWeight="bold">
+                                        {stats.totalPending.toFixed(1)}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: '#f9a825', width: 48, height: 48 }}>
+                                    <WarningIcon />
+                                </Avatar>
+                            </Box>
                         </CardContent>
                     </Card>
                 </Grid>
@@ -412,17 +542,59 @@ const AllLeaveBalances = () => {
                 <Table stickyHeader>
                     <TableHead>
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell>Employee</TableCell>
-                            <TableCell>Department</TableCell>
-                            <TableCell align="center">🏖️ AL</TableCell>
-                            <TableCell align="center">🏥 SL</TableCell>
-                            <TableCell align="center">🎉 SPL</TableCell>
-                            <TableCell align="center">Total</TableCell>
-                            <TableCell align="center">Used</TableCell>
-                            <TableCell align="center">Pending</TableCell>
-                            <TableCell align="center">Remaining</TableCell>
-                            <TableCell align="center">Status</TableCell>
-                            <TableCell align="center">Actions</TableCell>
+                            <TableCell sx={{ minWidth: 200 }}>Employee</TableCell>
+                            <TableCell sx={{ minWidth: 120 }}>Department</TableCell>
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Annual Leave">
+                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                        🏖️ <Typography variant="caption">AL</Typography>
+                                    </Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Sick Leave">
+                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                        🏥 <Typography variant="caption">SL</Typography>
+                                    </Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Special Leave">
+                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                        🎉 <Typography variant="caption">SPL</Typography>
+                                    </Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Total Entitlement">
+                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                        📋 <Typography variant="caption">Total</Typography>
+                                    </Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Used Days">
+                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                        📈 <Typography variant="caption">Used</Typography>
+                                    </Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Pending Days">
+                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                        ⏳ <Typography variant="caption">Pending</Typography>
+                                    </Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Total Remaining">
+                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                        💚 <Typography variant="caption">Remaining</Typography>
+                                    </Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="center" sx={{ minWidth: 100 }}>Status</TableCell>
+                            <TableCell align="center" sx={{ minWidth: 80 }}>Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -434,9 +606,11 @@ const AllLeaveBalances = () => {
                             </TableRow>
                         ) : (
                             employees.map((employee) => {
-                                const al = employee.annual_leave || {};
-                                const sl = employee.sick_leave || {};
-                                const spl = employee.special_leave || {};
+                                // ✅ FIX: Get balances from leave_balances array
+                                const al = getBalanceByCode(employee, 'AL');
+                                const sl = getBalanceByCode(employee, 'SL');
+                                const spl = getBalanceByCode(employee, 'SPL');
+                                
                                 const summary = employee.summary || {};
                                 const remaining = summary.remaining_days || 0;
                                 const total = summary.total_entitlement || 0;
@@ -447,7 +621,7 @@ const AllLeaveBalances = () => {
                                     <TableRow key={employee.id} hover>
                                         <TableCell>
                                             <Box display="flex" alignItems="center" gap={1}>
-                                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
+                                                <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 14 }}>
                                                     {getInitials(employee.name)}
                                                 </Avatar>
                                                 <Box>
@@ -461,43 +635,77 @@ const AllLeaveBalances = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell>
-                                            <Chip label={employee.department?.name || 'N/A'} size="small" variant="outlined" />
+                                            <Chip 
+                                                label={employee.department?.name || 'N/A'} 
+                                                size="small" 
+                                                variant="outlined"
+                                                sx={{ fontWeight: 500 }}
+                                            />
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Tooltip title={`Annual Leave: ${al.remaining_days || 0} days remaining`}>
-                                                <Typography variant="body2" fontWeight="bold" color="success.main">
-                                                    {al.remaining_days?.toFixed(1) || 0}
-                                                </Typography>
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold" 
+                                                color={(al.remaining_days || 0) > 0 ? 'success.main' : 'error.main'}
+                                            >
+                                                {(al.remaining_days || 0).toFixed(1)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold" 
+                                                color={(sl.remaining_days || 0) > 0 ? 'success.main' : 'error.main'}
+                                            >
+                                                {(sl.remaining_days || 0).toFixed(1)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold" 
+                                                color={(spl.remaining_days || 0) > 0 ? 'success.main' : 'error.main'}
+                                            >
+                                                {(spl.remaining_days || 0).toFixed(1)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography variant="body2" fontWeight="medium">
+                                                {total.toFixed(1)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography variant="body2" color="error.main">
+                                                {(summary.used_days || 0).toFixed(1)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography variant="body2" color="warning.main">
+                                                {(summary.pending_days || 0).toFixed(1)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold" 
+                                                color={remaining > 0 ? 'success.main' : 'error.main'}
+                                            >
+                                                {remaining.toFixed(1)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Tooltip title={`${statusLabel} (${remaining.toFixed(1)} days remaining)`}>
+                                                <Chip 
+                                                    label={statusLabel} 
+                                                    color={statusColor} 
+                                                    size="small" 
+                                                    icon={
+                                                        statusColor === 'error' ? <ErrorIcon /> :
+                                                        statusColor === 'warning' ? <WarningIcon /> :
+                                                        <CheckCircleIcon />
+                                                    }
+                                                />
                                             </Tooltip>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Tooltip title={`Sick Leave: ${sl.remaining_days || 0} days remaining`}>
-                                                <Typography variant="body2" fontWeight="bold" color="error.main">
-                                                    {sl.remaining_days?.toFixed(1) || 0}
-                                                </Typography>
-                                            </Tooltip>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Tooltip title={`Special Leave: ${spl.remaining_days || 0} days remaining`}>
-                                                <Typography variant="body2" fontWeight="bold" color="warning.main">
-                                                    {spl.remaining_days?.toFixed(1) || 0}
-                                                </Typography>
-                                            </Tooltip>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography variant="body2" fontWeight="medium">{total.toFixed(1)}</Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography variant="body2" color="error.main">{summary.used_days?.toFixed(1) || 0}</Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography variant="body2" color="warning.main">{summary.pending_days?.toFixed(1) || 0}</Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography variant="body2" fontWeight="bold" color="success.main">{remaining.toFixed(1)}</Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Chip label={statusLabel} color={statusColor} size="small" />
                                         </TableCell>
                                         <TableCell align="center">
                                             <Tooltip title="Edit Balance">
@@ -505,9 +713,9 @@ const AllLeaveBalances = () => {
                                                     size="small"
                                                     color="primary"
                                                     onClick={() => {
-                                                        const firstBalance = employee.leave_balances?.[0];
-                                                        if (firstBalance) {
-                                                            handleOpenEdit(employee, firstBalance, firstBalance);
+                                                        const balanceToEdit = employee.leave_balances?.[0];
+                                                        if (balanceToEdit) {
+                                                            handleOpenEdit(employee, balanceToEdit);
                                                         }
                                                     }}
                                                 >

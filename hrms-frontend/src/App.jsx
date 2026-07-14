@@ -41,7 +41,7 @@ import LeaveApproval from './pages/leaves/LeaveApproval';
 import LeaveDetail from './pages/leaves/LeaveDetail';
 import AllLeaveBalances from './pages/leaves/AllLeaveBalances';
 import ApprovalFlowList from './pages/leaves/ApprovalFlowList';
-
+import ManageNewEmployees from './pages/leaves/ManageNewEmployees';
 
 // ============ REPLACEMENT LEAVE PAGES ============
 import ReplacementList from './pages/leaves/ReplacementList';
@@ -232,7 +232,9 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// ============ APP ============
+// ==========================================
+// APP - WITH LeaveProvider AT THE TOP
+// ==========================================
 function App() {
   return (
     <ErrorBoundary>
@@ -240,15 +242,18 @@ function App() {
         <CssBaseline />
         <LocalizationProvider dateAdapter={AdapterDateFns}>
           <BrowserRouter>
-            <AuthProvider>
-              <EmployeeProvider>
-                <AttendanceProvider>
-                  <NotificationProvider>
-                    <AppRoutes />
-                  </NotificationProvider>
-                </AttendanceProvider>
-              </EmployeeProvider>
-            </AuthProvider>
+            {/* ✅ LeaveProvider wraps EVERYTHING */}
+            <LeaveProvider>
+              <AuthProvider>
+                <EmployeeProvider>
+                  <AttendanceProvider>
+                    <NotificationProvider>
+                      <AppRoutes />
+                    </NotificationProvider>
+                  </AttendanceProvider>
+                </EmployeeProvider>
+              </AuthProvider>
+            </LeaveProvider>
           </BrowserRouter>
           <ToastContainer
             position="top-right"
@@ -268,16 +273,16 @@ function App() {
   );
 }
 
-// ============ ROUTES ============
+// ==========================================
+// ROUTES
+// ==========================================
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
 
   return (
     <Routes>
-      {/* ===== PUBLIC ROUTES ===== */}
       <Route path="/login" element={<Login />} />
 
-      {/* ===== PROTECTED ROUTES ===== */}
       <Route path="/" element={
         <ProtectedRoute>
           <MainLayout>
@@ -294,7 +299,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== EMPLOYEE ROUTES ===== */}
+      {/* EMPLOYEE ROUTES */}
       <Route path="/employees" element={
         <ProtectedRoute>
           <MainLayout>
@@ -327,134 +332,105 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ============================================================ */}
-      {/* ===== 🔥 LEAVE MANAGEMENT ROUTES ===== */}
-      {/* ============================================================ */}
-      
-      {/* Leave List */}
+      {/* LEAVE ROUTES */}
       <Route path="/leaves" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveProvider>
-              <LeaveDashboard />
-            </LeaveProvider>
+            <LeaveDashboard />
           </MainLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/leaves/list" element={
-          <ProtectedRoute>
-              <MainLayout>
-                  <LeaveProvider>
-                      <LeaveList />
-                  </LeaveProvider>
-              </MainLayout>
-          </ProtectedRoute>
+        <ProtectedRoute>
+          <MainLayout>
+            <LeaveList />
+          </MainLayout>
+        </ProtectedRoute>
       } />
 
-      {/* Create Leave */}
       <Route path="/leaves/create" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveProvider>
-              <LeaveCreate />
-            </LeaveProvider>
+            <LeaveCreate />
           </MainLayout>
         </ProtectedRoute>
       } />
 
-      {/* Leave Balance */}
       <Route path="/leaves/balance" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveProvider>
-              <LeaveBalance />
-            </LeaveProvider>
+            <LeaveBalance />
           </MainLayout>
         </ProtectedRoute>
       } />
 
-      {/* Leave Approval */}
       <Route path="/leaves/approval" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveProvider>
-              <LeaveApproval />
-            </LeaveProvider>
+            <LeaveApproval />
           </MainLayout>
         </ProtectedRoute>
       } />
 
-      {/* Leave Detail */}
       <Route path="/leaves/:id" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveProvider>
-              <LeaveDetail />
-            </LeaveProvider>
+            <LeaveDetail />
           </MainLayout>
         </ProtectedRoute>
       } />
 
-      {/* All Leave Balances (HR) */}
       <Route path="/leaves/all-balances" element={
         <ProtectedRoute>
           <MainLayout>
-            <LeaveProvider>
-              <AllLeaveBalances />
-            </LeaveProvider>
+            <AllLeaveBalances />
           </MainLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/approval-flow" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ApprovalFlowList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* REPLACEMENT LEAVES */}
+      <Route path="/leaves/replacement" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ReplacementList />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/replacement/create" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ReplacementCreate />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/replacement/approval" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ReplacementApproval />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/leaves/new-employees" element={
           <ProtectedRoute>
               <MainLayout>
-                  <LeaveProvider>
-                      <ApprovalFlowList />
-                  </LeaveProvider>
+                  <ManageNewEmployees />
               </MainLayout>
           </ProtectedRoute>
       } />
 
-      {/* ===== REPLACEMENT LEAVE ROUTES ===== */}
-      
-      {/* Replacement List */}
-      <Route path="/leaves/replacement" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <LeaveProvider>
-              <ReplacementList />
-            </LeaveProvider>
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* Create Replacement */}
-      <Route path="/leaves/replacement/create" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <LeaveProvider>
-              <ReplacementCreate />
-            </LeaveProvider>
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* Replacement Approval */}
-      <Route path="/leaves/replacement/approval" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <LeaveProvider>
-              <ReplacementApproval />
-            </LeaveProvider>
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* ============================================================ */}
-
-      {/* ===== TURNOVER ===== */}
+      {/* OTHER ROUTES */}
       <Route path="/turnover" element={
         <ProtectedRoute>
           <MainLayout>
@@ -463,7 +439,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== EMPLOYEE ASSETS ===== */}
       <Route path="/employee-assets" element={
         <ProtectedRoute>
           <MainLayout>
@@ -472,7 +447,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== DEPARTMENTS ===== */}
       <Route path="/departments" element={
         <ProtectedRoute>
           <MainLayout>
@@ -481,7 +455,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== ATTENDANCE ===== */}
       <Route path="/attendance" element={
         <ProtectedRoute>
           <MainLayout>
@@ -514,7 +487,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== PPE ===== */}
       <Route path="/ppe" element={
         <ProtectedRoute>
           <MainLayout>
@@ -531,7 +503,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== RECRUITMENT ===== */}
+      {/* RECRUITMENT */}
       <Route path="/candidates" element={
         <ProtectedRoute>
           <MainLayout>
@@ -628,7 +600,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== INCIDENT REPORTS ===== */}
+      {/* INCIDENT REPORTS */}
       <Route path="/incident-reports" element={
         <ProtectedRoute>
           <MainLayout>
@@ -661,7 +633,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== LOST TIME INJURY ===== */}
+      {/* LOST TIME INJURY */}
       <Route path="/lost-time-injuries" element={
         <ProtectedRoute>
           <MainLayout>
@@ -694,7 +666,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== PAYROLL ===== */}
+      {/* PAYROLL */}
       <Route path="/payroll" element={
         <ProtectedRoute>
           <MainLayout>
@@ -767,7 +739,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== SETTINGS ===== */}
       <Route path="/settings" element={
         <ProtectedRoute>
           <MainLayout>
@@ -776,7 +747,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== NOTIFICATIONS ===== */}
       <Route path="/notifications" element={
         <ProtectedRoute>
           <MainLayout>
@@ -785,7 +755,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== PROFILE ===== */}
       <Route path="/profile" element={
         <ProtectedRoute>
           <MainLayout>
@@ -794,7 +763,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* ===== 404 ===== */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

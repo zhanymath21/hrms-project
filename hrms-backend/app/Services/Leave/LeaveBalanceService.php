@@ -69,6 +69,166 @@ class LeaveBalanceService
     }
 
     /**
+     * Calculate prorated entitlement based on hire date
+     */
+    public function calculateProratedEntitlement(Employee $employee, LeaveType $leaveType, int $year): float
+    {
+        $baseEntitlement = $leaveType->default_entitlement ?? 12;
+
+        // If employee joined this year, calculate prorated
+        $hireDate = Carbon::parse($employee->hire_date);
+        $startOfYear = Carbon::create($year, 1, 1);
+
+        if ($hireDate->year == $year) {
+            // Calculate months remaining in the year
+            $monthsRemaining = 12 - $hireDate->month + 1;
+            $prorated = ($baseEntitlement / 12) * $monthsRemaining;
+
+            // Round to 1 decimal place
+            return round($prorated, 1);
+        }
+
+        // If hired before this year, full entitlement
+        return $baseEntitlement;
+    }
+
+    /**
+     * Generate leave balance for a new employee
+     */
+    public function generateBalanceForNewEmployee(Employee $employee, ?int $year = null): array
+    {
+        $year = $year ?? date('Y');
+        $leaveTypes = LeaveType::where('is_active', true)->get();
+
+        $generated = [];
+        $failed = [];
+
+        // Check if employee already has balances
+        $existingBalances = LeaveBalance::where('employee_id', $employee->id)
+            ->where('year', $year)
+            ->count();
+
+        if ($existingBalances > 0) {
+            return [
+                'employee_id' => $employee->id,
+                'employee_name' => $employee->first_name . ' ' . $employee->last_name,
+                'year' => $year,
+                'status' => 'already_exists',
+                'message' => 'Employee already has balances for this year',
+                'generated' => [],
+                'failed' => [],
+            ];
+        }
+
+        foreach ($leaveTypes as $leaveType) {
+            try {
+                // Calculate prorated entitlement based on hire date
+                $entitlement = $this->calculateProratedEntitlement($employee, $leaveType, $year);
+
+                $balance = LeaveBalance::create([
+                    'employee_id' => $employee->id,
+                    'leave_type_id' => $leaveType->id,
+                    'year' => $year,
+                    'total_entitlement' => $entitlement,
+                    'base_entitlement' => $leaveType->default_entitlement ?? 12,
+                    'remaining_days' => $entitlement,
+                    'used_days' => 0,
+                    'pending_days' => 0,
+                    'manual_adjustment' => 0,
+                    'carry_forward' => 0,
+                    'adjustment_reason' => 'Auto-generated for new employee',
+                    'adjusted_by' => auth()->id(),
+                    'adjusted_at' => now(),
+                ]);
+
+                $generated[] = [
+                    'leave_type' => $leaveType->name,
+                    'leave_code' => $leaveType->code,
+                    'entitlement' => $entitlement,
+                    'balance_id' => $balance->id,
+                ];
+
+                Log::info("✅ Balance generated for new employee {$employee->id} - {$leaveType->name}: {$entitlement} days");
+            } catch (\Exception $e) {
+                $failed[] = [
+                    'leave_type' => $leaveType->name,
+                    'leave_code' => $leaveType->code,
+                    'error' => $e->getMessage(),
+                ];
+                Log::error("❌ Failed to generate balance for employee {$employee->id} - {$leaveType->name}: " . $e->getMessage());
+            }
+        }
+
+        return [
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->first_name . ' ' . $employee->last_name,
+            'employee_employee_id' => $employee->employee_id,
+            'year' => $year,
+            'status' => count($failed) === 0 ? 'success' : 'partial',
+            'generated' => $generated,
+            'failed' => $failed,
+        ];
+    }
+
+    /**
+     * Generate balances for all new employees
+     */
+    public function generateBalancesForNewEmployees(?int $year = null): array
+    {
+        $year = $year ?? date('Y');
+
+        $employees = Employee::where('status', 'active')
+            ->whereDoesntHave('leaveBalances', function ($query) use ($year) {
+                $query->where('year', $year);
+            })
+            ->get();
+
+        if ($employees->isEmpty()) {
+            return [
+                'year' => $year,
+                'total_processed' => 0,
+                'message' => 'All employees already have balances for this year',
+                'results' => [],
+            ];
+        }
+
+        $results = [];
+        foreach ($employees as $employee) {
+            $result = $this->generateBalanceForNewEmployee($employee, $year);
+            $results[] = $result;
+        }
+
+        return [
+            'year' => $year,
+            'total_processed' => $employees->count(),
+            'message' => "Balances generated for {$employees->count()} employees",
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * Check if employee has balances for a specific year
+     */
+    public function hasBalancesForYear(Employee $employee, int $year): bool
+    {
+        return LeaveBalance::where('employee_id', $employee->id)
+            ->where('year', $year)
+            ->exists();
+    }
+
+    /**
+     * Get employees without balances for a specific year
+     */
+    public function getEmployeesWithoutBalances(int $year): \Illuminate\Database\Eloquent\Collection
+    {
+        return Employee::where('status', 'active')
+            ->whereDoesntHave('leaveBalances', function ($query) use ($year) {
+                $query->where('year', $year);
+            })
+            ->get(['id', 'employee_id', 'first_name', 'last_name', 'email', 'hire_date']);
+    }
+
+    /**
      * Recalculate balance to ensure consistency
      */
     public function recalculateBalance(LeaveBalance $balance): void
@@ -537,6 +697,82 @@ class LeaveBalanceService
         return [
             'valid' => empty($errors),
             'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Get employee leave balance with all leave types
+     */
+    public function getEmployeeBalancesWithDetails(Employee $employee, ?int $year = null): array
+    {
+        $year = $year ?? date('Y');
+
+        $balances = LeaveBalance::where('employee_id', $employee->id)
+            ->where('year', $year)
+            ->with('leaveType')
+            ->get();
+
+        $result = [
+            'employee_id' => $employee->id,
+            'employee_employee_id' => $employee->employee_id,
+            'name' => $employee->first_name . ' ' . $employee->last_name,
+            'year' => $year,
+            'balances' => [],
+            'summary' => [
+                'total_entitlement' => 0,
+                'total_used' => 0,
+                'total_pending' => 0,
+                'total_remaining' => 0,
+            ],
+        ];
+
+        foreach ($balances as $balance) {
+            $balanceData = [
+                'id' => $balance->id,
+                'leave_type_id' => $balance->leave_type_id,
+                'leave_type' => $balance->leaveType->name ?? 'N/A',
+                'leave_code' => $balance->leaveType->code ?? 'N/A',
+                'total_entitlement' => (float) $balance->total_entitlement,
+                'used_days' => (float) $balance->used_days,
+                'pending_days' => (float) $balance->pending_days,
+                'remaining_days' => (float) $balance->remaining_days,
+                'manual_adjustment' => (float) $balance->manual_adjustment,
+                'carry_forward' => (float) $balance->carry_forward,
+            ];
+
+            $result['balances'][] = $balanceData;
+
+            $result['summary']['total_entitlement'] += $balanceData['total_entitlement'];
+            $result['summary']['total_used'] += $balanceData['used_days'];
+            $result['summary']['total_pending'] += $balanceData['pending_days'];
+            $result['summary']['total_remaining'] += $balanceData['remaining_days'];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Auto-generate balances for employees based on hire date (for cron job)
+     */
+    public function autoGenerateBalancesForNewEmployees(): array
+    {
+        $currentYear = date('Y');
+        $employees = Employee::where('status', 'active')
+            ->whereDoesntHave('leaveBalances', function ($query) use ($currentYear) {
+                $query->where('year', $currentYear);
+            })
+            ->get();
+
+        $results = [];
+        foreach ($employees as $employee) {
+            $result = $this->generateBalanceForNewEmployee($employee, $currentYear);
+            $results[] = $result;
+        }
+
+        return [
+            'year' => $currentYear,
+            'total_processed' => count($results),
+            'results' => $results,
         ];
     }
 }
