@@ -116,6 +116,7 @@ Route::middleware('auth:api')->group(function () {
 
     // Update balance (Admin/HR) - PUT /api/leave-balance/{id}
     Route::put('/leave-balance/{id}', [LeaveBalanceController::class, 'updateBalance']);
+    Route::put('/leave-balance/{id}/carry-forward', [LeaveBalanceController::class, 'updateCarryForward']);
 
     // Adjustment history for employee (Admin/HR) - GET /api/leave-balance-history/{employeeId}
     Route::get('/leave-balance-history/{employeeId}', [LeaveBalanceController::class, 'getAdjustmentHistory']);

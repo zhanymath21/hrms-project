@@ -250,6 +250,107 @@ class LeaveBalanceController extends Controller
         }
     }
 
+    public function updateCarryForward(Request $request, $id): JsonResponse
+    {
+        try {
+            Log::info("🔄 Updating carry forward for balance ID: {$id}");
+
+            $validator = Validator::make($request->all(), [
+                'carry_forward' => 'required|numeric|min:0|max:6',
+                'adjustment_reason' => 'required|string|min:5',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $balance = LeaveBalance::with(['employee', 'leaveType'])->find($id);
+
+            if (!$balance) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Balance not found'
+                ], 404);
+            }
+
+            // Check if leave type allows carry forward
+            $leaveType = $balance->leaveType;
+            if (!$leaveType->allow_carry_forward) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'This leave type does not allow carry forward'
+                ], 422);
+            }
+
+            $user = $request->user();
+            $oldCarryForward = $balance->carry_forward;
+            $newCarryForward = (float) $request->carry_forward;
+
+            DB::beginTransaction();
+
+            try {
+                // Update carry forward
+                $balance->carry_forward = $newCarryForward;
+
+                // Recalculate total entitlement
+                $balance->total_entitlement = $balance->base_entitlement + $newCarryForward;
+
+                // Recalculate remaining days
+                $balance->remaining_days = $balance->total_entitlement - $balance->used_days - $balance->pending_days;
+
+                // Ensure remaining days is not negative
+                if ($balance->remaining_days < 0) {
+                    $balance->remaining_days = 0;
+                }
+
+                $balance->adjustment_reason = $request->adjustment_reason;
+                $balance->adjusted_by = $user->id;
+                $balance->adjusted_at = now();
+                $balance->save();
+
+                Log::info("✅ Carry forward updated", [
+                    'balance_id' => $balance->id,
+                    'employee_id' => $balance->employee_id,
+                    'old_carry_forward' => $oldCarryForward,
+                    'new_carry_forward' => $newCarryForward,
+                    'adjusted_by' => $user->id,
+                ]);
+
+                DB::commit();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Carry forward updated successfully',
+                    'data' => [
+                        'id' => $balance->id,
+                        'employee_id' => $balance->employee_id,
+                        'employee_name' => $balance->employee->first_name . ' ' . $balance->employee->last_name,
+                        'leave_type' => $balance->leaveType->name ?? 'N/A',
+                        'old_carry_forward' => $oldCarryForward,
+                        'new_carry_forward' => $newCarryForward,
+                        'total_entitlement' => $balance->total_entitlement,
+                        'remaining_days' => $balance->remaining_days,
+                        'adjustment_reason' => $request->adjustment_reason,
+                        'adjusted_by' => $user->email,
+                        'adjusted_at' => $balance->adjusted_at,
+                    ]
+                ]);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            Log::error('❌ Error updating carry forward: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update carry forward: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get balance for a specific employee (Admin/HR only)
      */

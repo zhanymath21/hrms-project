@@ -52,14 +52,12 @@ import {
     TrendingDown as TrendingDownIcon,
     ArrowForward as ArrowForwardIcon,
     History as HistoryIcon,
-    ExpandMore as ExpandMoreIcon,
-    ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import api from '../../services/axios';
 
 const AllLeaveBalances = () => {
-    const { fetchAllBalances, loading, error, updateBalance } = useLeave();
+    const { fetchAllBalances, loading, error, updateBalance, updateCarryForward } = useLeave();
     const [employees, setEmployees] = useState([]);
     const [pagination, setPagination] = useState({
         current_page: 1,
@@ -73,7 +71,6 @@ const AllLeaveBalances = () => {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(20);
     const [showCarryForward, setShowCarryForward] = useState(true);
-    const [expandedRows, setExpandedRows] = useState({});
     const [stats, setStats] = useState({
         totalEmployees: 0,
         totalAnnualLeave: 0,
@@ -86,7 +83,7 @@ const AllLeaveBalances = () => {
     });
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-    // Edit Dialog
+    // Edit Balance Dialog
     const [editDialog, setEditDialog] = useState({
         open: false,
         balanceId: null,
@@ -100,6 +97,20 @@ const AllLeaveBalances = () => {
         pendingDays: 0,
         carryForward: 0,
         newTotal: 0,
+        adjustmentReason: '',
+        isLoading: false,
+    });
+
+    // Edit Carry Forward Dialog
+    const [editCFDialog, setEditCFDialog] = useState({
+        open: false,
+        balanceId: null,
+        employeeName: '',
+        employeeId: '',
+        leaveType: '',
+        leaveCode: '',
+        currentCarryForward: 0,
+        newCarryForward: 0,
         adjustmentReason: '',
         isLoading: false,
     });
@@ -154,16 +165,16 @@ const AllLeaveBalances = () => {
                     b.leave_code === 'SPL' || b.leave_type?.code === 'SPL'
                 );
                 
-                totalAL += alBalance?.remaining_days || 0;
-                totalSL += slBalance?.remaining_days || 0;
-                totalSPL += splBalance?.remaining_days || 0;
-                totalRemaining += emp.summary?.remaining_days || 0;
-                totalUsed += emp.summary?.used_days || 0;
-                totalPending += emp.summary?.pending_days || 0;
+                totalAL += parseFloat(alBalance?.remaining_days || 0);
+                totalSL += parseFloat(slBalance?.remaining_days || 0);
+                totalSPL += parseFloat(splBalance?.remaining_days || 0);
+                totalRemaining += parseFloat(emp.summary?.remaining_days || 0);
+                totalUsed += parseFloat(emp.summary?.used_days || 0);
+                totalPending += parseFloat(emp.summary?.pending_days || 0);
                 
                 // Calculate carry forward from individual balances
                 emp.leave_balances?.forEach(balance => {
-                    totalCarryForward += balance.carry_forward || 0;
+                    totalCarryForward += parseFloat(balance.carry_forward || 0);
                 });
             });
 
@@ -213,13 +224,7 @@ const AllLeaveBalances = () => {
         setPage(0);
     };
 
-    const toggleRowExpand = (employeeId) => {
-        setExpandedRows(prev => ({
-            ...prev,
-            [employeeId]: !prev[employeeId]
-        }));
-    };
-
+    // ==================== EDIT BALANCE ====================
     const handleOpenEdit = (employee, balance) => {
         if (!balance || !balance.id) {
             setSnackbar({
@@ -237,12 +242,12 @@ const AllLeaveBalances = () => {
             employeeId: employee.employee_id,
             leaveType: balance.leave_type || balance.leaveType?.name || 'Unknown',
             leaveCode: balance.leave_code || balance.leaveType?.code || 'N/A',
-            currentRemaining: balance.remaining_days || 0,
-            currentTotal: balance.total_entitlement || 0,
-            usedDays: balance.used_days || 0,
-            pendingDays: balance.pending_days || 0,
-            carryForward: balance.carry_forward || 0,
-            newTotal: balance.total_entitlement || 0,
+            currentRemaining: parseFloat(balance.remaining_days || 0),
+            currentTotal: parseFloat(balance.total_entitlement || 0),
+            usedDays: parseFloat(balance.used_days || 0),
+            pendingDays: parseFloat(balance.pending_days || 0),
+            carryForward: parseFloat(balance.carry_forward || 0),
+            newTotal: parseFloat(balance.total_entitlement || 0),
             adjustmentReason: '',
             isLoading: false,
         });
@@ -313,6 +318,103 @@ const AllLeaveBalances = () => {
         }
     };
 
+    // ==================== EDIT CARRY FORWARD ====================
+    const handleOpenEditCF = (employee, balance) => {
+        if (!balance || !balance.id) {
+            setSnackbar({
+                open: true,
+                message: 'Balance not found for this employee',
+                severity: 'error',
+            });
+            return;
+        }
+
+        // Check if leave type allows carry forward (only AL)
+        const leaveCode = balance.leave_code || balance.leaveType?.code;
+        if (leaveCode !== 'AL') {
+            setSnackbar({
+                open: true,
+                message: 'Carry forward is only allowed for Annual Leave (AL)',
+                severity: 'warning',
+            });
+            return;
+        }
+
+        setEditCFDialog({
+            open: true,
+            balanceId: balance.id,
+            employeeName: employee.name,
+            employeeId: employee.employee_id,
+            leaveType: balance.leave_type || balance.leaveType?.name || 'Annual Leave',
+            leaveCode: leaveCode,
+            currentCarryForward: parseFloat(balance.carry_forward || 0),
+            newCarryForward: parseFloat(balance.carry_forward || 0),
+            adjustmentReason: '',
+            isLoading: false,
+        });
+    };
+
+    const handleCloseEditCF = () => {
+        setEditCFDialog({
+            open: false,
+            balanceId: null,
+            employeeName: '',
+            employeeId: '',
+            leaveType: '',
+            leaveCode: '',
+            currentCarryForward: 0,
+            newCarryForward: 0,
+            adjustmentReason: '',
+            isLoading: false,
+        });
+    };
+
+    const handleSaveEditCF = async () => {
+        if (!editCFDialog.adjustmentReason) {
+            setSnackbar({
+                open: true,
+                message: 'Please provide a reason for the adjustment',
+                severity: 'error',
+            });
+            return;
+        }
+
+        if (editCFDialog.newCarryForward < 0 || editCFDialog.newCarryForward > 6) {
+            setSnackbar({
+                open: true,
+                message: 'Carry forward must be between 0 and 6 days',
+                severity: 'error',
+            });
+            return;
+        }
+
+        setEditCFDialog({ ...editCFDialog, isLoading: true });
+
+        try {
+            await updateCarryForward(editCFDialog.balanceId, {
+                carry_forward: editCFDialog.newCarryForward,
+                adjustment_reason: editCFDialog.adjustmentReason,
+            });
+
+            setSnackbar({
+                open: true,
+                message: `✅ ${editCFDialog.employeeName}'s carry forward updated to ${editCFDialog.newCarryForward} days!`,
+                severity: 'success',
+            });
+            
+            handleCloseEditCF();
+            loadData();
+        } catch (err) {
+            setSnackbar({
+                open: true,
+                message: err.response?.data?.message || 'Failed to update carry forward',
+                severity: 'error',
+            });
+        } finally {
+            setEditCFDialog({ ...editCFDialog, isLoading: false });
+        }
+    };
+
     const getStatusColor = (remaining, total) => {
         const percentage = total > 0 ? (remaining / total) * 100 : 0;
         if (percentage <= 20) return 'error';
@@ -343,6 +445,12 @@ const AllLeaveBalances = () => {
             b.leave_code === code || b.leave_type?.code === code
         );
         return balance || {};
+    };
+
+    // Helper to format number
+    const formatNumber = (value) => {
+        const num = parseFloat(value) || 0;
+        return num.toFixed(1);
     };
 
     if (loading && employees.length === 0) {
@@ -404,7 +512,7 @@ const AllLeaveBalances = () => {
                         <CardContent sx={{ py: 1.5 }}>
                             <Typography color="textSecondary" variant="caption">🏖️ AL Remaining</Typography>
                             <Typography variant="h5" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
-                                {stats.totalAnnualLeave.toFixed(1)}
+                                {formatNumber(stats.totalAnnualLeave)}
                             </Typography>
                         </CardContent>
                     </Card>
@@ -414,7 +522,7 @@ const AllLeaveBalances = () => {
                         <CardContent sx={{ py: 1.5 }}>
                             <Typography color="textSecondary" variant="caption">🏥 SL Remaining</Typography>
                             <Typography variant="h5" sx={{ color: '#f44336', fontWeight: 'bold' }}>
-                                {stats.totalSickLeave.toFixed(1)}
+                                {formatNumber(stats.totalSickLeave)}
                             </Typography>
                         </CardContent>
                     </Card>
@@ -424,7 +532,7 @@ const AllLeaveBalances = () => {
                         <CardContent sx={{ py: 1.5 }}>
                             <Typography color="textSecondary" variant="caption">🎉 SPL Remaining</Typography>
                             <Typography variant="h5" sx={{ color: '#ff9800', fontWeight: 'bold' }}>
-                                {stats.totalSpecialLeave.toFixed(1)}
+                                {formatNumber(stats.totalSpecialLeave)}
                             </Typography>
                         </CardContent>
                     </Card>
@@ -435,7 +543,7 @@ const AllLeaveBalances = () => {
                             <CardContent sx={{ py: 1.5 }}>
                                 <Typography color="textSecondary" variant="caption">🔄 Total Carry Forward</Typography>
                                 <Typography variant="h5" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
-                                    {stats.totalCarryForward.toFixed(1)}
+                                    {formatNumber(stats.totalCarryForward)}
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -549,7 +657,7 @@ const AllLeaveBalances = () => {
                                 </Tooltip>
                             </TableCell>
                             {showCarryForward && (
-                                <TableCell align="center" sx={{ minWidth: 100 }}>
+                                <TableCell align="center" sx={{ minWidth: 120 }}>
                                     <Tooltip title="Carry Forward (Max 6 days for AL)">
                                         <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                             🔄 <Typography variant="caption" fontWeight="bold">Carry Forward</Typography>
@@ -576,176 +684,210 @@ const AllLeaveBalances = () => {
                                 const spl = getBalanceByCode(employee, 'SPL');
                                 
                                 const summary = employee.summary || {};
-                                const remaining = summary.remaining_days || 0;
-                                const total = summary.total_entitlement || 0;
+                                const remaining = parseFloat(summary.remaining_days || 0);
+                                const total = parseFloat(summary.total_entitlement || 0);
                                 const statusColor = getStatusColor(remaining, total);
                                 const statusLabel = getStatusLabel(remaining, total);
 
                                 // Calculate total carry forward from all balances
                                 const totalCarryForward = employee.leave_balances?.reduce((sum, b) => 
-                                    sum + (b.carry_forward || 0), 0
+                                    sum + parseFloat(b.carry_forward || 0), 0
                                 ) || 0;
 
                                 // Get carry forward for each leave type
-                                const alCarryForward = al.carry_forward || 0;
-                                const slCarryForward = sl.carry_forward || 0;
-                                const splCarryForward = spl.carry_forward || 0;
+                                const alCarryForward = parseFloat(al.carry_forward || 0);
+                                const slCarryForward = parseFloat(sl.carry_forward || 0);
+                                const splCarryForward = parseFloat(spl.carry_forward || 0);
 
                                 return (
-                                    <React.Fragment key={employee.id}>
-                                        <TableRow hover>
-                                            <TableCell>
-                                                <Box display="flex" alignItems="center" gap={1}>
-                                                    <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1', fontSize: 12 }}>
-                                                        {getInitials(employee.name)}
-                                                    </Avatar>
-                                                    <Box>
-                                                        <Typography variant="body2" fontWeight="medium" fontSize="0.875rem">
-                                                            {employee.name}
-                                                        </Typography>
-                                                        <Typography variant="caption" color="textSecondary">
-                                                            {employee.employee_id}
-                                                        </Typography>
-                                                    </Box>
+                                    <TableRow key={employee.id} hover>
+                                        <TableCell>
+                                            <Box display="flex" alignItems="center" gap={1}>
+                                                <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1', fontSize: 12 }}>
+                                                    {getInitials(employee.name)}
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight="medium" fontSize="0.875rem">
+                                                        {employee.name}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {employee.employee_id}
+                                                    </Typography>
                                                 </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip 
-                                                    label={employee.department?.name || 'N/A'} 
-                                                    size="small" 
-                                                    variant="outlined"
-                                                    sx={{ fontWeight: 500, fontSize: '0.7rem' }}
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Chip 
+                                                label={employee.department?.name || 'N/A'} 
+                                                size="small" 
+                                                variant="outlined"
+                                                sx={{ fontWeight: 500, fontSize: '0.7rem' }}
+                                            />
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold" 
+                                                sx={{ color: (al.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
+                                            >
+                                                {formatNumber(al.remaining_days)}
+                                            </Typography>
+                                            {showCarryForward && alCarryForward > 0 && (
+                                                <Chip
+                                                    label={`CF: ${formatNumber(alCarryForward)}`}
+                                                    size="small"
+                                                    color="secondary"
+                                                    sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
                                                 />
-                                            </TableCell>
+                                            )}
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold" 
+                                                sx={{ color: (sl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
+                                            >
+                                                {formatNumber(sl.remaining_days)}
+                                            </Typography>
+                                            {showCarryForward && slCarryForward > 0 && (
+                                                <Chip
+                                                    label={`CF: ${formatNumber(slCarryForward)}`}
+                                                    size="small"
+                                                    color="secondary"
+                                                    sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
+                                                />
+                                            )}
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold" 
+                                                sx={{ color: (spl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
+                                            >
+                                                {formatNumber(spl.remaining_days)}
+                                            </Typography>
+                                            {showCarryForward && splCarryForward > 0 && (
+                                                <Chip
+                                                    label={`CF: ${formatNumber(splCarryForward)}`}
+                                                    size="small"
+                                                    color="secondary"
+                                                    sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
+                                                />
+                                            )}
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography variant="body2" fontWeight="medium">
+                                                {formatNumber(total)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography variant="body2" sx={{ color: '#f44336' }}>
+                                                {formatNumber(summary.used_days)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography variant="body2" sx={{ color: '#ff9800' }}>
+                                                {formatNumber(summary.pending_days)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight="bold" 
+                                                sx={{ color: remaining > 0 ? '#4caf50' : '#f44336' }}
+                                            >
+                                                {formatNumber(remaining)}
+                                            </Typography>
+                                        </TableCell>
+                                        {showCarryForward && (
                                             <TableCell align="center">
-                                                <Typography 
-                                                    variant="body2" 
-                                                    fontWeight="bold" 
-                                                    sx={{ color: (al.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
-                                                >
-                                                    {(al.remaining_days || 0).toFixed(1)}
-                                                </Typography>
-                                                {showCarryForward && alCarryForward > 0 && (
-                                                    <Chip
-                                                        label={`CF: ${alCarryForward.toFixed(1)}`}
-                                                        size="small"
-                                                        color="secondary"
-                                                        sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
-                                                    />
-                                                )}
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Typography 
-                                                    variant="body2" 
-                                                    fontWeight="bold" 
-                                                    sx={{ color: (sl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
-                                                >
-                                                    {(sl.remaining_days || 0).toFixed(1)}
-                                                </Typography>
-                                                {showCarryForward && slCarryForward > 0 && (
-                                                    <Chip
-                                                        label={`CF: ${slCarryForward.toFixed(1)}`}
-                                                        size="small"
-                                                        color="secondary"
-                                                        sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
-                                                    />
-                                                )}
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Typography 
-                                                    variant="body2" 
-                                                    fontWeight="bold" 
-                                                    sx={{ color: (spl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
-                                                >
-                                                    {(spl.remaining_days || 0).toFixed(1)}
-                                                </Typography>
-                                                {showCarryForward && splCarryForward > 0 && (
-                                                    <Chip
-                                                        label={`CF: ${splCarryForward.toFixed(1)}`}
-                                                        size="small"
-                                                        color="secondary"
-                                                        sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
-                                                    />
-                                                )}
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Typography variant="body2" fontWeight="medium">
-                                                    {total.toFixed(1)}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Typography variant="body2" sx={{ color: '#f44336' }}>
-                                                    {(summary.used_days || 0).toFixed(1)}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Typography variant="body2" sx={{ color: '#ff9800' }}>
-                                                    {(summary.pending_days || 0).toFixed(1)}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Typography 
-                                                    variant="body2" 
-                                                    fontWeight="bold" 
-                                                    sx={{ color: remaining > 0 ? '#4caf50' : '#f44336' }}
-                                                >
-                                                    {remaining.toFixed(1)}
-                                                </Typography>
-                                            </TableCell>
-                                            {showCarryForward && (
-                                                <TableCell align="center">
-                                                    {totalCarryForward > 0 ? (
-                                                        <Tooltip title="Carry forward from previous year (Max 6 days for AL)">
-                                                            <Chip
-                                                                label={`${totalCarryForward.toFixed(1)} days`}
+                                                {totalCarryForward > 0 ? (
+                                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                                        <Chip
+                                                            label={`${formatNumber(totalCarryForward)} days`}
+                                                            size="small"
+                                                            color="secondary"
+                                                            icon={<ArrowForwardIcon />}
+                                                            sx={{ fontWeight: 600 }}
+                                                        />
+                                                        <Tooltip title="Edit Carry Forward">
+                                                            <IconButton
                                                                 size="small"
-                                                                color="secondary"
-                                                                icon={<ArrowForwardIcon />}
-                                                                sx={{ fontWeight: 600 }}
-                                                            />
+                                                                color="primary"
+                                                                onClick={() => {
+                                                                    const alBalance = employee.leave_balances?.find(b => 
+                                                                        b.leave_code === 'AL' || b.leave_type?.code === 'AL'
+                                                                    );
+                                                                    if (alBalance) {
+                                                                        handleOpenEditCF(employee, alBalance);
+                                                                    }
+                                                                }}
+                                                                sx={{ p: 0.5 }}
+                                                            >
+                                                                <EditIcon fontSize="small" />
+                                                            </IconButton>
                                                         </Tooltip>
-                                                    ) : (
+                                                    </Box>
+                                                ) : (
+                                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                                         <Chip
                                                             label="0"
                                                             size="small"
                                                             variant="outlined"
                                                             color="default"
                                                         />
-                                                    )}
-                                                </TableCell>
-                                            )}
-                                            <TableCell align="center">
-                                                <Tooltip title={`${statusLabel} (${remaining.toFixed(1)} days remaining)`}>
-                                                    <Chip 
-                                                        label={statusLabel} 
-                                                        color={statusColor} 
-                                                        size="small" 
-                                                        icon={
-                                                            statusColor === 'error' ? <ErrorIcon /> :
-                                                            statusColor === 'warning' ? <WarningIcon /> :
-                                                            <CheckCircleIcon />
+                                                        <Tooltip title="Set Carry Forward">
+                                                            <IconButton
+                                                                size="small"
+                                                                color="primary"
+                                                                onClick={() => {
+                                                                    const alBalance = employee.leave_balances?.find(b => 
+                                                                        b.leave_code === 'AL' || b.leave_type?.code === 'AL'
+                                                                    );
+                                                                    if (alBalance) {
+                                                                        handleOpenEditCF(employee, alBalance);
+                                                                    }
+                                                                }}
+                                                                sx={{ p: 0.5 }}
+                                                            >
+                                                                <EditIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </Box>
+                                                )}
+                                            </TableCell>
+                                        )}
+                                        <TableCell align="center">
+                                            <Tooltip title={`${statusLabel} (${formatNumber(remaining)} days remaining)`}>
+                                                <Chip 
+                                                    label={statusLabel} 
+                                                    color={statusColor} 
+                                                    size="small" 
+                                                    icon={
+                                                        statusColor === 'error' ? <ErrorIcon /> :
+                                                        statusColor === 'warning' ? <WarningIcon /> :
+                                                        <CheckCircleIcon />
+                                                    }
+                                                />
+                                            </Tooltip>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Tooltip title="Edit Balance">
+                                                <IconButton
+                                                    size="small"
+                                                    color="primary"
+                                                    onClick={() => {
+                                                        const balanceToEdit = employee.leave_balances?.[0];
+                                                        if (balanceToEdit) {
+                                                            handleOpenEdit(employee, balanceToEdit);
                                                         }
-                                                    />
-                                                </Tooltip>
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Tooltip title="Edit Balance">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="primary"
-                                                        onClick={() => {
-                                                            const balanceToEdit = employee.leave_balances?.[0];
-                                                            if (balanceToEdit) {
-                                                                handleOpenEdit(employee, balanceToEdit);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
-                                    </React.Fragment>
+                                                    }}
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </TableCell>
+                                    </TableRow>
                                 );
                             })
                         )}
@@ -777,14 +919,14 @@ const AllLeaveBalances = () => {
                             <Typography variant="body2" color="textSecondary" fontSize="0.8rem">
                                 • <strong>Annual Leave (AL)</strong> allows carry forward up to <strong>6 days</strong>
                                 <br />• <strong>Sick Leave (SL)</strong> and <strong>Special Leave (SPL)</strong> do not allow carry forward
-                                <br />• Carry forward is applied automatically from previous year's remaining balance
+                                <br />• Click the <strong>✏️ edit icon</strong> next to carry forward to adjust the value
                             </Typography>
                         </Box>
                     </Box>
                 </Paper>
             )}
 
-            {/* Edit Dialog */}
+            {/* Edit Balance Dialog */}
             <Dialog open={editDialog.open} onClose={handleCloseEdit} maxWidth="sm" fullWidth>
                 <DialogTitle>
                     <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -808,23 +950,23 @@ const AllLeaveBalances = () => {
                                 </Grid>
                                 <Grid item xs={12}>
                                     <Typography variant="body2" sx={{ color: '#4caf50' }}>
-                                        <strong>Current Remaining:</strong> {editDialog.currentRemaining.toFixed(1)} days
+                                        <strong>Current Remaining:</strong> {formatNumber(editDialog.currentRemaining)} days
                                     </Typography>
                                 </Grid>
                                 <Grid item xs={12}>
                                     <Typography variant="body2" sx={{ color: '#f44336' }}>
-                                        <strong>Used:</strong> {editDialog.usedDays.toFixed(1)} days
+                                        <strong>Used:</strong> {formatNumber(editDialog.usedDays)} days
                                     </Typography>
                                 </Grid>
                                 <Grid item xs={12}>
                                     <Typography variant="body2" sx={{ color: '#ff9800' }}>
-                                        <strong>Pending:</strong> {editDialog.pendingDays.toFixed(1)} days
+                                        <strong>Pending:</strong> {formatNumber(editDialog.pendingDays)} days
                                     </Typography>
                                 </Grid>
                                 {editDialog.carryForward > 0 && (
                                     <Grid item xs={12}>
                                         <Typography variant="body2" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
-                                            <strong>🔄 Carry Forward:</strong> {editDialog.carryForward.toFixed(1)} days
+                                            <strong>🔄 Carry Forward:</strong> {formatNumber(editDialog.carryForward)} days
                                         </Typography>
                                     </Grid>
                                 )}
@@ -839,7 +981,7 @@ const AllLeaveBalances = () => {
                             onChange={(e) => setEditDialog({ ...editDialog, newTotal: parseFloat(e.target.value) || 0 })}
                             InputProps={{ inputProps: { min: 0, step: 0.5 } }}
                             sx={{ mb: 2 }}
-                            helperText={`New remaining: ${(editDialog.newTotal - editDialog.usedDays - editDialog.pendingDays + editDialog.carryForward).toFixed(1)} days (including carry forward)`}
+                            helperText={`New remaining: ${formatNumber(editDialog.newTotal - editDialog.usedDays - editDialog.pendingDays + editDialog.carryForward)} days (including carry forward)`}
                         />
 
                         <TextField
@@ -866,6 +1008,93 @@ const AllLeaveBalances = () => {
                         startIcon={<SaveIcon />}
                     >
                         {editDialog.isLoading ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Edit Carry Forward Dialog */}
+            <Dialog open={editCFDialog.open} onClose={handleCloseEditCF} maxWidth="sm" fullWidth>
+                <DialogTitle>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="h6">
+                            ✏️ Edit Carry Forward - {editCFDialog.leaveType}
+                        </Typography>
+                        <IconButton onClick={handleCloseEditCF} size="small" disabled={editCFDialog.isLoading}>
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                </DialogTitle>
+                <DialogContent>
+                    <Box mt={2}>
+                        <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: '#f8f9fa' }}>
+                            <Grid container spacing={1}>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2">
+                                        <strong>Employee:</strong> {editCFDialog.employeeName}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2">
+                                        <strong>Leave Type:</strong> {editCFDialog.leaveType} ({editCFDialog.leaveCode})
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="body2" sx={{ color: '#9c27b0' }}>
+                                        <strong>Current Carry Forward:</strong> {formatNumber(editCFDialog.currentCarryForward)} days
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Alert severity="info" sx={{ mt: 1 }}>
+                                        <Typography variant="caption">
+                                            ⚠️ Carry forward maximum is <strong>6 days</strong> for Annual Leave (AL)
+                                        </Typography>
+                                    </Alert>
+                                </Grid>
+                            </Grid>
+                        </Paper>
+
+                        <TextField
+                            fullWidth
+                            type="number"
+                            label="New Carry Forward *"
+                            value={editCFDialog.newCarryForward}
+                            onChange={(e) => setEditCFDialog({ 
+                                ...editCFDialog, 
+                                newCarryForward: parseFloat(e.target.value) || 0 
+                            })}
+                            InputProps={{ 
+                                inputProps: { min: 0, max: 6, step: 0.5 } 
+                            }}
+                            sx={{ mb: 2 }}
+                            helperText={`New remaining: ${formatNumber(editCFDialog.newCarryForward + 18 - 0)} days (AL: 18 + CF)`}
+                        />
+
+                        <TextField
+                            fullWidth
+                            multiline
+                            rows={3}
+                            label="Adjustment Reason *"
+                            value={editCFDialog.adjustmentReason}
+                            onChange={(e) => setEditCFDialog({ ...editCFDialog, adjustmentReason: e.target.value })}
+                            placeholder="Please explain why this carry forward is being adjusted..."
+                            required
+                        />
+
+                        {editCFDialog.isLoading && <LinearProgress sx={{ mt: 2 }} />}
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={handleCloseEditCF} disabled={editCFDialog.isLoading}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleSaveEditCF}
+                        disabled={editCFDialog.isLoading || !editCFDialog.adjustmentReason || editCFDialog.newCarryForward < 0 || editCFDialog.newCarryForward > 6}
+                        startIcon={<SaveIcon />}
+                    >
+                        {editCFDialog.isLoading ? 'Saving...' : 'Update Carry Forward'}
                     </Button>
                 </DialogActions>
             </Dialog>

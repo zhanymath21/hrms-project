@@ -509,6 +509,24 @@ export const LeaveProvider = ({ children }) => {
         }
     }, [fetchReplacements]);
 
+    const updateCarryForward = useCallback(async (id, data) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await leaveService.updateCarryForward(id, data);
+            await fetchAllBalances();
+            await fetchMyBalance();
+            return result;
+        } catch (err) {
+            const msg = err.response?.data?.message || err.message || 'Failed to update carry forward';
+            setError(msg);
+            console.error('❌ Update carry forward error:', err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [fetchAllBalances, fetchMyBalance]);
+
     // ==========================================
     // 24. FETCH PUBLIC HOLIDAYS
     // ==========================================
@@ -587,6 +605,7 @@ export const LeaveProvider = ({ children }) => {
         // Create functions
         createLeave,
         createReplacement,
+        updateCarryForward,
 
         // Action functions
         approveLeave,
