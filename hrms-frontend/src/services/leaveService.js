@@ -615,10 +615,17 @@ const leaveService = {
     },
     updateCarryForward: async (id, data) => {
         try {
-            const response = await api.put(`/leave-balance/${id}/carry-forward`, data);
+            console.log('📤 Updating carry forward:', { id, data });
+            const response = await api.put(`/leave-balance/${id}/carry-forward`, {
+                carry_forward: parseFloat(data.carry_forward),
+                adjustment_reason: data.adjustment_reason
+            });
+            console.log('✅ Carry forward updated:', response.data);
             return response.data.data;
         } catch (error) {
             console.error('❌ Error updating carry forward:', error);
+            console.error('❌ Response data:', error.response?.data);
+            console.error('❌ Errors:', error.response?.data?.errors);
             throw error;
         }
     },

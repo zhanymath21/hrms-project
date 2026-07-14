@@ -254,13 +254,15 @@ class LeaveBalanceController extends Controller
     {
         try {
             Log::info("🔄 Updating carry forward for balance ID: {$id}");
+            Log::info("Request data:", $request->all());
 
             $validator = Validator::make($request->all(), [
                 'carry_forward' => 'required|numeric|min:0|max:6',
-                'adjustment_reason' => 'required|string|min:5',
+                'adjustment_reason' => 'required|string|min:3|max:500',
             ]);
 
             if ($validator->fails()) {
+                Log::error("Validation failed:", $validator->errors()->toArray());
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Validation failed',
@@ -279,15 +281,23 @@ class LeaveBalanceController extends Controller
 
             // Check if leave type allows carry forward
             $leaveType = $balance->leaveType;
-            if (!$leaveType->allow_carry_forward) {
+            if (!$leaveType || !$leaveType->allow_carry_forward) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'This leave type does not allow carry forward'
                 ], 422);
             }
 
+            // Only AL can have carry forward
+            if ($leaveType->code !== 'AL') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Carry forward is only allowed for Annual Leave (AL)'
+                ], 422);
+            }
+
             $user = $request->user();
-            $oldCarryForward = $balance->carry_forward;
+            $oldCarryForward = (float) $balance->carry_forward;
             $newCarryForward = (float) $request->carry_forward;
 
             DB::beginTransaction();
