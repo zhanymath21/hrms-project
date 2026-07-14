@@ -17,13 +17,13 @@ const leaveService = {
     },
 
     // ==========================================
-    // LEAVE BALANCE - USING CORRECT ROUTES
+    // LEAVE BALANCE - UPDATED ROUTES
     // ==========================================
     
-    // My balance (Employee) - ✅ FIXED: added 'employees/' prefix
+    // My balance (Employee)
     getMyBalance: async () => {
         try {
-            const response = await api.get('/employees/my-leave-balance');
+            const response = await api.get('/my-leave-balance'); // ✅ No 'employees/' prefix
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching my balance:', error);
@@ -31,10 +31,10 @@ const leaveService = {
         }
     },
 
-    // All balances (HR/Admin) - ✅ FIXED: added 'employees/' prefix
+    // All balances (Admin/HR)
     getAllBalances: async (params = {}) => {
         try {
-            const response = await api.get('/employees/leave-balances', { params });
+            const response = await api.get('/leave-balances', { params }); // ✅ No 'employees/' prefix
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching all balances:', error);
@@ -42,10 +42,10 @@ const leaveService = {
         }
     },
 
-    // Employee balance by ID (HR/Admin)
+    // Employee balance by ID (Admin/HR)
     getEmployeeBalance: async (employeeId, params = {}) => {
         try {
-            const response = await api.get(`/employees/${employeeId}/leave-balance`, { params });
+            const response = await api.get(`/employee-balance/${employeeId}`, { params });
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching employee balance:', error);
@@ -53,10 +53,10 @@ const leaveService = {
         }
     },
 
-    // Balance detail by ID (HR/Admin)
+    // Balance detail by ID (Admin/HR)
     getBalanceDetail: async (id) => {
         try {
-            const response = await api.get(`/employees/leave-balance/${id}`);
+            const response = await api.get(`/leave-balance/${id}`);
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching balance detail:', error);
@@ -64,10 +64,10 @@ const leaveService = {
         }
     },
 
-    // Update balance (HR/Admin)
+    // Update balance (Admin/HR)
     updateBalance: async (id, data) => {
         try {
-            const response = await api.put(`/employees/leave-balance/${id}`, data);
+            const response = await api.put(`/leave-balance/${id}`, data);
             return response.data.data;
         } catch (error) {
             console.error('❌ Error updating balance:', error);
@@ -75,10 +75,10 @@ const leaveService = {
         }
     },
 
-    // Balance summary (HR/Admin)
+    // Balance summary (Admin/HR)
     getBalanceSummary: async (params = {}) => {
         try {
-            const response = await api.get('/employees/leave-balance-summary', { params });
+            const response = await api.get('/leave-balance-summary', { params });
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching balance summary:', error);
@@ -86,10 +86,10 @@ const leaveService = {
         }
     },
 
-    // Generate balance for specific employee (HR/Admin)
+    // Generate balance for specific employee (Admin/HR)
     generateBalance: async (data) => {
         try {
-            const response = await api.post('/employees/generate-balance', data);
+            const response = await api.post('/generate-balance', data);
             return response.data.data;
         } catch (error) {
             console.error('❌ Error generating balance:', error);
@@ -97,10 +97,10 @@ const leaveService = {
         }
     },
 
-    // Generate all balances (HR/Admin)
+    // Generate all balances (Admin/HR)
     generateAllBalances: async (data = {}) => {
         try {
-            const response = await api.post('/employees/generate-all-balances', data);
+            const response = await api.post('/generate-all-balances', data);
             return response.data.data;
         } catch (error) {
             console.error('❌ Error generating all balances:', error);
@@ -108,10 +108,10 @@ const leaveService = {
         }
     },
 
-    // Process carry forward (HR/Admin)
+    // Process carry forward (Admin/HR)
     processCarryForward: async (data) => {
         try {
-            const response = await api.post('/employees/process-carry-forward', data);
+            const response = await api.post('/process-carry-forward', data);
             return response.data.data;
         } catch (error) {
             console.error('❌ Error processing carry forward:', error);
@@ -119,10 +119,10 @@ const leaveService = {
         }
     },
 
-    // Adjustment history (HR/Admin)
+    // Adjustment history (Admin/HR)
     getAdjustmentHistory: async (employeeId, params = {}) => {
         try {
-            const response = await api.get(`/employees/leave-balance/${employeeId}/history`, { params });
+            const response = await api.get(`/leave-balance-history/${employeeId}`, { params });
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching adjustment history:', error);
@@ -130,10 +130,10 @@ const leaveService = {
         }
     },
 
-    // Balance report (HR/Admin)
+    // Balance report (Admin/HR)
     getBalanceReport: async (params = {}) => {
         try {
-            const response = await api.get('/reports/leave-balance', { params });
+            const response = await api.get('/leave-balance-report', { params });
             return response.data.data;
         } catch (error) {
             console.error('❌ Error fetching balance report:', error);
@@ -144,8 +144,6 @@ const leaveService = {
     // ==========================================
     // LEAVE REQUESTS
     // ==========================================
-    
-    // Get all leaves
     getLeaves: async (params = {}) => {
         try {
             const response = await api.get('/leaves', { params });
@@ -156,7 +154,6 @@ const leaveService = {
         }
     },
 
-    // Get pending leaves (as approver)
     getPendingLeaves: async (params = {}) => {
         try {
             const response = await api.get('/leaves/pending', { params });
@@ -167,7 +164,6 @@ const leaveService = {
         }
     },
 
-    // Get single leave
     getLeave: async (id) => {
         try {
             const response = await api.get(`/leaves/${id}`);
@@ -178,7 +174,6 @@ const leaveService = {
         }
     },
 
-    // Create leave
     createLeave: async (data) => {
         try {
             const formData = new FormData();
@@ -198,7 +193,6 @@ const leaveService = {
         }
     },
 
-    // Approve leave
     approveLeave: async (id, notes = null) => {
         try {
             const data = notes ? { notes } : {};
@@ -210,7 +204,6 @@ const leaveService = {
         }
     },
 
-    // Reject leave
     rejectLeave: async (id, rejection_reason) => {
         try {
             const response = await api.put(`/leaves/${id}/reject`, { rejection_reason });
@@ -221,7 +214,6 @@ const leaveService = {
         }
     },
 
-    // Cancel leave
     cancelLeave: async (id) => {
         try {
             const response = await api.put(`/leaves/${id}/cancel`);
@@ -232,7 +224,6 @@ const leaveService = {
         }
     },
 
-    // Download leave attachment
     downloadLeaveAttachment: async (id) => {
         try {
             const response = await api.get(`/leaves/${id}/download-attachment`, {
@@ -245,7 +236,6 @@ const leaveService = {
         }
     },
 
-    // Get leave statistics
     getLeaveStatistics: async (params = {}) => {
         try {
             const response = await api.get('/leaves/statistics', { params });
@@ -256,7 +246,6 @@ const leaveService = {
         }
     },
 
-    // Get my leave history
     getMyLeaveHistory: async (params = {}) => {
         try {
             const response = await api.get('/leaves/my-history', { params });
@@ -267,7 +256,6 @@ const leaveService = {
         }
     },
 
-    // Get employee leaves (HR/Admin)
     getEmployeeLeaves: async (employeeId, params = {}) => {
         try {
             const response = await api.get(`/leaves/employee/${employeeId}`, { params });
@@ -281,8 +269,6 @@ const leaveService = {
     // ==========================================
     // REPLACEMENT LEAVES
     // ==========================================
-    
-    // Get all replacement leaves
     getReplacements: async (params = {}) => {
         try {
             const response = await api.get('/replacement-leaves', { params });
@@ -293,7 +279,6 @@ const leaveService = {
         }
     },
 
-    // Get pending replacement approvals
     getPendingReplacementApprovals: async () => {
         try {
             const response = await api.get('/replacement-leaves/pending-approvals');
@@ -304,7 +289,6 @@ const leaveService = {
         }
     },
 
-    // Get single replacement
     getReplacement: async (id) => {
         try {
             const response = await api.get(`/replacement-leaves/${id}`);
@@ -315,7 +299,6 @@ const leaveService = {
         }
     },
 
-    // Create replacement leave
     createReplacement: async (data) => {
         try {
             const formData = new FormData();
@@ -335,7 +318,6 @@ const leaveService = {
         }
     },
 
-    // Approve replacement
     approveReplacement: async (id, notes = null) => {
         try {
             const data = notes ? { notes } : {};
@@ -347,7 +329,6 @@ const leaveService = {
         }
     },
 
-    // Reject replacement
     rejectReplacement: async (id, rejection_reason) => {
         try {
             const response = await api.put(`/replacement-leaves/${id}/reject`, { rejection_reason });
@@ -358,7 +339,6 @@ const leaveService = {
         }
     },
 
-    // Cancel replacement
     cancelReplacement: async (id, reason = null) => {
         try {
             const data = reason ? { reason } : {};
@@ -370,7 +350,6 @@ const leaveService = {
         }
     },
 
-    // Download replacement attachment
     downloadReplacementAttachment: async (id) => {
         try {
             const response = await api.get(`/replacement-leaves/${id}/download-attachment`, {
