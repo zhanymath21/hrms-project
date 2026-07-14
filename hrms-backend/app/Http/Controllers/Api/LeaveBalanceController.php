@@ -167,10 +167,11 @@ class LeaveBalanceController extends Controller
                         'used_days' => (float) ($balance->used_days ?? 0),
                         'pending_days' => (float) ($balance->pending_days ?? 0),
                         'remaining_days' => (float) ($balance->remaining_days ?? 0),
+                        'carry_forward' => (float) ($balance->carry_forward ?? 0), // ✅ Tambahkan ini
                     ];
                 }
 
-                // Get specific leave types
+                // Get specific leave types with carry forward
                 $annualLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'AL');
                 $sickLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'SL');
                 $specialLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'SPL');
@@ -190,18 +191,22 @@ class LeaveBalanceController extends Controller
                     'leave_balances' => $balanceData,
                     'annual_leave' => [
                         'remaining_days' => (float) ($annualLeave->remaining_days ?? 0),
+                        'carry_forward' => (float) ($annualLeave->carry_forward ?? 0), // ✅ Tambahkan ini
                     ],
                     'sick_leave' => [
                         'remaining_days' => (float) ($sickLeave->remaining_days ?? 0),
+                        'carry_forward' => (float) ($sickLeave->carry_forward ?? 0), // ✅ Tambahkan ini
                     ],
                     'special_leave' => [
                         'remaining_days' => (float) ($specialLeave->remaining_days ?? 0),
+                        'carry_forward' => (float) ($specialLeave->carry_forward ?? 0), // ✅ Tambahkan ini
                     ],
                     'summary' => [
                         'total_entitlement' => array_sum(array_column($balanceData, 'total_entitlement')),
                         'used_days' => array_sum(array_column($balanceData, 'used_days')),
                         'pending_days' => array_sum(array_column($balanceData, 'pending_days')),
                         'remaining_days' => array_sum(array_column($balanceData, 'remaining_days')),
+                        'total_carry_forward' => array_sum(array_column($balanceData, 'carry_forward')), // ✅ Tambahkan ini
                     ],
                 ];
             });
