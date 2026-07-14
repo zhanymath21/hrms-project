@@ -154,20 +154,38 @@ class LeaveBalanceController extends Controller
 
             $result = $employees->map(function ($employee) use ($leaveTypes) {
                 $balanceData = [];
+                $totalCarryForward = 0;
+                $totalEntitlement = 0;
+                $totalUsed = 0;
+                $totalPending = 0;
+                $totalRemaining = 0;
 
                 foreach ($leaveTypes as $leaveType) {
                     $balance = $employee->leaveBalances->firstWhere('leave_type_id', $leaveType->id);
+
+                    $carryForward = $balance->carry_forward ?? 0;
+                    $totalCarryForward += $carryForward;
+
+                    $entitlement = (float) ($balance->total_entitlement ?? 0);
+                    $used = (float) ($balance->used_days ?? 0);
+                    $pending = (float) ($balance->pending_days ?? 0);
+                    $remaining = (float) ($balance->remaining_days ?? 0);
+
+                    $totalEntitlement += $entitlement;
+                    $totalUsed += $used;
+                    $totalPending += $pending;
+                    $totalRemaining += $remaining;
 
                     $balanceData[] = [
                         'id' => $balance->id ?? null,
                         'leave_type_id' => $leaveType->id,
                         'leave_type' => $leaveType->name,
                         'leave_code' => $leaveType->code,
-                        'total_entitlement' => (float) ($balance->total_entitlement ?? 0),
-                        'used_days' => (float) ($balance->used_days ?? 0),
-                        'pending_days' => (float) ($balance->pending_days ?? 0),
-                        'remaining_days' => (float) ($balance->remaining_days ?? 0),
-                        'carry_forward' => (float) ($balance->carry_forward ?? 0), // ✅ Tambahkan ini
+                        'total_entitlement' => $entitlement,
+                        'used_days' => $used,
+                        'pending_days' => $pending,
+                        'remaining_days' => $remaining,
+                        'carry_forward' => $carryForward,
                     ];
                 }
 
@@ -191,22 +209,22 @@ class LeaveBalanceController extends Controller
                     'leave_balances' => $balanceData,
                     'annual_leave' => [
                         'remaining_days' => (float) ($annualLeave->remaining_days ?? 0),
-                        'carry_forward' => (float) ($annualLeave->carry_forward ?? 0), // ✅ Tambahkan ini
+                        'carry_forward' => (float) ($annualLeave->carry_forward ?? 0),
                     ],
                     'sick_leave' => [
                         'remaining_days' => (float) ($sickLeave->remaining_days ?? 0),
-                        'carry_forward' => (float) ($sickLeave->carry_forward ?? 0), // ✅ Tambahkan ini
+                        'carry_forward' => (float) ($sickLeave->carry_forward ?? 0),
                     ],
                     'special_leave' => [
                         'remaining_days' => (float) ($specialLeave->remaining_days ?? 0),
-                        'carry_forward' => (float) ($specialLeave->carry_forward ?? 0), // ✅ Tambahkan ini
+                        'carry_forward' => (float) ($specialLeave->carry_forward ?? 0),
                     ],
                     'summary' => [
-                        'total_entitlement' => array_sum(array_column($balanceData, 'total_entitlement')),
-                        'used_days' => array_sum(array_column($balanceData, 'used_days')),
-                        'pending_days' => array_sum(array_column($balanceData, 'pending_days')),
-                        'remaining_days' => array_sum(array_column($balanceData, 'remaining_days')),
-                        'total_carry_forward' => array_sum(array_column($balanceData, 'carry_forward')), // ✅ Tambahkan ini
+                        'total_entitlement' => $totalEntitlement,
+                        'used_days' => $totalUsed,
+                        'pending_days' => $totalPending,
+                        'remaining_days' => $totalRemaining,
+                        'total_carry_forward' => $totalCarryForward,
                     ],
                 ];
             });

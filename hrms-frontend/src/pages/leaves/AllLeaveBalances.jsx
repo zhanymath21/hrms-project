@@ -35,6 +35,7 @@ import {
     DialogActions,
     LinearProgress,
     Snackbar,
+    Divider,
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
@@ -51,43 +52,11 @@ import {
     TrendingDown as TrendingDownIcon,
     ArrowForward as ArrowForwardIcon,
     History as HistoryIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import api from '../../services/axios';
-
-// Define color constants
-const COLORS = {
-    primary: {
-        main: '#6366f1',
-        light: '#818cf8',
-        dark: '#4f46e5',
-    },
-    secondary: {
-        main: '#9c27b0',
-        light: '#ab47bc',
-        dark: '#7b1fa2',
-    },
-    success: {
-        main: '#4caf50',
-        light: '#66bb6a',
-        dark: '#388e3c',
-    },
-    error: {
-        main: '#f44336',
-        light: '#ef5350',
-        dark: '#d32f2f',
-    },
-    warning: {
-        main: '#ff9800',
-        light: '#ffa726',
-        dark: '#f57c00',
-    },
-    info: {
-        main: '#2196f3',
-        light: '#42a5f5',
-        dark: '#1976d2',
-    },
-};
 
 const AllLeaveBalances = () => {
     const { fetchAllBalances, loading, error, updateBalance } = useLeave();
@@ -103,7 +72,8 @@ const AllLeaveBalances = () => {
     const [departments, setDepartments] = useState([]);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(20);
-    const [showCarryForward, setShowCarryForward] = useState(false);
+    const [showCarryForward, setShowCarryForward] = useState(true);
+    const [expandedRows, setExpandedRows] = useState({});
     const [stats, setStats] = useState({
         totalEmployees: 0,
         totalAnnualLeave: 0,
@@ -168,7 +138,7 @@ const AllLeaveBalances = () => {
                 last_page: response?.pagination?.last_page || 1,
             });
 
-            // Calculate stats
+            // Calculate stats including carry forward
             let totalAL = 0, totalSL = 0, totalSPL = 0, totalRemaining = 0;
             let totalUsed = 0, totalPending = 0, totalCarryForward = 0;
             
@@ -191,7 +161,7 @@ const AllLeaveBalances = () => {
                 totalUsed += emp.summary?.used_days || 0;
                 totalPending += emp.summary?.pending_days || 0;
                 
-                // Calculate carry forward from all balances
+                // Calculate carry forward from individual balances
                 emp.leave_balances?.forEach(balance => {
                     totalCarryForward += balance.carry_forward || 0;
                 });
@@ -241,6 +211,13 @@ const AllLeaveBalances = () => {
         setSearch('');
         setDepartmentFilter('');
         setPage(0);
+    };
+
+    const toggleRowExpand = (employeeId) => {
+        setExpandedRows(prev => ({
+            ...prev,
+            [employeeId]: !prev[employeeId]
+        }));
     };
 
     const handleOpenEdit = (employee, balance) => {
@@ -390,10 +367,11 @@ const AllLeaveBalances = () => {
                 </Box>
                 <Box display="flex" gap={1}>
                     <Button
-                        variant="outlined"
+                        variant={showCarryForward ? "contained" : "outlined"}
                         startIcon={<HistoryIcon />}
                         onClick={() => setShowCarryForward(!showCarryForward)}
-                        color={showCarryForward ? 'primary' : 'inherit'}
+                        color="secondary"
+                        size="small"
                     >
                         {showCarryForward ? 'Hide' : 'Show'} Carry Forward
                     </Button>
@@ -402,60 +380,61 @@ const AllLeaveBalances = () => {
                         startIcon={<RefreshIcon />}
                         onClick={handleRefresh}
                         disabled={loading}
+                        size="small"
                     >
                         Refresh
                     </Button>
                 </Box>
             </Box>
 
-            {/* Stats Cards - Using direct colors instead of theme */}
+            {/* Stats Cards */}
             <Grid container spacing={2} mb={3}>
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={6} sm={3} md={2.4}>
                     <Card sx={{ bgcolor: '#e3f2fd', borderLeft: '4px solid #1976d2' }}>
-                        <CardContent>
-                            <Typography color="textSecondary" variant="body2">Total Employees</Typography>
-                            <Typography variant="h4" sx={{ color: '#1976d2', fontWeight: 'bold' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography color="textSecondary" variant="caption">Total Employees</Typography>
+                            <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 'bold' }}>
                                 {stats.totalEmployees}
                             </Typography>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={6} sm={3} md={2.4}>
                     <Card sx={{ bgcolor: '#e8f5e9', borderLeft: '4px solid #4caf50' }}>
-                        <CardContent>
-                            <Typography color="textSecondary" variant="body2">AL Remaining</Typography>
-                            <Typography variant="h4" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography color="textSecondary" variant="caption">🏖️ AL Remaining</Typography>
+                            <Typography variant="h5" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
                                 {stats.totalAnnualLeave.toFixed(1)}
                             </Typography>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={6} sm={3} md={2.4}>
                     <Card sx={{ bgcolor: '#ffebee', borderLeft: '4px solid #f44336' }}>
-                        <CardContent>
-                            <Typography color="textSecondary" variant="body2">SL Remaining</Typography>
-                            <Typography variant="h4" sx={{ color: '#f44336', fontWeight: 'bold' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography color="textSecondary" variant="caption">🏥 SL Remaining</Typography>
+                            <Typography variant="h5" sx={{ color: '#f44336', fontWeight: 'bold' }}>
                                 {stats.totalSickLeave.toFixed(1)}
                             </Typography>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
+                <Grid item xs={6} sm={3} md={2.4}>
                     <Card sx={{ bgcolor: '#fff3e0', borderLeft: '4px solid #ff9800' }}>
-                        <CardContent>
-                            <Typography color="textSecondary" variant="body2">SPL Remaining</Typography>
-                            <Typography variant="h4" sx={{ color: '#ff9800', fontWeight: 'bold' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography color="textSecondary" variant="caption">🎉 SPL Remaining</Typography>
+                            <Typography variant="h5" sx={{ color: '#ff9800', fontWeight: 'bold' }}>
                                 {stats.totalSpecialLeave.toFixed(1)}
                             </Typography>
                         </CardContent>
                     </Card>
                 </Grid>
                 {showCarryForward && (
-                    <Grid item xs={12} sm={6} md={2.4}>
+                    <Grid item xs={6} sm={3} md={2.4}>
                         <Card sx={{ bgcolor: '#f3e5f5', borderLeft: '4px solid #9c27b0' }}>
-                            <CardContent>
-                                <Typography color="textSecondary" variant="body2">Total Carry Forward</Typography>
-                                <Typography variant="h4" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
+                            <CardContent sx={{ py: 1.5 }}>
+                                <Typography color="textSecondary" variant="caption">🔄 Total Carry Forward</Typography>
+                                <Typography variant="h5" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
                                     {stats.totalCarryForward.toFixed(1)}
                                 </Typography>
                             </CardContent>
@@ -505,6 +484,7 @@ const AllLeaveBalances = () => {
                             onClick={handleClearFilters}
                             disabled={!search && !departmentFilter}
                             startIcon={<ClearIcon />}
+                            size="small"
                         >
                             Clear
                         </Button>
@@ -514,54 +494,54 @@ const AllLeaveBalances = () => {
 
             {/* Table */}
             <TableContainer component={Paper}>
-                <Table stickyHeader>
+                <Table stickyHeader size="small">
                     <TableHead>
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ minWidth: 200 }}>Employee</TableCell>
+                            <TableCell sx={{ minWidth: 180 }}>Employee</TableCell>
                             <TableCell sx={{ minWidth: 120 }}>Department</TableCell>
-                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                            <TableCell align="center" sx={{ minWidth: 70 }}>
                                 <Tooltip title="Annual Leave">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                         🏖️ <Typography variant="caption">AL</Typography>
                                     </Box>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                            <TableCell align="center" sx={{ minWidth: 70 }}>
                                 <Tooltip title="Sick Leave">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                         🏥 <Typography variant="caption">SL</Typography>
                                     </Box>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                            <TableCell align="center" sx={{ minWidth: 70 }}>
                                 <Tooltip title="Special Leave">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                         🎉 <Typography variant="caption">SPL</Typography>
                                     </Box>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                            <TableCell align="center" sx={{ minWidth: 70 }}>
                                 <Tooltip title="Total Entitlement">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                         📋 <Typography variant="caption">Total</Typography>
                                     </Box>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                            <TableCell align="center" sx={{ minWidth: 70 }}>
                                 <Tooltip title="Used Days">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                         📈 <Typography variant="caption">Used</Typography>
                                     </Box>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                            <TableCell align="center" sx={{ minWidth: 70 }}>
                                 <Tooltip title="Pending Days">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                         ⏳ <Typography variant="caption">Pending</Typography>
                                     </Box>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                            <TableCell align="center" sx={{ minWidth: 70 }}>
                                 <Tooltip title="Total Remaining">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
                                         💚 <Typography variant="caption">Remaining</Typography>
@@ -570,15 +550,15 @@ const AllLeaveBalances = () => {
                             </TableCell>
                             {showCarryForward && (
                                 <TableCell align="center" sx={{ minWidth: 100 }}>
-                                    <Tooltip title="Carry Forward (Max 6 days)">
+                                    <Tooltip title="Carry Forward (Max 6 days for AL)">
                                         <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                                            🔄 <Typography variant="caption">Carry Forward</Typography>
+                                            🔄 <Typography variant="caption" fontWeight="bold">Carry Forward</Typography>
                                         </Box>
                                     </Tooltip>
                                 </TableCell>
                             )}
-                            <TableCell align="center" sx={{ minWidth: 100 }}>Status</TableCell>
-                            <TableCell align="center" sx={{ minWidth: 80 }}>Actions</TableCell>
+                            <TableCell align="center" sx={{ minWidth: 90 }}>Status</TableCell>
+                            <TableCell align="center" sx={{ minWidth: 70 }}>Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -601,155 +581,171 @@ const AllLeaveBalances = () => {
                                 const statusColor = getStatusColor(remaining, total);
                                 const statusLabel = getStatusLabel(remaining, total);
 
-                                // Calculate total carry forward for this employee
+                                // Calculate total carry forward from all balances
                                 const totalCarryForward = employee.leave_balances?.reduce((sum, b) => 
                                     sum + (b.carry_forward || 0), 0
                                 ) || 0;
 
+                                // Get carry forward for each leave type
+                                const alCarryForward = al.carry_forward || 0;
+                                const slCarryForward = sl.carry_forward || 0;
+                                const splCarryForward = spl.carry_forward || 0;
+
                                 return (
-                                    <TableRow key={employee.id} hover>
-                                        <TableCell>
-                                            <Box display="flex" alignItems="center" gap={1}>
-                                                <Avatar sx={{ width: 36, height: 36, bgcolor: '#6366f1', fontSize: 14 }}>
-                                                    {getInitials(employee.name)}
-                                                </Avatar>
-                                                <Box>
-                                                    <Typography variant="body2" fontWeight="medium">
-                                                        {employee.name}
-                                                    </Typography>
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        {employee.employee_id}
-                                                    </Typography>
+                                    <React.Fragment key={employee.id}>
+                                        <TableRow hover>
+                                            <TableCell>
+                                                <Box display="flex" alignItems="center" gap={1}>
+                                                    <Avatar sx={{ width: 32, height: 32, bgcolor: '#6366f1', fontSize: 12 }}>
+                                                        {getInitials(employee.name)}
+                                                    </Avatar>
+                                                    <Box>
+                                                        <Typography variant="body2" fontWeight="medium" fontSize="0.875rem">
+                                                            {employee.name}
+                                                        </Typography>
+                                                        <Typography variant="caption" color="textSecondary">
+                                                            {employee.employee_id}
+                                                        </Typography>
+                                                    </Box>
                                                 </Box>
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip 
-                                                label={employee.department?.name || 'N/A'} 
-                                                size="small" 
-                                                variant="outlined"
-                                                sx={{ fontWeight: 500 }}
-                                            />
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography 
-                                                variant="body2" 
-                                                fontWeight="bold" 
-                                                sx={{ color: (al.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
-                                            >
-                                                {(al.remaining_days || 0).toFixed(1)}
-                                            </Typography>
-                                            {showCarryForward && al.carry_forward > 0 && (
-                                                <Typography variant="caption" display="block" color="textSecondary">
-                                                    CF: {al.carry_forward.toFixed(1)}
-                                                </Typography>
-                                            )}
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography 
-                                                variant="body2" 
-                                                fontWeight="bold" 
-                                                sx={{ color: (sl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
-                                            >
-                                                {(sl.remaining_days || 0).toFixed(1)}
-                                            </Typography>
-                                            {showCarryForward && sl.carry_forward > 0 && (
-                                                <Typography variant="caption" display="block" color="textSecondary">
-                                                    CF: {sl.carry_forward.toFixed(1)}
-                                                </Typography>
-                                            )}
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography 
-                                                variant="body2" 
-                                                fontWeight="bold" 
-                                                sx={{ color: (spl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
-                                            >
-                                                {(spl.remaining_days || 0).toFixed(1)}
-                                            </Typography>
-                                            {showCarryForward && spl.carry_forward > 0 && (
-                                                <Typography variant="caption" display="block" color="textSecondary">
-                                                    CF: {spl.carry_forward.toFixed(1)}
-                                                </Typography>
-                                            )}
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography variant="body2" fontWeight="medium">
-                                                {total.toFixed(1)}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography variant="body2" sx={{ color: '#f44336' }}>
-                                                {(summary.used_days || 0).toFixed(1)}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography variant="body2" sx={{ color: '#ff9800' }}>
-                                                {(summary.pending_days || 0).toFixed(1)}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography 
-                                                variant="body2" 
-                                                fontWeight="bold" 
-                                                sx={{ color: remaining > 0 ? '#4caf50' : '#f44336' }}
-                                            >
-                                                {remaining.toFixed(1)}
-                                            </Typography>
-                                        </TableCell>
-                                        {showCarryForward && (
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip 
+                                                    label={employee.department?.name || 'N/A'} 
+                                                    size="small" 
+                                                    variant="outlined"
+                                                    sx={{ fontWeight: 500, fontSize: '0.7rem' }}
+                                                />
+                                            </TableCell>
                                             <TableCell align="center">
-                                                {totalCarryForward > 0 ? (
-                                                    <Tooltip title="Carry forward from previous year">
-                                                        <Chip
-                                                            label={`${totalCarryForward.toFixed(1)} days`}
-                                                            size="small"
-                                                            color="secondary"
-                                                            icon={<ArrowForwardIcon />}
-                                                            sx={{ fontWeight: 600 }}
-                                                        />
-                                                    </Tooltip>
-                                                ) : (
+                                                <Typography 
+                                                    variant="body2" 
+                                                    fontWeight="bold" 
+                                                    sx={{ color: (al.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
+                                                >
+                                                    {(al.remaining_days || 0).toFixed(1)}
+                                                </Typography>
+                                                {showCarryForward && alCarryForward > 0 && (
                                                     <Chip
-                                                        label="0"
+                                                        label={`CF: ${alCarryForward.toFixed(1)}`}
                                                         size="small"
-                                                        variant="outlined"
-                                                        color="default"
+                                                        color="secondary"
+                                                        sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
                                                     />
                                                 )}
                                             </TableCell>
-                                        )}
-                                        <TableCell align="center">
-                                            <Tooltip title={`${statusLabel} (${remaining.toFixed(1)} days remaining)`}>
-                                                <Chip 
-                                                    label={statusLabel} 
-                                                    color={statusColor} 
-                                                    size="small" 
-                                                    icon={
-                                                        statusColor === 'error' ? <ErrorIcon /> :
-                                                        statusColor === 'warning' ? <WarningIcon /> :
-                                                        <CheckCircleIcon />
-                                                    }
-                                                />
-                                            </Tooltip>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Tooltip title="Edit Balance">
-                                                <IconButton
-                                                    size="small"
-                                                    color="primary"
-                                                    onClick={() => {
-                                                        const balanceToEdit = employee.leave_balances?.[0];
-                                                        if (balanceToEdit) {
-                                                            handleOpenEdit(employee, balanceToEdit);
-                                                        }
-                                                    }}
+                                            <TableCell align="center">
+                                                <Typography 
+                                                    variant="body2" 
+                                                    fontWeight="bold" 
+                                                    sx={{ color: (sl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
                                                 >
-                                                    <EditIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                        </TableCell>
-                                    </TableRow>
+                                                    {(sl.remaining_days || 0).toFixed(1)}
+                                                </Typography>
+                                                {showCarryForward && slCarryForward > 0 && (
+                                                    <Chip
+                                                        label={`CF: ${slCarryForward.toFixed(1)}`}
+                                                        size="small"
+                                                        color="secondary"
+                                                        sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
+                                                    />
+                                                )}
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography 
+                                                    variant="body2" 
+                                                    fontWeight="bold" 
+                                                    sx={{ color: (spl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
+                                                >
+                                                    {(spl.remaining_days || 0).toFixed(1)}
+                                                </Typography>
+                                                {showCarryForward && splCarryForward > 0 && (
+                                                    <Chip
+                                                        label={`CF: ${splCarryForward.toFixed(1)}`}
+                                                        size="small"
+                                                        color="secondary"
+                                                        sx={{ mt: 0.5, height: 18, fontSize: '0.6rem' }}
+                                                    />
+                                                )}
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography variant="body2" fontWeight="medium">
+                                                    {total.toFixed(1)}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography variant="body2" sx={{ color: '#f44336' }}>
+                                                    {(summary.used_days || 0).toFixed(1)}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography variant="body2" sx={{ color: '#ff9800' }}>
+                                                    {(summary.pending_days || 0).toFixed(1)}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography 
+                                                    variant="body2" 
+                                                    fontWeight="bold" 
+                                                    sx={{ color: remaining > 0 ? '#4caf50' : '#f44336' }}
+                                                >
+                                                    {remaining.toFixed(1)}
+                                                </Typography>
+                                            </TableCell>
+                                            {showCarryForward && (
+                                                <TableCell align="center">
+                                                    {totalCarryForward > 0 ? (
+                                                        <Tooltip title="Carry forward from previous year (Max 6 days for AL)">
+                                                            <Chip
+                                                                label={`${totalCarryForward.toFixed(1)} days`}
+                                                                size="small"
+                                                                color="secondary"
+                                                                icon={<ArrowForwardIcon />}
+                                                                sx={{ fontWeight: 600 }}
+                                                            />
+                                                        </Tooltip>
+                                                    ) : (
+                                                        <Chip
+                                                            label="0"
+                                                            size="small"
+                                                            variant="outlined"
+                                                            color="default"
+                                                        />
+                                                    )}
+                                                </TableCell>
+                                            )}
+                                            <TableCell align="center">
+                                                <Tooltip title={`${statusLabel} (${remaining.toFixed(1)} days remaining)`}>
+                                                    <Chip 
+                                                        label={statusLabel} 
+                                                        color={statusColor} 
+                                                        size="small" 
+                                                        icon={
+                                                            statusColor === 'error' ? <ErrorIcon /> :
+                                                            statusColor === 'warning' ? <WarningIcon /> :
+                                                            <CheckCircleIcon />
+                                                        }
+                                                    />
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Tooltip title="Edit Balance">
+                                                    <IconButton
+                                                        size="small"
+                                                        color="primary"
+                                                        onClick={() => {
+                                                            const balanceToEdit = employee.leave_balances?.[0];
+                                                            if (balanceToEdit) {
+                                                                handleOpenEdit(employee, balanceToEdit);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <EditIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </TableCell>
+                                        </TableRow>
+                                    </React.Fragment>
                                 );
                             })
                         )}
@@ -772,16 +768,16 @@ const AllLeaveBalances = () => {
             {/* Carry Forward Info */}
             {showCarryForward && (
                 <Paper sx={{ p: 2, mt: 2, bgcolor: '#f8fafc' }}>
-                    <Box display="flex" alignItems="center" gap={2}>
-                        <HistoryIcon sx={{ color: '#6366f1' }} />
+                    <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+                        <HistoryIcon sx={{ color: '#9c27b0' }} />
                         <Box>
-                            <Typography variant="subtitle2" fontWeight="600">
-                                Carry Forward Information
+                            <Typography variant="subtitle2" fontWeight="600" color="#9c27b0">
+                                🔄 Carry Forward Information
                             </Typography>
-                            <Typography variant="body2" color="textSecondary">
-                                • Annual Leave (AL) allows carry forward up to 6 days
-                                • Sick Leave (SL) and Special Leave (SPL) do not allow carry forward
-                                • Carry forward will be applied automatically at the end of the year
+                            <Typography variant="body2" color="textSecondary" fontSize="0.8rem">
+                                • <strong>Annual Leave (AL)</strong> allows carry forward up to <strong>6 days</strong>
+                                <br />• <strong>Sick Leave (SL)</strong> and <strong>Special Leave (SPL)</strong> do not allow carry forward
+                                <br />• Carry forward is applied automatically from previous year's remaining balance
                             </Typography>
                         </Box>
                     </Box>
@@ -827,8 +823,8 @@ const AllLeaveBalances = () => {
                                 </Grid>
                                 {editDialog.carryForward > 0 && (
                                     <Grid item xs={12}>
-                                        <Typography variant="body2" sx={{ color: '#9c27b0' }}>
-                                            <strong>Carry Forward:</strong> {editDialog.carryForward.toFixed(1)} days
+                                        <Typography variant="body2" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
+                                            <strong>🔄 Carry Forward:</strong> {editDialog.carryForward.toFixed(1)} days
                                         </Typography>
                                     </Grid>
                                 )}
