@@ -29,6 +29,17 @@ const leaveService = {
         }
     },
 
+    // ✅ TAMBAHKAN METHOD INI
+    getPendingLeaves: async (params = {}) => {
+        try {
+            const response = await api.get('/leaves/pending', { params });
+            return response.data.data;
+        } catch (error) {
+            console.error('❌ Error fetching pending leaves:', error);
+            throw error;
+        }
+    },
+
     getLeave: async (id) => {
         try {
             const response = await api.get(`/leaves/${id}`);

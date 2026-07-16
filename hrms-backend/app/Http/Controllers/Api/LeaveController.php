@@ -39,7 +39,13 @@ class LeaveController extends Controller
     }
 
     /**
-     * Get all leave types
+     * ==========================================
+     * LEAVE TYPES
+     * ==========================================
+     */
+
+    /**
+     * Get all active leave types
      */
     public function leaveTypes(): JsonResponse
     {
@@ -51,6 +57,12 @@ class LeaveController extends Controller
             return $this->error('Failed to fetch leave types: ' . $e->getMessage(), 500);
         }
     }
+
+    /**
+     * ==========================================
+     * LEAVE REQUESTS - CRUD
+     * ==========================================
+     */
 
     /**
      * Get list of leaves with filters
@@ -182,10 +194,7 @@ class LeaveController extends Controller
             }
 
             // Get approval flow based on hierarchy
-            $approvalFlow = $this->hierarchyService->createApprovalFlow(
-                new Leave(),
-                $employee
-            );
+            $approvalFlow = $this->hierarchyService->createApprovalFlow(new Leave(), $employee);
 
             if (empty($approvalFlow)) {
                 return $this->error('No approval flow configured. Please contact HR.', 422);
@@ -255,6 +264,12 @@ class LeaveController extends Controller
             return $this->error('Failed to submit leave: ' . $e->getMessage(), 500);
         }
     }
+
+    /**
+     * ==========================================
+     * LEAVE ACTIONS - APPROVE, REJECT, CANCEL
+     * ==========================================
+     */
 
     /**
      * Approve leave
@@ -440,6 +455,20 @@ class LeaveController extends Controller
     }
 
     /**
+     * ==========================================
+     * PENDING APPROVALS
+     * ==========================================
+     */
+
+    /**
+     * Get pending requests (alias for pendingApprovals)
+     */
+    public function pendingRequests(Request $request): JsonResponse
+    {
+        return $this->pendingApprovals($request);
+    }
+
+    /**
      * Get pending approvals for current user
      */
     public function pendingApprovals(Request $request): JsonResponse
@@ -459,6 +488,12 @@ class LeaveController extends Controller
             return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
         }
     }
+
+    /**
+     * ==========================================
+     * STATISTICS & HISTORY
+     * ==========================================
+     */
 
     /**
      * Get leave statistics
@@ -543,6 +578,45 @@ class LeaveController extends Controller
     }
 
     /**
+     * Get leaves for a specific employee (Admin/HR only)
+     */
+    public function employeeLeaves(Request $request, $employeeId): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$this->isAdminOrHR($user)) {
+                return $this->unauthorized('You are not authorized to view this data');
+            }
+
+            $query = Leave::with(['leaveType', 'approvals.approver'])
+                ->where('employee_id', $employeeId);
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->filled('year')) {
+                $query->whereYear('start_date', $request->year);
+            }
+
+            $perPage = $request->input('per_page', 15);
+            $leaves = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+            return $this->success($leaves, 'Employee leaves fetched successfully');
+        } catch (\Exception $e) {
+            Log::error('❌ Error fetching employee leaves: ' . $e->getMessage());
+            return $this->error('Failed to fetch employee leaves: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * ==========================================
+     * ATTACHMENT
+     * ==========================================
+     */
+
+    /**
      * Download attachment
      */
     public function downloadAttachment($id): JsonResponse
@@ -578,37 +652,44 @@ class LeaveController extends Controller
     }
 
     /**
-     * Get leave audit logs
+     * ==========================================
+     * PUBLIC HOLIDAYS
+     * ==========================================
      */
-    public function auditLogs($id): JsonResponse
+
+    /**
+     * Get public holidays (placeholder)
+     */
+    public function publicHolidays(Request $request): JsonResponse
     {
         try {
-            $leave = Leave::find($id);
+            // This is a placeholder - you can implement actual public holidays
+            $holidays = [
+                [
+                    'name' => 'New Year\'s Day',
+                    'date' => '2024-01-01',
+                    'description' => 'New Year\'s Day'
+                ],
+                [
+                    'name' => 'Independence Day',
+                    'date' => '2024-07-04',
+                    'description' => 'Independence Day'
+                ],
+                // Add more holidays as needed
+            ];
 
-            if (!$leave) {
-                return $this->notFound('Leave not found');
-            }
-
-            // Check authorization
-            $user = request()->user();
-            if ($leave->employee_id !== $user->id && !$this->isAdminOrHR($user)) {
-                return $this->unauthorized('You cannot view this leave history');
-            }
-
-            $logs = LeaveAuditLog::with(['performedBy'])
-                ->where('leave_id', $id)
-                ->orderBy('created_at', 'desc')
-                ->get()
-                ->map(function ($log) {
-                    return $log->toApiArray();
-                });
-
-            return $this->success($logs, 'Audit logs fetched successfully');
+            return $this->success($holidays, 'Public holidays fetched successfully');
         } catch (\Exception $e) {
-            Log::error('❌ Error fetching audit logs: ' . $e->getMessage());
-            return $this->error('Failed to fetch audit logs: ' . $e->getMessage(), 500);
+            Log::error('❌ Error fetching public holidays: ' . $e->getMessage());
+            return $this->error('Failed to fetch public holidays: ' . $e->getMessage(), 500);
         }
     }
+
+    /**
+     * ==========================================
+     * HELPER METHODS
+     * ==========================================
+     */
 
     /**
      * Calculate working days between two dates (excluding weekends)
@@ -635,7 +716,6 @@ class LeaveController extends Controller
     {
         if (!$user) return false;
 
-        // ✅ FIX: Gunakan position title langsung, tanpa hasRole()
         $adminPositions = [
             'HR Manager',
             'HR Officer',
@@ -646,15 +726,17 @@ class LeaveController extends Controller
             'CEO'
         ];
 
-        // Cek melalui relasi position
         if ($user->relationLoaded('position') && $user->position) {
             return in_array($user->position->title ?? '', $adminPositions);
         }
 
-        // Fallback: cek manual jika position tidak diload
-        $position = $user->position()->first();
-        if ($position) {
-            return in_array($position->title ?? '', $adminPositions);
+        try {
+            $position = $user->position()->first();
+            if ($position) {
+                return in_array($position->title ?? '', $adminPositions);
+            }
+        } catch (\Exception $e) {
+            Log::warning('Could not load position for user: ' . $e->getMessage());
         }
 
         return false;
