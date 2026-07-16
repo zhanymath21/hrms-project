@@ -60,26 +60,16 @@ const ManageNewEmployees = () => {
         setLoading(true);
         try {
             const response = await api.get('/employees-without-balances');
+            const data = response.data.data;
             
-            // ✅ Debug response
-            console.log('📊 Response from /employees-without-balances:', response);
-            
-            const data = response.data.data || response.data;
-            
-            // ✅ Handle different response structures
-            const employeesData = data.employees || data || [];
-            const totalData = data.total || employeesData.length || 0;
-            
-            setEmployees(employeesData);
+            setEmployees(data.employees || []);
             setStats({
-                total: totalData,
+                total: data.total || 0,
                 generated: 0,
-                pending: totalData,
+                pending: data.total || 0,
             });
-            
-            console.log('📊 Employees without balances:', employeesData);
         } catch (err) {
-            console.error('❌ Error loading data:', err);
+            console.error('Error loading data:', err);
             setSnackbar({
                 open: true,
                 message: 'Failed to load data: ' + (err.response?.data?.message || err.message),
@@ -101,9 +91,7 @@ const ManageNewEmployees = () => {
             const response = await api.post('/generate-balance', {
                 employee_id: selectedEmployee.id,
             });
-            
-            console.log('📊 Generate balance response:', response);
-            
+
             if (response.data.status === 'success') {
                 setSnackbar({
                     open: true,
@@ -111,17 +99,16 @@ const ManageNewEmployees = () => {
                     severity: 'success',
                 });
                 
-                // Update stats
                 setStats(prev => ({
                     ...prev,
                     generated: prev.generated + 1,
                     pending: prev.pending - 1,
                 }));
                 
-                // Remove from list
                 setEmployees(prevEmployees => prevEmployees.filter(emp => emp.id !== selectedEmployee.id));
                 setDialogOpen(false);
                 setSelectedEmployee(null);
+                loadData();
             } else {
                 setSnackbar({
                     open: true,
@@ -130,7 +117,7 @@ const ManageNewEmployees = () => {
                 });
             }
         } catch (err) {
-            console.error('❌ Error generating balance:', err);
+            console.error('Error generating balance:', err);
             setSnackbar({
                 open: true,
                 message: err.response?.data?.message || 'Failed to generate balances',
@@ -157,20 +144,17 @@ const ManageNewEmployees = () => {
         try {
             const response = await api.post('/generate-new-employees-balances');
             
-            console.log('📊 Generate all response:', response);
-            
             if (response.data.status === 'success') {
                 const data = response.data.data || {};
-                const totalProcessed = data.total_processed || data.generated || 0;
+                const generated = data.generated || 0;
                 
                 setSnackbar({
                     open: true,
-                    message: `✅ Balances generated for ${totalProcessed} employees`,
+                    message: `✅ Balances generated for ${generated} employees`,
                     severity: 'success',
                 });
                 setProgress(100);
                 
-                // Reload data after generation
                 setTimeout(() => {
                     loadData();
                 }, 1000);
@@ -182,7 +166,7 @@ const ManageNewEmployees = () => {
                 });
             }
         } catch (err) {
-            console.error('❌ Error generating all balances:', err);
+            console.error('Error generating all balances:', err);
             setSnackbar({
                 open: true,
                 message: err.response?.data?.message || 'Failed to generate balances',
@@ -221,7 +205,6 @@ const ManageNewEmployees = () => {
 
     return (
         <Box sx={{ p: 3 }}>
-            {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Box>
                     <Typography variant="h4" fontWeight="bold">
@@ -252,7 +235,6 @@ const ManageNewEmployees = () => {
                 </Box>
             </Box>
 
-            {/* Stats */}
             <Grid container spacing={3} mb={3}>
                 <Grid item xs={12} md={4}>
                     <Card>
@@ -292,7 +274,6 @@ const ManageNewEmployees = () => {
                 </Grid>
             </Grid>
 
-            {/* Progress Bar */}
             {generatingAll && (
                 <Box sx={{ width: '100%', mb: 3 }}>
                     <Typography variant="body2" color="textSecondary">
@@ -306,7 +287,6 @@ const ManageNewEmployees = () => {
                 </Box>
             )}
 
-            {/* Employees Table */}
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
@@ -320,7 +300,7 @@ const ManageNewEmployees = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {!employees || employees.length === 0 ? (
+                        {employees.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                                     <Typography color="textSecondary">
@@ -367,7 +347,6 @@ const ManageNewEmployees = () => {
                 </Table>
             </TableContainer>
 
-            {/* Confirm Dialog */}
             <Dialog open={dialogOpen} onClose={() => !generating && setDialogOpen(false)}>
                 <DialogTitle>
                     <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -422,7 +401,6 @@ const ManageNewEmployees = () => {
                 </DialogActions>
             </Dialog>
 
-            {/* Snackbar */}
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={6000}

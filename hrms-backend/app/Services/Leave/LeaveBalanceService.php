@@ -116,11 +116,17 @@ class LeaveBalanceService
 
     /**
      * Generate leave balance for a new employee
-     * ✅ DIPERBAIKI - Menghapus dependency auth()->id()
      */
     public function generateBalanceForNewEmployee(Employee $employee, ?int $year = null): array
     {
         $year = $year ?? date('Y');
+
+        Log::info('🔄 Starting generateBalanceForNewEmployee', [
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->first_name . ' ' . $employee->last_name,
+            'year' => $year
+        ]);
+
         $leaveTypes = LeaveType::where('is_active', true)->get();
 
         $generated = [];
@@ -132,6 +138,11 @@ class LeaveBalanceService
             ->count();
 
         if ($existingBalances > 0) {
+            Log::info('⚠️ Employee already has balances', [
+                'employee_id' => $employee->id,
+                'count' => $existingBalances
+            ]);
+
             return [
                 'employee_id' => $employee->id,
                 'employee_name' => $employee->first_name . ' ' . $employee->last_name,
@@ -145,9 +156,20 @@ class LeaveBalanceService
 
         foreach ($leaveTypes as $leaveType) {
             try {
+                Log::info('📝 Processing leave type', [
+                    'leave_type' => $leaveType->name,
+                    'code' => $leaveType->code
+                ]);
+
                 $entitlement = $this->calculateProratedEntitlement($employee, $leaveType, $year);
                 $baseEntitlement = $this->getBaseEntitlement($leaveType);
 
+                Log::info('📊 Calculated entitlement', [
+                    'base_entitlement' => $baseEntitlement,
+                    'prorated_entitlement' => $entitlement
+                ]);
+
+                // Create new balance
                 $balance = LeaveBalance::create([
                     'employee_id' => $employee->id,
                     'leave_type_id' => $leaveType->id,
@@ -160,8 +182,14 @@ class LeaveBalanceService
                     'manual_adjustment' => 0,
                     'carry_forward' => 0,
                     'adjustment_reason' => 'Auto-generated for new employee',
-                    'adjusted_by' => null, // ✅ Set null karena tidak selalu ada user login
+                    'adjusted_by' => null,
                     'adjusted_at' => now(),
+                ]);
+
+                Log::info('✅ Balance created successfully', [
+                    'balance_id' => $balance->id,
+                    'leave_type' => $leaveType->name,
+                    'entitlement' => $entitlement
                 ]);
 
                 $generated[] = [
@@ -171,19 +199,22 @@ class LeaveBalanceService
                     'base_entitlement' => $baseEntitlement,
                     'balance_id' => $balance->id,
                 ];
-
-                Log::info("✅ Balance generated for new employee {$employee->id} - {$leaveType->name}: {$entitlement} days");
             } catch (\Exception $e) {
+                Log::error('❌ Failed to generate balance', [
+                    'employee_id' => $employee->id,
+                    'leave_type' => $leaveType->name,
+                    'error' => $e->getMessage(),
+                ]);
+
                 $failed[] = [
                     'leave_type' => $leaveType->name,
                     'leave_code' => $leaveType->code,
                     'error' => $e->getMessage(),
                 ];
-                Log::error("❌ Failed to generate balance for employee {$employee->id} - {$leaveType->name}: " . $e->getMessage());
             }
         }
 
-        return [
+        $result = [
             'employee_id' => $employee->id,
             'employee_name' => $employee->first_name . ' ' . $employee->last_name,
             'employee_employee_id' => $employee->employee_id,
@@ -192,6 +223,14 @@ class LeaveBalanceService
             'generated' => $generated,
             'failed' => $failed,
         ];
+
+        Log::info('🏁 generateBalanceForNewEmployee completed', [
+            'employee_id' => $employee->id,
+            'generated' => count($generated),
+            'failed' => count($failed)
+        ]);
+
+        return $result;
     }
 
     /**
@@ -201,61 +240,66 @@ class LeaveBalanceService
     {
         $year = $year ?? date('Y');
 
+        Log::info('🔄 Starting generateBalancesForNewEmployees', ['year' => $year]);
+
         $employees = Employee::where('status', 'active')
             ->whereDoesntHave('leaveBalances', function ($query) use ($year) {
                 $query->where('year', $year);
             })
             ->get();
 
+        Log::info('📊 Employees without balances', [
+            'count' => $employees->count(),
+            'employee_ids' => $employees->pluck('id')->toArray()
+        ]);
+
         if ($employees->isEmpty()) {
             return [
                 'year' => $year,
                 'total_processed' => 0,
+                'generated' => 0,
+                'failed' => 0,
                 'message' => 'All employees already have balances for this year',
                 'results' => [],
             ];
         }
 
         $results = [];
+        $generated = 0;
+        $failed = 0;
+
         foreach ($employees as $employee) {
-            $result = $this->generateBalanceForNewEmployee($employee, $year);
-            $results[] = $result;
+            try {
+                $result = $this->generateBalanceForNewEmployee($employee, $year);
+                $results[] = $result;
+
+                if ($result['status'] === 'success') {
+                    $generated++;
+                } else {
+                    $failed++;
+                }
+            } catch (\Exception $e) {
+                Log::error('❌ Exception while generating balance:', [
+                    'employee_id' => $employee->id,
+                    'error' => $e->getMessage()
+                ]);
+                $failed++;
+                $results[] = [
+                    'employee_id' => $employee->id,
+                    'employee_name' => $employee->first_name . ' ' . $employee->last_name,
+                    'error' => $e->getMessage(),
+                ];
+            }
         }
 
         return [
             'year' => $year,
             'total_processed' => $employees->count(),
-            'message' => "Balances generated for {$employees->count()} employees",
+            'generated' => $generated,
+            'failed' => $failed,
+            'message' => "Balances generated for {$generated} employees",
             'results' => $results,
         ];
-    }
-
-    /**
-     * Recalculate balance to ensure consistency
-     */
-    public function recalculateBalance(LeaveBalance $balance): void
-    {
-        $usedDays = Leave::where('employee_id', $balance->employee_id)
-            ->where('leave_type_id', $balance->leave_type_id)
-            ->whereYear('start_date', $balance->year)
-            ->where('status', 'approved')
-            ->sum('total_days');
-
-        $pendingDays = Leave::where('employee_id', $balance->employee_id)
-            ->where('leave_type_id', $balance->leave_type_id)
-            ->whereYear('start_date', $balance->year)
-            ->where('status', 'pending')
-            ->sum('total_days');
-
-        $balance->used_days = (float) $usedDays;
-        $balance->pending_days = (float) $pendingDays;
-        $balance->remaining_days = $balance->total_entitlement - $balance->used_days - $balance->pending_days;
-
-        if ($balance->remaining_days < 0) {
-            $balance->remaining_days = 0;
-        }
-
-        $balance->save();
     }
 
     /**
@@ -313,7 +357,6 @@ class LeaveBalanceService
                 - (float) $balance->pending_days;
 
             if ($balance->remaining_days < 0) {
-                Log::warning("⚠️ Negative remaining days detected for employee {$employee->id}, setting to 0");
                 $balance->remaining_days = 0;
             }
 
@@ -332,46 +375,6 @@ class LeaveBalanceService
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("❌ Error updating balance after leave: " . $e->getMessage());
-            throw $e;
-        }
-    }
-
-    /**
-     * Manual adjustment of leave balance
-     */
-    public function manualAdjustment(LeaveBalance $balance, float $newTotal, string $reason, int $adjustedBy): LeaveBalance
-    {
-        try {
-            DB::beginTransaction();
-
-            $oldRemaining = $balance->remaining_days;
-
-            $balance->total_entitlement = $newTotal;
-            $balance->manual_adjustment = $newTotal - $balance->base_entitlement;
-            $balance->adjustment_reason = $reason;
-            $balance->adjusted_by = $adjustedBy;
-            $balance->adjusted_at = now();
-            $balance->remaining_days = $newTotal - $balance->used_days - $balance->pending_days;
-
-            if ($balance->remaining_days < 0) {
-                $balance->remaining_days = 0;
-            }
-
-            $balance->save();
-
-            Log::info("✅ Manual adjustment completed", [
-                'balance_id' => $balance->id,
-                'employee_id' => $balance->employee_id,
-                'old_remaining' => $oldRemaining,
-                'new_remaining' => $balance->remaining_days,
-                'adjusted_by' => $adjustedBy,
-            ]);
-
-            DB::commit();
-            return $balance;
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("❌ Error in manual adjustment: " . $e->getMessage());
             throw $e;
         }
     }
@@ -440,5 +443,26 @@ class LeaveBalanceService
                 $query->where('year', $year);
             })
             ->get(['id', 'employee_id', 'first_name', 'last_name', 'email', 'hire_date']);
+    }
+
+    /**
+     * Reset balances for a specific year
+     */
+    public function resetBalancesForYear(int $year): array
+    {
+        try {
+            $count = LeaveBalance::where('year', $year)->delete();
+
+            Log::info("🗑️ Reset balances for year {$year}", ['deleted' => $count]);
+
+            return [
+                'year' => $year,
+                'deleted' => $count,
+                'message' => "Reset {$count} balances for year {$year}"
+            ];
+        } catch (\Exception $e) {
+            Log::error('❌ Error resetting balances: ' . $e->getMessage());
+            throw $e;
+        }
     }
 }
