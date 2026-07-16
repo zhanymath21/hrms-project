@@ -59,18 +59,27 @@ const ManageNewEmployees = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            // ✅ CORRECT ENDPOINT
             const response = await api.get('/employees-without-balances');
-            const data = response.data.data;
             
-            setEmployees(data.employees || []);
+            // ✅ Debug response
+            console.log('📊 Response from /employees-without-balances:', response);
+            
+            const data = response.data.data || response.data;
+            
+            // ✅ Handle different response structures
+            const employeesData = data.employees || data || [];
+            const totalData = data.total || employeesData.length || 0;
+            
+            setEmployees(employeesData);
             setStats({
-                total: data.total || 0,
+                total: totalData,
                 generated: 0,
-                pending: data.total || 0,
+                pending: totalData,
             });
+            
+            console.log('📊 Employees without balances:', employeesData);
         } catch (err) {
-            console.error('Error loading data:', err);
+            console.error('❌ Error loading data:', err);
             setSnackbar({
                 open: true,
                 message: 'Failed to load data: ' + (err.response?.data?.message || err.message),
@@ -89,11 +98,12 @@ const ManageNewEmployees = () => {
     const confirmGenerate = async () => {
         setGenerating(true);
         try {
-            // ✅ CORRECT ENDPOINT
             const response = await api.post('/generate-balance', {
                 employee_id: selectedEmployee.id,
             });
-
+            
+            console.log('📊 Generate balance response:', response);
+            
             if (response.data.status === 'success') {
                 setSnackbar({
                     open: true,
@@ -109,7 +119,7 @@ const ManageNewEmployees = () => {
                 }));
                 
                 // Remove from list
-                setEmployees(employees.filter(emp => emp.id !== selectedEmployee.id));
+                setEmployees(prevEmployees => prevEmployees.filter(emp => emp.id !== selectedEmployee.id));
                 setDialogOpen(false);
                 setSelectedEmployee(null);
             } else {
@@ -120,6 +130,7 @@ const ManageNewEmployees = () => {
                 });
             }
         } catch (err) {
+            console.error('❌ Error generating balance:', err);
             setSnackbar({
                 open: true,
                 message: err.response?.data?.message || 'Failed to generate balances',
@@ -144,17 +155,25 @@ const ManageNewEmployees = () => {
         setProgress(0);
 
         try {
-            // ✅ CORRECT ENDPOINT
             const response = await api.post('/generate-new-employees-balances');
             
+            console.log('📊 Generate all response:', response);
+            
             if (response.data.status === 'success') {
+                const data = response.data.data || {};
+                const totalProcessed = data.total_processed || data.generated || 0;
+                
                 setSnackbar({
                     open: true,
-                    message: `✅ Balances generated for ${response.data.data.total_processed} employees`,
+                    message: `✅ Balances generated for ${totalProcessed} employees`,
                     severity: 'success',
                 });
                 setProgress(100);
-                await loadData();
+                
+                // Reload data after generation
+                setTimeout(() => {
+                    loadData();
+                }, 1000);
             } else {
                 setSnackbar({
                     open: true,
@@ -163,6 +182,7 @@ const ManageNewEmployees = () => {
                 });
             }
         } catch (err) {
+            console.error('❌ Error generating all balances:', err);
             setSnackbar({
                 open: true,
                 message: err.response?.data?.message || 'Failed to generate balances',
@@ -227,7 +247,7 @@ const ManageNewEmployees = () => {
                         onClick={handleGenerateAll}
                         disabled={generatingAll || employees.length === 0}
                     >
-                        Generate All
+                        Generate All ({employees.length})
                     </Button>
                 </Box>
             </Box>
@@ -300,7 +320,7 @@ const ManageNewEmployees = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {employees.length === 0 ? (
+                        {!employees || employees.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                                     <Typography color="textSecondary">
