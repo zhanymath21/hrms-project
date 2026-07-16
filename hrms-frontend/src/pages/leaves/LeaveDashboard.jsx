@@ -3,49 +3,50 @@
 import React, { useEffect, useState } from 'react';
 import {
     Box,
+    Paper,
+    Typography,
     Grid,
     Card,
     CardContent,
-    Typography,
-    Button,
     Chip,
-    LinearProgress,
+    Button,
     Avatar,
     List,
     ListItem,
-    ListItemText,
     ListItemAvatar,
+    ListItemText,
+    ListItemSecondaryAction,
     Divider,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    CircularProgress,
-    Alert,
+    LinearProgress,
+    Stack,
     IconButton,
     Tooltip,
+    CircularProgress,
+    Alert,
 } from '@mui/material';
 import {
+    Refresh as RefreshIcon,
+    Add as AddIcon,
+    ArrowForward as ArrowForwardIcon,
+    Pending as PendingIcon,
+    CheckCircle as CheckCircleIcon,
+    Cancel as CancelIcon,
+    Person as PersonIcon,
     BeachAccess,
     Sick,
     Celebration,
     TrendingUp,
     TrendingDown,
-    Pending,
-    CheckCircle,
-    Cancel,
-    Refresh,
-    Add,
-    Visibility,
-    People,
-    CalendarToday,
-    EventNote,
 } from '@mui/icons-material';
 import { useLeave } from '../../contexts/LeaveContext';
 import { useNavigate } from 'react-router-dom';
+import { formatDate } from '../../utils/dateFormat';
+
+// ✅ Helper function untuk format number
+const formatNumber = (value) => {
+    const num = parseFloat(value) || 0;
+    return num.toFixed(1);
+};
 
 const LeaveDashboard = () => {
     const {
@@ -61,15 +62,15 @@ const LeaveDashboard = () => {
         error,
         clearError,
     } = useLeave();
-
     const navigate = useNavigate();
     const [stats, setStats] = useState({
-        totalLeaves: 0,
-        approvedLeaves: 0,
-        pendingLeaves: 0,
-        rejectedLeaves: 0,
-        cancelledLeaves: 0,
-        totalDaysUsed: 0,
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        cancelled: 0,
+        usedDays: 0,
+        remainingDays: 0,
     });
 
     useEffect(() => {
@@ -86,34 +87,52 @@ const LeaveDashboard = () => {
     };
 
     useEffect(() => {
-        if (leaves?.data) {
-            const allLeaves = leaves.data || [];
-            const approved = allLeaves.filter(l => l.status === 'approved');
-            const pending = allLeaves.filter(l => l.status === 'pending');
-            const rejected = allLeaves.filter(l => l.status === 'rejected');
-            const cancelled = allLeaves.filter(l => l.status === 'cancelled');
-            
-            setStats({
-                totalLeaves: allLeaves.length,
-                approvedLeaves: approved.length,
-                pendingLeaves: pending.length,
-                rejectedLeaves: rejected.length,
-                cancelledLeaves: cancelled.length,
-                totalDaysUsed: approved.reduce((sum, l) => sum + (l.total_days || 0), 0),
-            });
-        }
-    }, [leaves]);
+        // ✅ AMAN: Gunakan optional chaining dan default value
+        const allData = leaves?.data || [];
+        const approved = allData.filter(l => l.status === 'approved');
+        const pending = allData.filter(l => l.status === 'pending');
+        const rejected = allData.filter(l => l.status === 'rejected');
+        const cancelled = allData.filter(l => l.status === 'cancelled');
+
+        // ✅ Pastikan semua nilai adalah number
+        const total = allData.length || 0;
+        const pendingCount = pending.length || 0;
+        const approvedCount = approved.length || 0;
+        const rejectedCount = rejected.length || 0;
+        const cancelledCount = cancelled.length || 0;
+        const usedDays = approved.reduce((sum, l) => sum + parseFloat(l.total_days || 0), 0);
+        const remainingDays = balances?.reduce((sum, b) => sum + parseFloat(b.remaining_days || 0), 0) || 0;
+
+        setStats({
+            total: total,
+            pending: pendingCount,
+            approved: approvedCount,
+            rejected: rejectedCount,
+            cancelled: cancelledCount,
+            usedDays: usedDays,
+            remainingDays: remainingDays,
+        });
+    }, [leaves, balances]);
 
     const handleRefresh = () => {
         loadDashboardData();
     };
 
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.split(' ');
+        if (parts.length >= 2) {
+            return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
+
     const getStatusChip = (status) => {
         const configs = {
-            pending: { color: 'warning', icon: <Pending />, label: 'Pending' },
-            approved: { color: 'success', icon: <CheckCircle />, label: 'Approved' },
-            rejected: { color: 'error', icon: <Cancel />, label: 'Rejected' },
-            cancelled: { color: 'default', icon: <Cancel />, label: 'Cancelled' },
+            pending: { color: 'warning', icon: <PendingIcon />, label: 'Pending' },
+            approved: { color: 'success', icon: <CheckCircleIcon />, label: 'Approved' },
+            rejected: { color: 'error', icon: <CancelIcon />, label: 'Rejected' },
+            cancelled: { color: 'default', icon: <CancelIcon />, label: 'Cancelled' },
         };
         const config = configs[status] || configs.pending;
         return (
@@ -126,72 +145,10 @@ const LeaveDashboard = () => {
         );
     };
 
-    // ✅ FIX: Map through leaveTypes properly
-    const renderLeaveTypes = () => {
-        if (!leaveTypes || leaveTypes.length === 0) {
-            return (
-                <Typography color="textSecondary" align="center" sx={{ py: 3 }}>
-                    No leave types available
-                </Typography>
-            );
-        }
+    // ✅ AMAN: Ambil pending data dengan safe check
+    const pendingList = pendingLeaves?.data || [];
 
-        return leaveTypes.map((type) => (
-            <Grid item xs={12} sm={6} md={4} key={type.id}>
-                <Card sx={{ 
-                    height: '100%', 
-                    transition: 'transform 0.2s',
-                    '&:hover': { transform: 'translateY(-4px)', boxShadow: 4 }
-                }}>
-                    <CardContent>
-                        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                            <Box>
-                                <Typography variant="h6" fontWeight="bold">
-                                    {type.name}
-                                </Typography>
-                                <Typography variant="caption" color="textSecondary">
-                                    {type.code}
-                                </Typography>
-                            </Box>
-                            <Chip 
-                                label={type.is_active ? 'Active' : 'Inactive'} 
-                                color={type.is_active ? 'success' : 'default'}
-                                size="small"
-                            />
-                        </Box>
-                        <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                            {type.description || 'No description available'}
-                        </Typography>
-                        <Box display="flex" gap={1} mt={2}>
-                            <Chip 
-                                label={`${type.days_per_year} days/year`} 
-                                size="small" 
-                                variant="outlined"
-                            />
-                            {type.is_paid && (
-                                <Chip 
-                                    label="Paid" 
-                                    size="small" 
-                                    color="success" 
-                                    variant="outlined"
-                                />
-                            )}
-                            {type.allow_carry_forward && (
-                                <Chip 
-                                    label={`Carry Forward (${type.max_carry_forward_days} max)`} 
-                                    size="small" 
-                                    color="info" 
-                                    variant="outlined"
-                                />
-                            )}
-                        </Box>
-                    </CardContent>
-                </Card>
-            </Grid>
-        ));
-    };
-
-    if (loading && !leaveTypes.length && !leaves?.data?.length) {
+    if (loading && !leaves?.data?.length) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
                 <CircularProgress />
@@ -200,260 +157,202 @@ const LeaveDashboard = () => {
     }
 
     return (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ maxWidth: 1200, mx: 'auto', p: 2 }}>
             {/* Header */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Box>
-                    <Typography variant="h4" fontWeight="bold">
-                        📊 Leave Dashboard
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                        Overview of leave requests and balances
-                    </Typography>
+            <Paper 
+                elevation={0}
+                sx={{ 
+                    p: 3, 
+                    mb: 3, 
+                    bgcolor: '#f8fafc',
+                    borderRadius: 2,
+                    border: '1px solid #e5e7eb'
+                }}
+            >
+                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+                    <Box>
+                        <Typography variant="h5" fontWeight="bold">
+                            📊 Leave Dashboard
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary">
+                            Overview of your leave activities
+                        </Typography>
+                    </Box>
+                    <Box display="flex" gap={1}>
+                        <Tooltip title="Refresh">
+                            <IconButton onClick={handleRefresh} disabled={loading}>
+                                <RefreshIcon />
+                            </IconButton>
+                        </Tooltip>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={() => navigate('/leaves/create')}
+                            size="small"
+                        >
+                            Request Leave
+                        </Button>
+                    </Box>
                 </Box>
-                <Box display="flex" gap={1}>
-                    <Tooltip title="Refresh Data">
-                        <IconButton onClick={handleRefresh} disabled={loading}>
-                            <Refresh />
-                        </IconButton>
-                    </Tooltip>
-                    <Button
-                        variant="contained"
-                        startIcon={<Add />}
-                        onClick={() => navigate('/leaves/create')}
-                    >
-                        Request Leave
-                    </Button>
-                </Box>
-            </Box>
+            </Paper>
 
-            {/* Error Alert */}
             {error && (
-                <Alert severity="error" sx={{ mb: 3 }} onClose={clearError}>
+                <Alert severity="error" sx={{ mb: 2 }} onClose={clearError}>
                     {error}
                 </Alert>
             )}
 
-            {/* Stats Cards */}
-            <Grid container spacing={3} mb={4}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ bgcolor: '#e3f2fd', borderLeft: '4px solid #1976d2' }}>
-                        <CardContent>
-                            <Box display="flex" justifyContent="space-between" alignItems="center">
-                                <Box>
-                                    <Typography color="textSecondary" variant="body2">
-                                        Total Requests
-                                    </Typography>
-                                    <Typography variant="h4" fontWeight="bold">
-                                        {stats.totalLeaves}
-                                    </Typography>
-                                </Box>
-                                <Avatar sx={{ bgcolor: '#1976d2' }}>
-                                    <EventNote />
-                                </Avatar>
-                            </Box>
+            {/* Stats */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={6} sm={3}>
+                    <Card elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography variant="caption" color="textSecondary">Total Requests</Typography>
+                            <Typography variant="h5" fontWeight="bold">{stats.total}</Typography>
                         </CardContent>
                     </Card>
                 </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ bgcolor: '#e8f5e9', borderLeft: '4px solid #4caf50' }}>
-                        <CardContent>
-                            <Box display="flex" justifyContent="space-between" alignItems="center">
-                                <Box>
-                                    <Typography color="textSecondary" variant="body2">
-                                        Approved
-                                    </Typography>
-                                    <Typography variant="h4" fontWeight="bold" color="success.main">
-                                        {stats.approvedLeaves}
-                                    </Typography>
-                                </Box>
-                                <Avatar sx={{ bgcolor: '#4caf50' }}>
-                                    <CheckCircle />
-                                </Avatar>
-                            </Box>
+                <Grid item xs={6} sm={3}>
+                    <Card elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, bgcolor: '#fef3c7' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography variant="caption" sx={{ color: '#f59e0b' }}>Pending</Typography>
+                            <Typography variant="h5" fontWeight="bold" sx={{ color: '#f59e0b' }}>{stats.pending}</Typography>
                         </CardContent>
                     </Card>
                 </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ bgcolor: '#fff3e0', borderLeft: '4px solid #ff9800' }}>
-                        <CardContent>
-                            <Box display="flex" justifyContent="space-between" alignItems="center">
-                                <Box>
-                                    <Typography color="textSecondary" variant="body2">
-                                        Pending
-                                    </Typography>
-                                    <Typography variant="h4" fontWeight="bold" color="warning.main">
-                                        {stats.pendingLeaves}
-                                    </Typography>
-                                </Box>
-                                <Avatar sx={{ bgcolor: '#ff9800' }}>
-                                    <Pending />
-                                </Avatar>
-                            </Box>
+                <Grid item xs={6} sm={3}>
+                    <Card elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, bgcolor: '#d1fae5' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography variant="caption" sx={{ color: '#10b981' }}>Approved</Typography>
+                            <Typography variant="h5" fontWeight="bold" sx={{ color: '#10b981' }}>{stats.approved}</Typography>
                         </CardContent>
                     </Card>
                 </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ bgcolor: '#ffebee', borderLeft: '4px solid #f44336' }}>
-                        <CardContent>
-                            <Box display="flex" justifyContent="space-between" alignItems="center">
-                                <Box>
-                                    <Typography color="textSecondary" variant="body2">
-                                        Days Used
-                                    </Typography>
-                                    <Typography variant="h4" fontWeight="bold" color="error.main">
-                                        {stats.totalDaysUsed.toFixed(1)}
-                                    </Typography>
-                                </Box>
-                                <Avatar sx={{ bgcolor: '#f44336' }}>
-                                    <TrendingUp />
-                                </Avatar>
-                            </Box>
+                <Grid item xs={6} sm={3}>
+                    <Card elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, bgcolor: '#fee2e2' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography variant="caption" sx={{ color: '#ef4444' }}>Rejected</Typography>
+                            <Typography variant="h5" fontWeight="bold" sx={{ color: '#ef4444' }}>{stats.rejected}</Typography>
                         </CardContent>
                     </Card>
                 </Grid>
             </Grid>
 
-            {/* Leave Types */}
-            <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                Leave Types
-            </Typography>
-            <Grid container spacing={2} sx={{ mb: 4 }}>
-                {renderLeaveTypes()}
-            </Grid>
-
-            {/* Recent Pending Requests & Balance */}
-            <Grid container spacing={3}>
-                <Grid item xs={12} md={8}>
-                    <Paper sx={{ p: 2 }}>
-                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                            Recent Pending Requests
-                        </Typography>
-                        {pendingLeaves?.data && pendingLeaves.data.length > 0 ? (
-                            <TableContainer>
-                                <Table size="small">
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>Employee</TableCell>
-                                            <TableCell>Type</TableCell>
-                                            <TableCell>Days</TableCell>
-                                            <TableCell>Date</TableCell>
-                                            <TableCell>Status</TableCell>
-                                            <TableCell align="center">Action</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {pendingLeaves.data.slice(0, 5).map((leave) => (
-                                            <TableRow key={leave.id} hover>
-                                                <TableCell>
-                                                    <Box display="flex" alignItems="center" gap={1}>
-                                                        <Avatar sx={{ width: 24, height: 24, fontSize: 12 }}>
-                                                            {leave.employee?.first_name?.[0] || 'U'}
-                                                        </Avatar>
-                                                        <Typography variant="body2">
-                                                            {leave.employee?.first_name} {leave.employee?.last_name}
-                                                        </Typography>
-                                                    </Box>
-                                                </TableCell>
-                                                <TableCell>{leave.leave_type?.name}</TableCell>
-                                                <TableCell>{leave.total_days}</TableCell>
-                                                <TableCell>
-                                                    {new Date(leave.start_date).toLocaleDateString()}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {getStatusChip(leave.status)}
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <Tooltip title="View Details">
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => navigate(`/leaves/${leave.id}`)}
-                                                        >
-                                                            <Visibility fontSize="small" />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        ) : (
-                            <Typography color="textSecondary" align="center" sx={{ py: 3 }}>
-                                No pending requests
+            {/* Balance Summary */}
+            <Paper 
+                elevation={0}
+                sx={{ 
+                    p: 2, 
+                    mb: 3,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 2,
+                    bgcolor: '#f8fafc'
+                }}
+            >
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>
+                    💰 Leave Balance Summary
+                </Typography>
+                <Grid container spacing={2}>
+                    <Grid item xs={4}>
+                        <Box>
+                            <Typography variant="caption" color="textSecondary">Remaining</Typography>
+                            <Typography variant="h6" color="success.main" fontWeight="bold">
+                                {formatNumber(stats.remainingDays)} days
                             </Typography>
-                        )}
-                        {pendingLeaves?.data?.length > 5 && (
-                            <Box display="flex" justifyContent="flex-end" mt={1}>
-                                <Button size="small" onClick={() => navigate('/leaves/approval')}>
-                                    View All
-                                </Button>
-                            </Box>
-                        )}
-                    </Paper>
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                    <Paper sx={{ p: 2 }}>
-                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                            My Balance Summary
-                        </Typography>
-                        {balances && balances.length > 0 ? (
-                            <List>
-                                {balances.map((balance) => (
-                                    <React.Fragment key={balance.id}>
-                                        <ListItem>
-                                            <ListItemAvatar>
-                                                <Avatar sx={{ bgcolor: '#6366f1' }}>
-                                                    {balance.leave_type?.code?.[0] || 'L'}
-                                                </Avatar>
-                                            </ListItemAvatar>
-                                            <ListItemText
-                                                primary={
-                                                    <Typography variant="body2" fontWeight="medium">
-                                                        {balance.leave_type?.name}
-                                                    </Typography>
-                                                }
-                                                secondary={
-                                                    <Box>
-                                                        <Typography variant="caption" color="textSecondary">
-                                                            Used: {balance.used_days || 0} / {balance.total_entitlement || 0} days
-                                                        </Typography>
-                                                        <LinearProgress
-                                                            variant="determinate"
-                                                            value={balance.total_entitlement > 0 
-                                                                ? (balance.used_days / balance.total_entitlement) * 100 
-                                                                : 0
-                                                            }
-                                                            sx={{ mt: 0.5, height: 6, borderRadius: 3 }}
-                                                        />
-                                                        <Typography variant="caption" color="success.main" fontWeight="bold">
-                                                            Remaining: {balance.remaining_days || 0} days
-                                                        </Typography>
-                                                    </Box>
-                                                }
-                                            />
-                                        </ListItem>
-                                        <Divider variant="inset" component="li" />
-                                    </React.Fragment>
-                                ))}
-                            </List>
-                        ) : (
-                            <Typography color="textSecondary" align="center" sx={{ py: 3 }}>
-                                No balance data available
-                            </Typography>
-                        )}
-                        <Box display="flex" justifyContent="flex-end" mt={1}>
-                            <Button size="small" onClick={() => navigate('/leaves/balance')}>
-                                View Full Balance
-                            </Button>
                         </Box>
-                    </Paper>
+                    </Grid>
+                    <Grid item xs={4}>
+                        <Box>
+                            <Typography variant="caption" color="textSecondary">Used</Typography>
+                            <Typography variant="h6" color="error.main" fontWeight="bold">
+                                {formatNumber(stats.usedDays)} days
+                            </Typography>
+                        </Box>
+                    </Grid>
+                    <Grid item xs={4}>
+                        <Box>
+                            <Typography variant="caption" color="textSecondary">Total</Typography>
+                            <Typography variant="h6" color="primary.main" fontWeight="bold">
+                                {formatNumber(stats.remainingDays + stats.usedDays)} days
+                            </Typography>
+                        </Box>
+                    </Grid>
                 </Grid>
-            </Grid>
+            </Paper>
+
+            {/* Recent Pending */}
+            <Paper 
+                elevation={0}
+                sx={{ 
+                    p: 2,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 2
+                }}
+            >
+                <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" fontWeight="bold">
+                        ⏳ Recent Pending Requests
+                    </Typography>
+                    {stats.pending > 0 && (
+                        <Button 
+                            size="small" 
+                            endIcon={<ArrowForwardIcon />}
+                            onClick={() => navigate('/leaves/approval')}
+                        >
+                            View All
+                        </Button>
+                    )}
+                </Box>
+
+                {pendingList.length === 0 ? (
+                    <Typography variant="body2" color="textSecondary" sx={{ py: 2, textAlign: 'center' }}>
+                        No pending requests 🎉
+                    </Typography>
+                ) : (
+                    <List disablePadding>
+                        {pendingList.slice(0, 5).map((leave) => (
+                            <React.Fragment key={leave.id}>
+                                <ListItem 
+                                    sx={{ 
+                                        px: 0, 
+                                        py: 1,
+                                        '&:hover': { bgcolor: '#f8fafc', borderRadius: 1 }
+                                    }}
+                                >
+                                    <ListItemAvatar>
+                                        <Avatar sx={{ bgcolor: '#f59e0b', width: 32, height: 32 }}>
+                                            <PendingIcon sx={{ fontSize: 16 }} />
+                                        </Avatar>
+                                    </ListItemAvatar>
+                                    <ListItemText
+                                        primary={
+                                            <Typography variant="body2" fontWeight="medium">
+                                                {leave.employee?.first_name} {leave.employee?.last_name}
+                                            </Typography>
+                                        }
+                                        secondary={
+                                            <Typography variant="caption" color="textSecondary">
+                                                {leave.leave_type?.name} • {leave.total_days} days • {formatDate(leave.start_date)}
+                                            </Typography>
+                                        }
+                                    />
+                                    <ListItemSecondaryAction>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            onClick={() => navigate(`/leaves/${leave.id}`)}
+                                            sx={{ textTransform: 'none' }}
+                                        >
+                                            Review
+                                        </Button>
+                                    </ListItemSecondaryAction>
+                                </ListItem>
+                                <Divider variant="inset" component="li" />
+                            </React.Fragment>
+                        ))}
+                    </List>
+                )}
+            </Paper>
         </Box>
     );
 };

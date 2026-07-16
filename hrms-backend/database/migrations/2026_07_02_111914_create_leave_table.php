@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->text('description')->nullable();
             $table->decimal('days_per_year', 5, 1)->default(12);
+            $table->decimal('default_entitlement', 5, 1)->default(12); // ✅ TAMBAHKAN
             $table->boolean('is_paid')->default(true);
             $table->boolean('allow_carry_forward')->default(true);
             $table->decimal('max_carry_forward_days', 5, 1)->default(6);
@@ -58,6 +59,7 @@ return new class extends Migration
             $table->text('reason')->nullable();
             $table->string('attachment')->nullable();
             $table->enum('status', ['pending', 'approved', 'rejected', 'cancelled'])->default('pending');
+            $table->json('approval_flow')->nullable(); // ✅ TAMBAHKAN - untuk menyimpan flow
             $table->integer('approval_level')->default(0);
             $table->integer('total_approval_levels')->default(1);
             $table->text('rejection_reason')->nullable();
@@ -78,18 +80,20 @@ return new class extends Migration
             $table->timestamp('approved_at')->nullable();
             $table->timestamps();
 
-            // 🔥 PERBAIKI - NAMA UNIQUE LEBIH PENDEK
             $table->unique(['leave_id', 'approver_id'], 'la_leave_approver_unique');
         });
 
-        // 5. Leave Approval Flows
+        // 5. Leave Approval Flows (Config)
         Schema::create('leave_approval_flows', function (Blueprint $table) {
             $table->id();
+            $table->string('name')->nullable(); // ✅ TAMBAHKAN
+            $table->string('applicable_position')->nullable(); // ✅ TAMBAHKAN
             $table->foreignId('department_id')->nullable()->constrained()->onDelete('cascade');
             $table->foreignId('position_id')->nullable()->constrained()->onDelete('cascade');
             $table->integer('level');
             $table->string('approver_type');
             $table->foreignId('approver_id')->nullable()->constrained('employees')->onDelete('cascade');
+            $table->json('stages')->nullable(); // ✅ TAMBAHKAN - untuk multiple stages
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
@@ -119,6 +123,7 @@ return new class extends Migration
             $table->text('reason')->nullable();
             $table->string('attachment')->nullable();
             $table->enum('status', ['pending', 'approved', 'rejected', 'cancelled'])->default('pending');
+            $table->json('approval_flow')->nullable(); // ✅ TAMBAHKAN
             $table->integer('approval_level')->default(0);
             $table->integer('total_approval_levels')->default(1);
             $table->text('rejection_reason')->nullable();
@@ -139,18 +144,20 @@ return new class extends Migration
             $table->timestamp('approved_at')->nullable();
             $table->timestamps();
 
-            // 🔥 PERBAIKI - NAMA UNIQUE LEBIH PENDEK
             $table->unique(['replacement_leave_id', 'approver_id'], 'rla_leave_approver_unique');
         });
 
-        // 9. Replacement Approval Flows
+        // 9. Replacement Approval Flows (Config)
         Schema::create('replacement_approval_flows', function (Blueprint $table) {
             $table->id();
+            $table->string('name')->nullable(); // ✅ TAMBAHKAN
+            $table->string('applicable_position')->nullable(); // ✅ TAMBAHKAN
             $table->foreignId('department_id')->nullable()->constrained()->onDelete('cascade');
             $table->foreignId('position_id')->nullable()->constrained()->onDelete('cascade');
             $table->integer('level');
             $table->string('approver_type');
             $table->foreignId('approver_id')->nullable()->constrained('employees')->onDelete('cascade');
+            $table->json('stages')->nullable(); // ✅ TAMBAHKAN
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

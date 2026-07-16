@@ -42,6 +42,7 @@ import LeaveDetail from './pages/leaves/LeaveDetail';
 import AllLeaveBalances from './pages/leaves/AllLeaveBalances';
 import ApprovalFlowList from './pages/leaves/ApprovalFlowList';
 import ManageNewEmployees from './pages/leaves/ManageNewEmployees';
+import LeaveMenu from './pages/leaves/LeaveMenu';
 
 // ============ REPLACEMENT LEAVE PAGES ============
 import ReplacementList from './pages/leaves/ReplacementList';
@@ -339,6 +340,16 @@ function AppRoutes() {
             <LeaveDashboard />
           </MainLayout>
         </ProtectedRoute>
+      } />
+
+      <Route path="/leaves" element={
+          <ProtectedRoute>
+              <MainLayout>
+                  <LeaveProvider>
+                      <LeaveMenu />
+                  </LeaveProvider>
+              </MainLayout>
+          </ProtectedRoute>
       } />
 
       <Route path="/leaves/list" element={
