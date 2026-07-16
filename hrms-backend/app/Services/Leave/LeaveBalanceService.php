@@ -34,6 +34,8 @@ class LeaveBalanceService
                     'remaining_days' => $this->calculateEntitlement($employee, $leaveType, $year),
                     'used_days' => 0,
                     'pending_days' => 0,
+                    'carry_forward' => 0,
+                    'manual_adjustment' => 0,
                 ]
             );
 
@@ -97,7 +99,6 @@ class LeaveBalanceService
 
     /**
      * Calculate prorated entitlement based on hire date
-     * ✅ TAMBAHKAN METHOD INI
      */
     public function calculateProratedEntitlement(Employee $employee, LeaveType $leaveType, int $year): float
     {
@@ -116,7 +117,6 @@ class LeaveBalanceService
 
     /**
      * Generate leave balance for a new employee
-     * ✅ TAMBAHKAN METHOD INI
      */
     public function generateBalanceForNewEmployee(Employee $employee, ?int $year = null): array
     {
@@ -160,7 +160,7 @@ class LeaveBalanceService
                     'manual_adjustment' => 0,
                     'carry_forward' => 0,
                     'adjustment_reason' => 'Auto-generated for new employee',
-                    'adjusted_by' => auth()->id(),
+                    'adjusted_by' => auth()->id() ?? 1,
                     'adjusted_at' => now(),
                 ]);
 
@@ -196,7 +196,6 @@ class LeaveBalanceService
 
     /**
      * Generate balances for all new employees
-     * ✅ TAMBAHKAN METHOD INI
      */
     public function generateBalancesForNewEmployees(?int $year = null): array
     {
@@ -232,6 +231,34 @@ class LeaveBalanceService
     }
 
     /**
+     * Recalculate balance to ensure consistency
+     */
+    public function recalculateBalance(LeaveBalance $balance): void
+    {
+        $usedDays = Leave::where('employee_id', $balance->employee_id)
+            ->where('leave_type_id', $balance->leave_type_id)
+            ->whereYear('start_date', $balance->year)
+            ->where('status', 'approved')
+            ->sum('total_days');
+
+        $pendingDays = Leave::where('employee_id', $balance->employee_id)
+            ->where('leave_type_id', $balance->leave_type_id)
+            ->whereYear('start_date', $balance->year)
+            ->where('status', 'pending')
+            ->sum('total_days');
+
+        $balance->used_days = (float) $usedDays;
+        $balance->pending_days = (float) $pendingDays;
+        $balance->remaining_days = $balance->total_entitlement - $balance->used_days - $balance->pending_days;
+
+        if ($balance->remaining_days < 0) {
+            $balance->remaining_days = 0;
+        }
+
+        $balance->save();
+    }
+
+    /**
      * Update balance after leave action (pending, approve, reject, cancel)
      */
     public function updateBalanceAfterLeave($employee, $leaveType, $year, $action, $days): ?LeaveBalance
@@ -256,22 +283,23 @@ class LeaveBalanceService
 
             if (!$balance) {
                 Log::error("❌ Balance not found for employee {$employee->id}, leave type {$leaveType->id}, year {$year}");
+                DB::rollBack();
                 return null;
             }
 
             switch ($action) {
                 case 'pending':
-                    $balance->pending_days += $days;
+                    $balance->pending_days = (float) $balance->pending_days + $days;
                     break;
 
                 case 'approve':
-                    $balance->pending_days = max(0, $balance->pending_days - $days);
-                    $balance->used_days += $days;
+                    $balance->pending_days = max(0, (float) $balance->pending_days - $days);
+                    $balance->used_days = (float) $balance->used_days + $days;
                     break;
 
                 case 'reject':
                 case 'cancel':
-                    $balance->pending_days = max(0, $balance->pending_days - $days);
+                    $balance->pending_days = max(0, (float) $balance->pending_days - $days);
                     break;
 
                 default:
@@ -280,9 +308,12 @@ class LeaveBalanceService
                     return null;
             }
 
-            $balance->remaining_days = $balance->total_entitlement - $balance->used_days - $balance->pending_days;
+            $balance->remaining_days = (float) $balance->total_entitlement
+                - (float) $balance->used_days
+                - (float) $balance->pending_days;
 
             if ($balance->remaining_days < 0) {
+                Log::warning("⚠️ Negative remaining days detected for employee {$employee->id}, setting to 0");
                 $balance->remaining_days = 0;
             }
 
@@ -301,6 +332,46 @@ class LeaveBalanceService
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("❌ Error updating balance after leave: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Manual adjustment of leave balance
+     */
+    public function manualAdjustment(LeaveBalance $balance, float $newTotal, string $reason, int $adjustedBy): LeaveBalance
+    {
+        try {
+            DB::beginTransaction();
+
+            $oldRemaining = $balance->remaining_days;
+
+            $balance->total_entitlement = $newTotal;
+            $balance->manual_adjustment = $newTotal - $balance->base_entitlement;
+            $balance->adjustment_reason = $reason;
+            $balance->adjusted_by = $adjustedBy;
+            $balance->adjusted_at = now();
+            $balance->remaining_days = $newTotal - $balance->used_days - $balance->pending_days;
+
+            if ($balance->remaining_days < 0) {
+                $balance->remaining_days = 0;
+            }
+
+            $balance->save();
+
+            Log::info("✅ Manual adjustment completed", [
+                'balance_id' => $balance->id,
+                'employee_id' => $balance->employee_id,
+                'old_remaining' => $oldRemaining,
+                'new_remaining' => $balance->remaining_days,
+                'adjusted_by' => $adjustedBy,
+            ]);
+
+            DB::commit();
+            return $balance;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("❌ Error in manual adjustment: " . $e->getMessage());
             throw $e;
         }
     }
@@ -331,7 +402,7 @@ class LeaveBalanceService
             return false;
         }
 
-        return $balance->remaining_days >= $days;
+        return (float) $balance->remaining_days >= $days;
     }
 
     /**
@@ -356,6 +427,18 @@ class LeaveBalanceService
             ])->first();
         }
 
-        return $balance ? $balance->remaining_days : 0;
+        return $balance ? (float) $balance->remaining_days : 0;
+    }
+
+    /**
+     * Get employees without balances for a specific year
+     */
+    public function getEmployeesWithoutBalances(int $year): \Illuminate\Database\Eloquent\Collection
+    {
+        return Employee::where('status', 'active')
+            ->whereDoesntHave('leaveBalances', function ($query) use ($year) {
+                $query->where('year', $year);
+            })
+            ->get(['id', 'employee_id', 'first_name', 'last_name', 'email', 'hire_date']);
     }
 }
