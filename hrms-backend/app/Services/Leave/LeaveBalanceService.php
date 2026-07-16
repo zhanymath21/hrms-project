@@ -71,7 +71,6 @@ class LeaveBalanceService
     {
         $baseEntitlement = $this->getBaseEntitlement($leaveType);
 
-        // If it's annual leave, add extra days based on years of service
         if ($leaveType->code === 'AL' || $leaveType->code === 'Annual Leave') {
             $hireDate = Carbon::parse($employee->hire_date);
             $yearsOfService = $hireDate->diffInYears(Carbon::create($year, 1, 1));
@@ -117,6 +116,7 @@ class LeaveBalanceService
 
     /**
      * Generate leave balance for a new employee
+     * ✅ DIPERBAIKI - Menghapus dependency auth()->id()
      */
     public function generateBalanceForNewEmployee(Employee $employee, ?int $year = null): array
     {
@@ -160,7 +160,7 @@ class LeaveBalanceService
                     'manual_adjustment' => 0,
                     'carry_forward' => 0,
                     'adjustment_reason' => 'Auto-generated for new employee',
-                    'adjusted_by' => auth()->id() ?? 1,
+                    'adjusted_by' => null, // ✅ Set null karena tidak selalu ada user login
                     'adjusted_at' => now(),
                 ]);
 

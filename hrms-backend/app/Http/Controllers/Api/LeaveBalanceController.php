@@ -393,6 +393,7 @@ class LeaveBalanceController extends Controller
 
             $year = $request->input('year', date('Y'));
 
+            // Get employees without balances
             $employees = Employee::where('status', 'active')
                 ->whereDoesntHave('leaveBalances', function ($query) use ($year) {
                     $query->where('year', $year);
@@ -419,10 +420,21 @@ class LeaveBalanceController extends Controller
                 try {
                     $result = $this->balanceService->generateBalanceForNewEmployee($employee, $year);
                     $results[] = $result;
-                    $generated++;
+
+                    // Check if generation was successful
+                    if ($result['status'] === 'success') {
+                        $generated++;
+                    } else {
+                        $failed++;
+                    }
                 } catch (\Exception $e) {
                     Log::error("Failed to generate balance for employee {$employee->id}: " . $e->getMessage());
                     $failed++;
+                    $results[] = [
+                        'employee_id' => $employee->id,
+                        'employee_name' => $employee->first_name . ' ' . $employee->last_name,
+                        'error' => $e->getMessage(),
+                    ];
                 }
             }
 
