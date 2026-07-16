@@ -47,7 +47,6 @@ class LeaveBalanceController extends Controller
                 return $this->error('Employee record not found. Please contact HR.', 404);
             }
 
-            // Ensure balance exists
             $this->balanceService->ensureBalanceExists($employee);
 
             $balances = LeaveBalance::where('employee_id', $employee->id)
@@ -140,9 +139,12 @@ class LeaveBalanceController extends Controller
 
             $result = $employees->map(function ($employee) use ($leaveTypes) {
                 $balanceData = [];
+                $totalCarryForward = 0;
 
                 foreach ($leaveTypes as $leaveType) {
                     $balance = $employee->leaveBalances->firstWhere('leave_type_id', $leaveType->id);
+                    $carryForward = $balance->carry_forward ?? 0;
+                    $totalCarryForward += $carryForward;
 
                     $balanceData[] = [
                         'id' => $balance->id ?? null,
@@ -153,7 +155,7 @@ class LeaveBalanceController extends Controller
                         'used_days' => (float) ($balance->used_days ?? 0),
                         'pending_days' => (float) ($balance->pending_days ?? 0),
                         'remaining_days' => (float) ($balance->remaining_days ?? 0),
-                        'carry_forward' => (float) ($balance->carry_forward ?? 0),
+                        'carry_forward' => (float) $carryForward,
                     ];
                 }
 
@@ -191,7 +193,7 @@ class LeaveBalanceController extends Controller
                         'used_days' => array_sum(array_column($balanceData, 'used_days')),
                         'pending_days' => array_sum(array_column($balanceData, 'pending_days')),
                         'remaining_days' => array_sum(array_column($balanceData, 'remaining_days')),
-                        'total_carry_forward' => array_sum(array_column($balanceData, 'carry_forward')),
+                        'total_carry_forward' => $totalCarryForward,
                     ],
                 ];
             });
@@ -271,6 +273,176 @@ class LeaveBalanceController extends Controller
         } catch (\Exception $e) {
             Log::error('❌ Error updating balance: ' . $e->getMessage());
             return $this->error('Failed to update balance: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get employees without balances (Admin/HR only)
+     * ✅ TAMBAHKAN METHOD INI
+     */
+    public function getEmployeesWithoutBalances(Request $request): JsonResponse
+    {
+        try {
+            $year = $request->input('year', date('Y'));
+
+            $employees = Employee::where('status', 'active')->get();
+
+            $employeesWithoutBalances = $employees->filter(function ($employee) use ($year) {
+                return !LeaveBalance::where('employee_id', $employee->id)
+                    ->where('year', $year)
+                    ->exists();
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'year' => $year,
+                    'total' => $employeesWithoutBalances->count(),
+                    'employees' => $employeesWithoutBalances->map(function ($employee) {
+                        return [
+                            'id' => $employee->id,
+                            'employee_id' => $employee->employee_id,
+                            'first_name' => $employee->first_name,
+                            'last_name' => $employee->last_name,
+                            'email' => $employee->email,
+                            'hire_date' => $employee->hire_date,
+                            'department' => $employee->department ? [
+                                'id' => $employee->department->id,
+                                'name' => $employee->department->name,
+                            ] : null,
+                            'position' => $employee->position ? [
+                                'id' => $employee->position->id,
+                                'title' => $employee->position->title,
+                            ] : null,
+                        ];
+                    }),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ Error fetching employees without balances: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch employees: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate balance for a specific employee (Admin/HR only)
+     */
+    public function generateBalance(Request $request): JsonResponse
+    {
+        try {
+            Log::info("🔄 Generating balance for employee");
+
+            $validator = Validator::make($request->all(), [
+                'employee_id' => 'required|exists:employees,id',
+                'year' => 'nullable|integer|min:2020|max:2030',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $employee = Employee::find($request->employee_id);
+            $year = $request->year ?? date('Y');
+
+            $existingBalances = LeaveBalance::where('employee_id', $employee->id)
+                ->where('year', $year)
+                ->count();
+
+            if ($existingBalances > 0) {
+                return response()->json([
+                    'status' => 'warning',
+                    'message' => 'Employee already has balances for this year',
+                    'data' => [
+                        'employee' => $employee,
+                        'year' => $year,
+                        'existing_balances' => $existingBalances,
+                    ],
+                ]);
+            }
+
+            $result = $this->balanceService->generateBalanceForNewEmployee($employee, $year);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Balance generated successfully',
+                'data' => $result,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ Error generating balance: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to generate balance: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate balances for all new employees (Admin/HR only)
+     */
+    public function generateForNewEmployees(Request $request): JsonResponse
+    {
+        try {
+            Log::info("🔄 Generating balances for new employees");
+
+            $year = $request->input('year', date('Y'));
+
+            $employees = Employee::where('status', 'active')
+                ->whereDoesntHave('leaveBalances', function ($query) use ($year) {
+                    $query->where('year', $year);
+                })
+                ->get();
+
+            if ($employees->isEmpty()) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'All employees already have balances for this year',
+                    'data' => [
+                        'year' => $year,
+                        'total_processed' => 0,
+                        'results' => [],
+                    ],
+                ]);
+            }
+
+            $results = [];
+            $generated = 0;
+            $failed = 0;
+
+            foreach ($employees as $employee) {
+                try {
+                    $result = $this->balanceService->generateBalanceForNewEmployee($employee, $year);
+                    $results[] = $result;
+                    $generated++;
+                } catch (\Exception $e) {
+                    Log::error("Failed to generate balance for employee {$employee->id}: " . $e->getMessage());
+                    $failed++;
+                }
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Balances generated for {$generated} employees",
+                'data' => [
+                    'year' => $year,
+                    'total_processed' => $employees->count(),
+                    'generated' => $generated,
+                    'failed' => $failed,
+                    'results' => $results,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ Error generating balances: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to generate balances: ' . $e->getMessage()
+            ], 500);
         }
     }
 
