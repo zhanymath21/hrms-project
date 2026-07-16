@@ -11,60 +11,46 @@ import {
     Button,
     Paper,
     Stack,
-    Divider,
-    List,
-    ListItem,
-    ListItemIcon,
-    ListItemText,
-    ListItemAvatar,
     Chip,
-    LinearProgress,
 } from '@mui/material';
 import {
     BeachAccess,
-    Sick,
-    Celebration,
-    TrendingUp,
-    TrendingDown,
+    Add,
+    History,
     Pending,
     CheckCircle,
     Cancel,
-    Add,
-    Visibility,
-    History,
     People,
-    CalendarToday,
     Settings,
     SwapHoriz,
+    Dashboard as DashboardIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useLeave } from '../../contexts/LeaveContext';
 
 const LeaveMenu = () => {
     const navigate = useNavigate();
-    const { balances, leaves, pendingLeaves, loading } = useLeave();
+    const { balances, leaves, pendingLeaves } = useLeave();
 
-    // Hitung statistik
     const totalLeaves = leaves?.data?.length || 0;
     const pendingCount = pendingLeaves?.data?.length || 0;
     const approvedCount = leaves?.data?.filter(l => l.status === 'approved').length || 0;
     const rejectedCount = leaves?.data?.filter(l => l.status === 'rejected').length || 0;
 
-    const getInitials = (name) => {
-        if (!name) return '?';
-        const parts = name.split(' ');
-        if (parts.length >= 2) {
-            return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-
     const menuItems = [
+        {
+            title: 'Dashboard',
+            icon: <DashboardIcon />,
+            color: '#6366f1',
+            bgColor: '#eef2ff',
+            path: '/leaves/dashboard',
+            description: 'Overview of leave activities',
+        },
         {
             title: 'Request Leave',
             icon: <Add />,
-            color: '#6366f1',
-            bgColor: '#eef2ff',
+            color: '#10b981',
+            bgColor: '#d1fae5',
             path: '/leaves/create',
             description: 'Submit a new leave request',
         },
@@ -89,24 +75,24 @@ const LeaveMenu = () => {
         {
             title: 'My Balance',
             icon: <BeachAccess />,
-            color: '#10b981',
-            bgColor: '#d1fae5',
+            color: '#8b5cf6',
+            bgColor: '#f3e8ff',
             path: '/leaves/balance',
             description: 'Check your leave balance',
         },
         {
             title: 'All Balances',
             icon: <People />,
-            color: '#8b5cf6',
-            bgColor: '#f3e8ff',
+            color: '#ec4899',
+            bgColor: '#fce7f3',
             path: '/leaves/all-balances',
             description: 'Manage employee balances',
         },
         {
             title: 'Replacement Leave',
             icon: <SwapHoriz />,
-            color: '#ec4899',
-            bgColor: '#fce7f3',
+            color: '#f97316',
+            bgColor: '#ffedd5',
             path: '/leaves/replacement',
             description: 'Manage replacement leave',
         },
@@ -122,7 +108,7 @@ const LeaveMenu = () => {
 
     return (
         <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
-            {/* Header - Microsoft Teams Style */}
+            {/* Header */}
             <Paper 
                 elevation={0}
                 sx={{ 
@@ -143,29 +129,14 @@ const LeaveMenu = () => {
                         </Typography>
                     </Box>
                     <Box display="flex" gap={1}>
-                        <Chip 
-                            label={`${pendingCount} Pending`}
-                            color="warning"
-                            size="small"
-                            icon={<Pending />}
-                        />
-                        <Chip 
-                            label={`${approvedCount} Approved`}
-                            color="success"
-                            size="small"
-                            icon={<CheckCircle />}
-                        />
-                        <Chip 
-                            label={`${rejectedCount} Rejected`}
-                            color="error"
-                            size="small"
-                            icon={<Cancel />}
-                        />
+                        <Chip label={`${pendingCount} Pending`} color="warning" size="small" icon={<Pending />} />
+                        <Chip label={`${approvedCount} Approved`} color="success" size="small" icon={<CheckCircle />} />
+                        <Chip label={`${rejectedCount} Rejected`} color="error" size="small" icon={<Cancel />} />
                     </Box>
                 </Box>
             </Paper>
 
-            {/* Quick Stats - Teams Style */}
+            {/* Stats */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={6} sm={3} md={2.4}>
                     <Card elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
@@ -211,7 +182,7 @@ const LeaveMenu = () => {
                 </Grid>
             </Grid>
 
-            {/* Menu Grid - Teams Style */}
+            {/* Menu Grid */}
             <Grid container spacing={2}>
                 {menuItems.map((item) => (
                     <Grid item xs={12} sm={6} md={4} lg={3} key={item.title}>
@@ -233,14 +204,7 @@ const LeaveMenu = () => {
                         >
                             <CardContent sx={{ p: 2 }}>
                                 <Box display="flex" alignItems="center" gap={1.5}>
-                                    <Avatar 
-                                        sx={{ 
-                                            bgcolor: item.bgColor, 
-                                            color: item.color,
-                                            width: 40,
-                                            height: 40,
-                                        }}
-                                    >
+                                    <Avatar sx={{ bgcolor: item.bgColor, color: item.color, width: 40, height: 40 }}>
                                         {item.icon}
                                     </Avatar>
                                     <Box flex={1}>
@@ -255,13 +219,7 @@ const LeaveMenu = () => {
                                         <Chip 
                                             label={item.badge}
                                             size="small"
-                                            sx={{ 
-                                                bgcolor: item.color,
-                                                color: '#fff',
-                                                fontWeight: 600,
-                                                fontSize: '0.7rem',
-                                                height: 20,
-                                            }}
+                                            sx={{ bgcolor: item.color, color: '#fff', fontWeight: 600, fontSize: '0.7rem', height: 20 }}
                                         />
                                     )}
                                 </Box>
@@ -271,7 +229,7 @@ const LeaveMenu = () => {
                 ))}
             </Grid>
 
-            {/* Quick Actions - Teams Style */}
+            {/* Quick Actions */}
             <Paper 
                 elevation={0}
                 sx={{ 

@@ -1,23 +1,25 @@
 // src/contexts/LeaveContext.jsx
 
 import React, { createContext, useState, useContext, useCallback } from 'react';
-import leaveService from '../../services/leaveService';
+import leaveService from '../services/leaveService';
 
-const LeaveContext = createContext();
+const LeaveContext = createContext(null);
 
 export const useLeave = () => {
     const context = useContext(LeaveContext);
     if (!context) {
-        throw new Error('useLeave must be used within LeaveProvider');
+        throw new Error('useLeave must be used within a LeaveProvider');
     }
     return context;
 };
 
 export const LeaveProvider = ({ children }) => {
+    // State
+    const [leaveTypes, setLeaveTypes] = useState([]);
     const [leaves, setLeaves] = useState([]);
     const [pendingLeaves, setPendingLeaves] = useState([]);
     const [balances, setBalances] = useState([]);
-    const [leaveTypes, setLeaveTypes] = useState([]);
+    const [allBalances, setAllBalances] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [pagination, setPagination] = useState({
@@ -27,155 +29,267 @@ export const LeaveProvider = ({ children }) => {
         last_page: 1,
     });
 
-    // Fetch leave types
+    // ==========================================
+    // LEAVE TYPES
+    // ==========================================
     const fetchLeaveTypes = useCallback(async () => {
         setLoading(true);
+        setError(null);
         try {
             const data = await leaveService.getLeaveTypes();
-            setLeaveTypes(data);
+            setLeaveTypes(data || []);
             return data;
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || 'Failed to fetch leave types');
             return [];
         } finally {
             setLoading(false);
         }
     }, []);
 
-    // Fetch balances
-    const fetchBalances = useCallback(async (employeeId = null) => {
-        setLoading(true);
-        try {
-            const data = await leaveService.getBalance(employeeId);
-            setBalances(data?.balances || []);
-            return data;
-        } catch (err) {
-            setError(err.message);
-            return null;
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    // Fetch leaves
+    // ==========================================
+    // LEAVES
+    // ==========================================
     const fetchLeaves = useCallback(async (params = {}) => {
         setLoading(true);
+        setError(null);
         try {
             const data = await leaveService.getLeaves(params);
             setLeaves(data?.data || []);
-            setPagination({
-                current_page: data?.current_page || 1,
-                per_page: data?.per_page || 15,
-                total: data?.total || 0,
-                last_page: data?.last_page || 1,
-            });
+            if (data?.pagination) {
+                setPagination(data.pagination);
+            }
             return data;
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || 'Failed to fetch leaves');
             return null;
         } finally {
             setLoading(false);
         }
     }, []);
 
-    // Fetch pending leaves
     const fetchPendingLeaves = useCallback(async (params = {}) => {
         setLoading(true);
+        setError(null);
         try {
-            const data = await leaveService.getPendingLeaves(params);
-            setPendingLeaves(data?.data || []);
+            const data = await leaveService.getPendingApprovals();
+            setPendingLeaves(data || []);
             return data;
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || 'Failed to fetch pending leaves');
             return null;
         } finally {
             setLoading(false);
         }
     }, []);
 
-    // Create leave
     const createLeave = useCallback(async (data) => {
         setLoading(true);
+        setError(null);
         try {
             const result = await leaveService.createLeave(data);
             await fetchLeaves();
             return result;
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || 'Failed to create leave');
             throw err;
         } finally {
             setLoading(false);
         }
     }, [fetchLeaves]);
 
-    // Approve leave
-    const approveLeave = useCallback(async (id) => {
+    const approveLeave = useCallback(async (id, notes) => {
         setLoading(true);
+        setError(null);
         try {
-            const result = await leaveService.approveLeave(id);
+            const result = await leaveService.approveLeave(id, notes);
             await fetchLeaves();
             await fetchPendingLeaves();
             return result;
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || 'Failed to approve leave');
             throw err;
         } finally {
             setLoading(false);
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // Reject leave
     const rejectLeave = useCallback(async (id, reason) => {
         setLoading(true);
+        setError(null);
         try {
             const result = await leaveService.rejectLeave(id, reason);
             await fetchLeaves();
             await fetchPendingLeaves();
             return result;
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || 'Failed to reject leave');
             throw err;
         } finally {
             setLoading(false);
         }
     }, [fetchLeaves, fetchPendingLeaves]);
 
-    // Cancel leave
     const cancelLeave = useCallback(async (id) => {
         setLoading(true);
+        setError(null);
         try {
             const result = await leaveService.cancelLeave(id);
             await fetchLeaves();
             return result;
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || 'Failed to cancel leave');
             throw err;
         } finally {
             setLoading(false);
         }
     }, [fetchLeaves]);
 
+    // ==========================================
+    // BALANCE
+    // ==========================================
+    const fetchMyBalance = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await leaveService.getMyBalance();
+            setBalances(data?.balances || []);
+            return data;
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to fetch my balance');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchAllBalances = useCallback(async (params = {}) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await leaveService.getAllBalances(params);
+            setAllBalances(data?.data || []);
+            return data;
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to fetch all balances');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const updateBalance = useCallback(async (id, data) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await leaveService.updateBalance(id, data);
+            await fetchAllBalances();
+            await fetchMyBalance();
+            return result;
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update balance');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [fetchAllBalances, fetchMyBalance]);
+
+    const updateCarryForward = useCallback(async (id, data) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await leaveService.updateCarryForward(id, data);
+            await fetchAllBalances();
+            await fetchMyBalance();
+            return result;
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update carry forward');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [fetchAllBalances, fetchMyBalance]);
+
+    // ==========================================
+    // APPROVAL FLOW
+    // ==========================================
+    const fetchApprovalFlow = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await leaveService.getApprovalFlow();
+            return data;
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to fetch approval flow');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const updateApprovalFlow = useCallback(async (data) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await leaveService.updateApprovalFlow(data);
+            return result;
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update approval flow');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const value = {
+        // State
+        leaveTypes,
+        leaves,
+        pendingLeaves,
+        balances,
+        allBalances,
+        loading,
+        error,
+        pagination,
+
+        // Leave Types
+        fetchLeaveTypes,
+
+        // Leaves
+        fetchLeaves,
+        fetchPendingLeaves,
+        createLeave,
+        approveLeave,
+        rejectLeave,
+        cancelLeave,
+
+        // Balance
+        fetchMyBalance,
+        fetchAllBalances,
+        updateBalance,
+        updateCarryForward,
+
+        // Approval Flow
+        fetchApprovalFlow,
+        updateApprovalFlow,
+
+        // Utils
+        clearError: () => setError(null),
+        resetState: () => {
+            setLeaves([]);
+            setPendingLeaves([]);
+            setBalances([]);
+            setAllBalances([]);
+            setError(null);
+            setLoading(false);
+        },
+    };
+
     return (
-        <LeaveContext.Provider
-            value={{
-                leaves,
-                pendingLeaves,
-                balances,
-                leaveTypes,
-                loading,
-                error,
-                pagination,
-                fetchLeaveTypes,
-                fetchBalances,
-                fetchLeaves,
-                fetchPendingLeaves,
-                createLeave,
-                approveLeave,
-                rejectLeave,
-                cancelLeave,
-            }}
-        >
+        <LeaveContext.Provider value={value}>
             {children}
         </LeaveContext.Provider>
     );
 };
+
+export default LeaveContext;

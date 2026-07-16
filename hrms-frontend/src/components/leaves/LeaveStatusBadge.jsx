@@ -1,84 +1,82 @@
-// src/components/leaves/LeaveStatusBadge.jsx
+// src/components/leave/LeaveStatusBadge.jsx
 
 import React from 'react';
-import { Chip, Box, Typography } from '@mui/material';
-import { 
-    Pending as PendingIcon, 
-    CheckCircle as CheckCircleIcon, 
-    Cancel as CancelIcon, 
-    Block as BlockIcon,
-    HourglassEmpty as HourglassIcon,
+import { Chip } from '@mui/material';
+import {
+    Pending as PendingIcon,
+    CheckCircle as CheckCircleIcon,
+    Cancel as CancelIcon,
+    HourglassEmpty as HourglassEmptyIcon,
 } from '@mui/icons-material';
 
 const STATUS_CONFIG = {
-    pending: { 
-        label: 'Pending', 
-        color: 'warning', 
-        icon: <PendingIcon fontSize="small" />,
-        description: 'Waiting for approval'
+    pending: {
+        label: 'Pending',
+        color: '#f59e0b',
+        bgColor: '#fef3c7',
+        icon: <PendingIcon />,
     },
-    approved: { 
-        label: 'Approved', 
-        color: 'success', 
-        icon: <CheckCircleIcon fontSize="small" />,
-        description: 'Approved'
+    approved: {
+        label: 'Approved',
+        color: '#10b981',
+        bgColor: '#d1fae5',
+        icon: <CheckCircleIcon />,
     },
-    rejected: { 
-        label: 'Rejected', 
-        color: 'error', 
-        icon: <CancelIcon fontSize="small" />,
-        description: 'Rejected'
+    rejected: {
+        label: 'Rejected',
+        color: '#ef4444',
+        bgColor: '#fee2e2',
+        icon: <CancelIcon />,
     },
-    cancelled: { 
-        label: 'Cancelled', 
-        color: 'default', 
-        icon: <BlockIcon fontSize="small" />,
-        description: 'Cancelled'
+    cancelled: {
+        label: 'Cancelled',
+        color: '#6b7280',
+        bgColor: '#f3f4f6',
+        icon: <CancelIcon />,
     },
-    'in-progress': {
+    in_progress: {
         label: 'In Progress',
-        color: 'info',
-        icon: <HourglassIcon fontSize="small" />,
-        description: 'In progress'
-    }
+        color: '#3b82f6',
+        bgColor: '#dbeafe',
+        icon: <HourglassEmptyIcon />,
+    },
 };
 
-const LeaveStatusBadge = ({ 
-    status, 
-    size = 'small', 
-    showIcon = true, 
-    showTooltip = false,
-    variant = 'filled',
-    sx = {},
-}) => {
+const LeaveStatusBadge = ({ status, showIcon = true, size = 'medium', variant = 'default' }) => {
     const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
 
-    const chip = (
-        <Chip
-            label={config.label}
-            color={config.color}
-            size={size}
-            icon={showIcon ? config.icon : undefined}
-            variant={variant}
-            sx={{
-                fontWeight: 'medium',
-                '& .MuiChip-icon': {
-                    fontSize: size === 'small' ? '0.875rem' : '1.25rem',
-                },
-                ...sx,
-            }}
-        />
-    );
-
-    if (showTooltip) {
+    if (variant === 'dot') {
         return (
-            <Tooltip title={config.description}>
-                {chip}
-            </Tooltip>
+            <Box display="flex" alignItems="center" gap={1}>
+                <Box
+                    sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        bgcolor: config.color,
+                        display: 'inline-block',
+                    }}
+                />
+                <Typography variant="caption" sx={{ color: config.color, fontWeight: 500 }}>
+                    {config.label}
+                </Typography>
+            </Box>
         );
     }
 
-    return chip;
+    return (
+        <Chip
+            label={config.label}
+            size={size}
+            sx={{
+                bgcolor: config.bgColor,
+                color: config.color,
+                fontWeight: 600,
+                '& .MuiChip-icon': { color: config.color },
+            }}
+            icon={showIcon ? config.icon : undefined}
+        />
+    );
 };
 
 export default LeaveStatusBadge;

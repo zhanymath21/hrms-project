@@ -95,51 +95,6 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==========================================
-    // ✅ LEAVE BALANCE - OUTSIDE employees PREFIX
-    // ==========================================
-    // These routes are at /api/xxx to avoid conflict with /api/employees/{id}
-
-    // My balance (Employee) - GET /api/my-leave-balance
-    Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
-
-    // All balances (Admin/HR) - GET /api/leave-balances
-    Route::get('/leave-balances', [LeaveBalanceController::class, 'allBalances']);
-
-    // Balance summary (Admin/HR) - GET /api/leave-balance-summary
-    Route::get('/leave-balance-summary', [LeaveBalanceController::class, 'getBalanceSummary']);
-
-    // Balance report (Admin/HR) - GET /api/leave-balance-report
-    Route::get('/leave-balance-report', [LeaveBalanceController::class, 'getBalanceReport']);
-
-    // Balance detail by ID (Admin/HR) - GET /api/leave-balance/{id}
-    Route::get('/leave-balance/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
-
-    // Update balance (Admin/HR) - PUT /api/leave-balance/{id}
-    Route::put('/leave-balance/{id}', [LeaveBalanceController::class, 'updateBalance']);
-    Route::put('/leave-balance/{id}/carry-forward', [LeaveBalanceController::class, 'updateCarryForward']);
-
-    // Adjustment history for employee (Admin/HR) - GET /api/leave-balance-history/{employeeId}
-    Route::get('/leave-balance-history/{employeeId}', [LeaveBalanceController::class, 'getAdjustmentHistory']);
-
-    // Get balance for specific employee (Admin/HR) - GET /api/employee-balance/{employeeId}
-    Route::get('/employee-balance/{employeeId}', [LeaveBalanceController::class, 'getEmployeeBalance']);
-
-    // Generate balance (Admin/HR) - POST /api/generate-balance
-    Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
-
-    // Generate balances for all new employees
-    Route::post('/generate-new-employees-balances', [LeaveBalanceController::class, 'generateForNewEmployees']);
-
-    // Get employees without balances - ✅ FIXED ROUTE
-    Route::get('/employees-without-balances', [LeaveBalanceController::class, 'getEmployeesWithoutBalances']);
-
-    // Generate all balances (Admin/HR) - POST /api/generate-all-balances
-    Route::post('/generate-all-balances', [LeaveBalanceController::class, 'generateAllBalances']);
-
-    // Process carry forward (Admin/HR) - POST /api/process-carry-forward
-    Route::post('/process-carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
-
-    // ==========================================
     // EMPLOYEE MANAGEMENT
     // ==========================================
     Route::prefix('employees')->group(function () {
@@ -163,8 +118,59 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/employee-documents/{id}', [EmployeeDocumentController::class, 'destroy']);
 
     // ==========================================
-    // LEAVE REQUESTS
+    // ✅ LEAVE MANAGEMENT SYSTEM (COMPLETE)
     // ==========================================
+
+    // ---------- LEAVE BALANCE ----------
+    // My balance (Employee)
+    Route::get('/my-leave-balance', [LeaveBalanceController::class, 'myBalance']);
+
+    // All balances (Admin/HR)
+    Route::get('/leave-balances', [LeaveBalanceController::class, 'allBalances']);
+
+    // Balance summary (Admin/HR)
+    Route::get('/leave-balance-summary', [LeaveBalanceController::class, 'getBalanceSummary']);
+
+    // Balance report (Admin/HR)
+    Route::get('/leave-balance-report', [LeaveBalanceController::class, 'getBalanceReport']);
+
+    // Balance detail by ID (Admin/HR)
+    Route::get('/leave-balance/{id}', [LeaveBalanceController::class, 'getBalanceDetail']);
+
+    // Update balance (Admin/HR)
+    Route::put('/leave-balance/{id}', [LeaveBalanceController::class, 'updateBalance']);
+
+    // Update carry forward (Admin/HR)
+    Route::put('/leave-balance/{id}/carry-forward', [LeaveBalanceController::class, 'updateCarryForward']);
+
+    // Adjustment history (Admin/HR)
+    Route::get('/leave-balance-history/{employeeId}', [LeaveBalanceController::class, 'getAdjustmentHistory']);
+
+    // Get balance for specific employee (Admin/HR)
+    Route::get('/employee-balance/{employeeId}', [LeaveBalanceController::class, 'getEmployeeBalance']);
+
+    // Generate balance (Admin/HR)
+    Route::post('/generate-balance', [LeaveBalanceController::class, 'generateBalance']);
+
+    // Generate balances for new employees (Admin/HR)
+    Route::post('/generate-new-employees-balances', [LeaveBalanceController::class, 'generateForNewEmployees']);
+
+    // Get employees without balances (Admin/HR)
+    Route::get('/employees-without-balances', [LeaveBalanceController::class, 'getEmployeesWithoutBalances']);
+
+    // Generate all balances (Admin/HR)
+    Route::post('/generate-all-balances', [LeaveBalanceController::class, 'generateAllBalances']);
+
+    // Process carry forward (Admin/HR)
+    Route::post('/process-carry-forward', [LeaveBalanceController::class, 'processCarryForward']);
+
+    // Auto-generate balances (cron job)
+    Route::post('/auto-generate-balances', [LeaveBalanceController::class, 'autoGenerateBalances']);
+
+    // Employee balance details (Admin/HR)
+    Route::get('/employee-balance-details/{employeeId}', [LeaveBalanceController::class, 'getEmployeeBalancesWithDetails']);
+
+    // ---------- LEAVE REQUESTS ----------
     Route::prefix('leaves')->group(function () {
         // Leave Types
         Route::get('/types', [LeaveController::class, 'leaveTypes']);
@@ -172,36 +178,37 @@ Route::middleware('auth:api')->group(function () {
         // Leave Requests - CRUD
         Route::get('/', [LeaveController::class, 'index']);
         Route::get('/pending', [LeaveController::class, 'pendingRequests']);
+        Route::get('/pending-approvals', [LeaveController::class, 'pendingApprovals']);
+        Route::get('/statistics', [LeaveController::class, 'statistics']);
+        Route::get('/my-history', [LeaveController::class, 'myHistory']);
         Route::get('/{id}', [LeaveController::class, 'show']);
+        Route::get('/{id}/audit-logs', [LeaveController::class, 'auditLogs']);
+        Route::get('/{id}/download-attachment', [LeaveController::class, 'downloadAttachment']);
         Route::post('/', [LeaveController::class, 'store']);
 
         // Leave Actions
         Route::put('/{id}/approve', [LeaveController::class, 'approve']);
         Route::put('/{id}/reject', [LeaveController::class, 'reject']);
         Route::put('/{id}/cancel', [LeaveController::class, 'cancel']);
-        Route::get('/{id}/download-attachment', [LeaveController::class, 'downloadAttachment']);
 
-        // Statistics & History
-        Route::get('/statistics', [LeaveController::class, 'statistics']);
-        Route::get('/my-history', [LeaveController::class, 'myHistory']);
+        // Employee leaves (Admin/HR)
         Route::get('/employee/{employeeId}', [LeaveController::class, 'employeeLeaves']);
     });
 
-    // Public Holidays
+    // ---------- PUBLIC HOLIDAYS ----------
     Route::get('/public-holidays', [LeaveController::class, 'publicHolidays']);
 
-    // ==========================================
-    // APPROVAL FLOW
-    // ==========================================
+    // ---------- APPROVAL FLOW ----------
     Route::prefix('approval-flow')->group(function () {
         Route::get('/', [ApprovalFlowController::class, 'index']);
         Route::post('/', [ApprovalFlowController::class, 'update']);
         Route::get('/employee/{employeeId}', [ApprovalFlowController::class, 'getEmployeeFlow']);
+        Route::get('/departments', [ApprovalFlowController::class, 'getDepartments']);
+        Route::get('/positions', [ApprovalFlowController::class, 'getPositions']);
+        Route::get('/employees', [ApprovalFlowController::class, 'getEmployees']);
     });
 
-    // ==========================================
-    // REPLACEMENT LEAVES
-    // ==========================================
+    // ---------- REPLACEMENT LEAVES ----------
     Route::prefix('replacement-leaves')->group(function () {
         Route::get('/', [ReplacementLeaveController::class, 'index']);
         Route::get('/pending-approvals', [ReplacementLeaveController::class, 'pendingApprovals']);
