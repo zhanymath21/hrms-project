@@ -29,9 +29,9 @@ class LeaveBalanceService
                     'year' => $year,
                 ],
                 [
-                    'base_entitlement' => $leaveType->default_entitlement ?? 12,
-                    'total_entitlement' => $leaveType->default_entitlement ?? 12,
-                    'remaining_days' => $leaveType->default_entitlement ?? 12,
+                    'base_entitlement' => $this->getBaseEntitlement($leaveType),
+                    'total_entitlement' => $this->calculateEntitlement($employee, $leaveType, $year),
+                    'remaining_days' => $this->calculateEntitlement($employee, $leaveType, $year),
                     'used_days' => 0,
                     'pending_days' => 0,
                 ]
@@ -39,6 +39,196 @@ class LeaveBalanceService
 
             Log::info("✅ Balance ensured for employee {$employee->id} - {$leaveType->name} for year {$year}");
         }
+    }
+
+    /**
+     * Get base entitlement for leave type
+     */
+    public function getBaseEntitlement(LeaveType $leaveType): float
+    {
+        $defaultEntitlements = [
+            'AL' => 18,
+            'SL' => 12,
+            'SPL' => 7,
+            'ML' => 3,
+            'BL' => 5,
+            'CL' => 2,
+        ];
+
+        if ($leaveType->default_entitlement) {
+            return (float) $leaveType->default_entitlement;
+        }
+
+        return $defaultEntitlements[$leaveType->code] ?? 12;
+    }
+
+    /**
+     * Calculate entitlement based on employee's years of service
+     */
+    public function calculateEntitlement(Employee $employee, LeaveType $leaveType, int $year): float
+    {
+        $baseEntitlement = $this->getBaseEntitlement($leaveType);
+
+        // If it's annual leave, add extra days based on years of service
+        if ($leaveType->code === 'AL' || $leaveType->code === 'Annual Leave') {
+            $hireDate = Carbon::parse($employee->hire_date);
+            $yearsOfService = $hireDate->diffInYears(Carbon::create($year, 1, 1));
+
+            $extraDays = floor($yearsOfService / 5);
+
+            if ($hireDate->year == $year) {
+                $monthsRemaining = 12 - $hireDate->month + 1;
+                $prorated = ($baseEntitlement / 12) * $monthsRemaining;
+                return round($prorated + $extraDays, 1);
+            }
+
+            return $baseEntitlement + $extraDays;
+        }
+
+        $hireDate = Carbon::parse($employee->hire_date);
+        if ($hireDate->year == $year) {
+            $monthsRemaining = 12 - $hireDate->month + 1;
+            $prorated = ($baseEntitlement / 12) * $monthsRemaining;
+            return round($prorated, 1);
+        }
+
+        return $baseEntitlement;
+    }
+
+    /**
+     * Calculate prorated entitlement based on hire date
+     * ✅ TAMBAHKAN METHOD INI
+     */
+    public function calculateProratedEntitlement(Employee $employee, LeaveType $leaveType, int $year): float
+    {
+        $baseEntitlement = $this->getBaseEntitlement($leaveType);
+
+        $hireDate = Carbon::parse($employee->hire_date);
+
+        if ($hireDate->year == $year) {
+            $monthsRemaining = 12 - $hireDate->month + 1;
+            $prorated = ($baseEntitlement / 12) * $monthsRemaining;
+            return round($prorated, 1);
+        }
+
+        return $baseEntitlement;
+    }
+
+    /**
+     * Generate leave balance for a new employee
+     * ✅ TAMBAHKAN METHOD INI
+     */
+    public function generateBalanceForNewEmployee(Employee $employee, ?int $year = null): array
+    {
+        $year = $year ?? date('Y');
+        $leaveTypes = LeaveType::where('is_active', true)->get();
+
+        $generated = [];
+        $failed = [];
+
+        // Check if employee already has balances
+        $existingBalances = LeaveBalance::where('employee_id', $employee->id)
+            ->where('year', $year)
+            ->count();
+
+        if ($existingBalances > 0) {
+            return [
+                'employee_id' => $employee->id,
+                'employee_name' => $employee->first_name . ' ' . $employee->last_name,
+                'year' => $year,
+                'status' => 'already_exists',
+                'message' => 'Employee already has balances for this year',
+                'generated' => [],
+                'failed' => [],
+            ];
+        }
+
+        foreach ($leaveTypes as $leaveType) {
+            try {
+                $entitlement = $this->calculateProratedEntitlement($employee, $leaveType, $year);
+                $baseEntitlement = $this->getBaseEntitlement($leaveType);
+
+                $balance = LeaveBalance::create([
+                    'employee_id' => $employee->id,
+                    'leave_type_id' => $leaveType->id,
+                    'year' => $year,
+                    'base_entitlement' => $baseEntitlement,
+                    'total_entitlement' => $entitlement,
+                    'remaining_days' => $entitlement,
+                    'used_days' => 0,
+                    'pending_days' => 0,
+                    'manual_adjustment' => 0,
+                    'carry_forward' => 0,
+                    'adjustment_reason' => 'Auto-generated for new employee',
+                    'adjusted_by' => auth()->id(),
+                    'adjusted_at' => now(),
+                ]);
+
+                $generated[] = [
+                    'leave_type' => $leaveType->name,
+                    'leave_code' => $leaveType->code,
+                    'entitlement' => $entitlement,
+                    'base_entitlement' => $baseEntitlement,
+                    'balance_id' => $balance->id,
+                ];
+
+                Log::info("✅ Balance generated for new employee {$employee->id} - {$leaveType->name}: {$entitlement} days");
+            } catch (\Exception $e) {
+                $failed[] = [
+                    'leave_type' => $leaveType->name,
+                    'leave_code' => $leaveType->code,
+                    'error' => $e->getMessage(),
+                ];
+                Log::error("❌ Failed to generate balance for employee {$employee->id} - {$leaveType->name}: " . $e->getMessage());
+            }
+        }
+
+        return [
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->first_name . ' ' . $employee->last_name,
+            'employee_employee_id' => $employee->employee_id,
+            'year' => $year,
+            'status' => count($failed) === 0 ? 'success' : 'partial',
+            'generated' => $generated,
+            'failed' => $failed,
+        ];
+    }
+
+    /**
+     * Generate balances for all new employees
+     * ✅ TAMBAHKAN METHOD INI
+     */
+    public function generateBalancesForNewEmployees(?int $year = null): array
+    {
+        $year = $year ?? date('Y');
+
+        $employees = Employee::where('status', 'active')
+            ->whereDoesntHave('leaveBalances', function ($query) use ($year) {
+                $query->where('year', $year);
+            })
+            ->get();
+
+        if ($employees->isEmpty()) {
+            return [
+                'year' => $year,
+                'total_processed' => 0,
+                'message' => 'All employees already have balances for this year',
+                'results' => [],
+            ];
+        }
+
+        $results = [];
+        foreach ($employees as $employee) {
+            $result = $this->generateBalanceForNewEmployee($employee, $year);
+            $results[] = $result;
+        }
+
+        return [
+            'year' => $year,
+            'total_processed' => $employees->count(),
+            'message' => "Balances generated for {$employees->count()} employees",
+            'results' => $results,
+        ];
     }
 
     /**
@@ -90,10 +280,8 @@ class LeaveBalanceService
                     return null;
             }
 
-            // Recalculate remaining days
             $balance->remaining_days = $balance->total_entitlement - $balance->used_days - $balance->pending_days;
 
-            // Ensure remaining days is not negative
             if ($balance->remaining_days < 0) {
                 $balance->remaining_days = 0;
             }
