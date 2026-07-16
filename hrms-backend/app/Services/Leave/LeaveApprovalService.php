@@ -5,120 +5,26 @@ namespace App\Services\Leave;
 
 use App\Models\Leave;
 use App\Models\LeaveApproval;
-use App\Models\LeaveApprovalFlow;
 use App\Models\Employee;
-use App\Enums\LeaveStatusEnum;
+use App\Models\LeaveAuditLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class LeaveApprovalService
 {
-    /**
-     * Get approval flow for employee
-     */
-    public function getApprovalFlow(Employee $employee): array
+    protected HierarchicalApprovalService $hierarchyService;
+
+    public function __construct(HierarchicalApprovalService $hierarchyService)
     {
-        $flows = LeaveApprovalFlow::where('is_active', true)
-            ->where(function ($query) use ($employee) {
-                $query->where('department_id', $employee->department_id)
-                    ->orWhereNull('department_id');
-            })
-            ->where(function ($query) use ($employee) {
-                $query->where('position_id', $employee->position_id)
-                    ->orWhereNull('position_id');
-            })
-            ->orderBy('level')
-            ->get();
-
-        $approvers = [];
-        foreach ($flows as $flow) {
-            $approver = null;
-            switch ($flow->approver_type) {
-                case 'manager':
-                    $approver = Employee::find($employee->manager_id);
-                    break;
-                case 'hr':
-                    $approver = Employee::whereHas('position', function ($q) {
-                        $q->whereIn('title', ['HR Manager', 'HR Officer']);
-                    })->first();
-                    break;
-                case 'director':
-                    $approver = Employee::whereHas('position', function ($q) {
-                        $q->whereIn('title', ['Director', 'CEO']);
-                    })->first();
-                    break;
-                case 'custom':
-                    $approver = Employee::find($flow->approver_id);
-                    break;
-            }
-
-            if ($approver) {
-                $approvers[] = [
-                    'level' => $flow->level,
-                    'approver_id' => $approver->id,
-                    'approver_name' => $approver->first_name . ' ' . $approver->last_name,
-                    'approver_type' => $flow->approver_type,
-                ];
-            }
-        }
-
-        return $approvers;
+        $this->hierarchyService = $hierarchyService;
     }
 
     /**
-     * Create leave with multi-level approval
+     * Approve a leave request
      */
-    public function createLeave(Employee $employee, array $data): Leave
+    public function approveLeave(Leave $leave, Employee $approver, ?string $notes = null): Leave
     {
-        $approvers = $this->getApprovalFlow($employee);
-
-        if (empty($approvers)) {
-            throw new \Exception('No approval flow configured for this employee');
-        }
-
-        DB::beginTransaction();
-
-        try {
-            // Create leave
-            $leave = Leave::create([
-                'employee_id' => $employee->id,
-                'leave_type_id' => $data['leave_type_id'],
-                'start_date' => $data['start_date'],
-                'end_date' => $data['end_date'],
-                'total_days' => $data['total_days'],
-                'reason' => $data['reason'] ?? null,
-                'attachment' => $data['attachment'] ?? null,
-                'status' => 'pending',
-                'approval_level' => 0,
-                'total_approval_levels' => count($approvers),
-            ]);
-
-            // Create approval records
-            foreach ($approvers as $approver) {
-                LeaveApproval::create([
-                    'leave_id' => $leave->id,
-                    'approver_id' => $approver['approver_id'],
-                    'level' => $approver['level'],
-                    'status' => 'pending',
-                ]);
-            }
-
-            DB::commit();
-
-            return $leave->load('approvals.approver');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            throw $e;
-        }
-    }
-
-    /**
-     * Approve leave at specific level
-     */
-    public function approveLeave(Leave $leave, Employee $approver, array $data = []): Leave
-    {
-        // Find the pending approval for this approver
+        // Find current pending approval for this approver
         $approval = LeaveApproval::where('leave_id', $leave->id)
             ->where('approver_id', $approver->id)
             ->where('status', 'pending')
@@ -131,10 +37,10 @@ class LeaveApprovalService
         DB::beginTransaction();
 
         try {
-            // Update approval record
+            // Update approval
             $approval->update([
                 'status' => 'approved',
-                'notes' => $data['notes'] ?? null,
+                'notes' => $notes,
                 'approved_at' => now(),
             ]);
 
@@ -142,11 +48,11 @@ class LeaveApprovalService
             $leave->approval_level = $approval->level;
 
             // Check if all approvals are done
-            $pendingApprovals = LeaveApproval::where('leave_id', $leave->id)
+            $pendingCount = LeaveApproval::where('leave_id', $leave->id)
                 ->where('status', 'pending')
                 ->count();
 
-            if ($pendingApprovals === 0) {
+            if ($pendingCount === 0) {
                 $leave->status = 'approved';
             }
 
@@ -154,7 +60,9 @@ class LeaveApprovalService
 
             DB::commit();
 
-            return $leave->fresh()->load('approvals.approver');
+            Log::info("✅ Leave {$leave->id} approved by {$approver->id}");
+
+            return $leave->fresh();
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -162,7 +70,7 @@ class LeaveApprovalService
     }
 
     /**
-     * Reject leave at specific level
+     * Reject a leave request
      */
     public function rejectLeave(Leave $leave, Employee $approver, string $reason): Leave
     {
@@ -191,7 +99,9 @@ class LeaveApprovalService
 
             DB::commit();
 
-            return $leave->fresh()->load('approvals.approver');
+            Log::info("❌ Leave {$leave->id} rejected by {$approver->id}");
+
+            return $leave->fresh();
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -199,44 +109,72 @@ class LeaveApprovalService
     }
 
     /**
-     * Upload attachment
+     * Get pending approvals for a manager (only subordinates)
      */
-    public function uploadAttachment($file): string
+    public function getPendingApprovals(Employee $manager): array
     {
-        $path = $file->store('leave-attachments', 'public');
-        return $path;
-    }
+        $subordinates = $this->hierarchyService->getAllSubordinates($manager);
+        $subordinateIds = array_column($subordinates, 'id');
 
-    /**
-     * Get approval status for leave
-     */
-    public function getApprovalStatus(Leave $leave): array
-    {
-        $statuses = [];
-        $approvals = $leave->approvals()->with('approver')->orderBy('level')->get();
-
-        foreach ($approvals as $approval) {
-            $statuses[] = [
-                'level' => $approval->level,
-                'approver' => $approval->approver->first_name . ' ' . $approval->approver->last_name,
-                'status' => $approval->status,
-                'notes' => $approval->notes,
-                'approved_at' => $approval->approved_at,
-            ];
+        // Special case: CEO can see all pending approvals
+        if ($manager->position && $manager->position->title === 'CEO') {
+            return LeaveApproval::with(['leave', 'leave.employee', 'leave.leaveType'])
+                ->where('approver_id', $manager->id)
+                ->where('status', 'pending')
+                ->orderBy('created_at', 'asc')
+                ->get()
+                ->toArray();
         }
 
-        return $statuses;
+        // Special case: HR Manager can see all pending approvals
+        if ($manager->position && $manager->position->title === 'HR Manager') {
+            return LeaveApproval::with(['leave', 'leave.employee', 'leave.leaveType'])
+                ->where('approver_id', $manager->id)
+                ->where('status', 'pending')
+                ->orderBy('created_at', 'asc')
+                ->get()
+                ->toArray();
+        }
+
+        // Regular manager: only see subordinates
+        if (empty($subordinateIds)) {
+            return [];
+        }
+
+        return LeaveApproval::with(['leave', 'leave.employee', 'leave.leaveType'])
+            ->where('approver_id', $manager->id)
+            ->where('status', 'pending')
+            ->whereHas('leave', function ($query) use ($subordinateIds) {
+                $query->whereIn('employee_id', $subordinateIds);
+            })
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->toArray();
     }
 
     /**
-     * Get pending approvals for user
+     * Get leave approvals with details
      */
-    public function getPendingApprovals(Employee $employee)
+    public function getApprovalsWithDetails(Leave $leave): array
     {
-        return LeaveApproval::with(['leave', 'leave.employee'])
-            ->where('approver_id', $employee->id)
-            ->where('status', 'pending')
-            ->orderBy('created_at', 'asc')
-            ->get();
+        return LeaveApproval::with(['approver'])
+            ->where('leave_id', $leave->id)
+            ->orderBy('level')
+            ->get()
+            ->map(function ($approval) {
+                return [
+                    'id' => $approval->id,
+                    'level' => $approval->level,
+                    'approver' => $approval->approver ? [
+                        'id' => $approval->approver->id,
+                        'name' => $approval->approver->first_name . ' ' . $approval->approver->last_name,
+                        'employee_id' => $approval->approver->employee_id,
+                    ] : null,
+                    'status' => $approval->status,
+                    'notes' => $approval->notes,
+                    'approved_at' => $approval->approved_at,
+                ];
+            })
+            ->toArray();
     }
 }
