@@ -635,6 +635,7 @@ class LeaveController extends Controller
     {
         if (!$user) return false;
 
+        // ✅ FIX: Gunakan position title langsung, tanpa hasRole()
         $adminPositions = [
             'HR Manager',
             'HR Officer',
@@ -645,10 +646,17 @@ class LeaveController extends Controller
             'CEO'
         ];
 
+        // Cek melalui relasi position
         if ($user->relationLoaded('position') && $user->position) {
             return in_array($user->position->title ?? '', $adminPositions);
         }
 
-        return $user->hasRole(['admin', 'hr-manager', 'hr-officer']) ?? false;
+        // Fallback: cek manual jika position tidak diload
+        $position = $user->position()->first();
+        if ($position) {
+            return in_array($position->title ?? '', $adminPositions);
+        }
+
+        return false;
     }
 }
