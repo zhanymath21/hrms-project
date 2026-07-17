@@ -8,18 +8,13 @@ use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveType;
 use App\Services\Leave\LeaveBalanceService;
-use App\Traits\ApiResponseTrait;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
 class LeaveBalanceController extends Controller
 {
-    use ApiResponseTrait;
-
     protected LeaveBalanceService $balanceService;
 
     public function __construct(LeaveBalanceService $balanceService)
@@ -33,18 +28,14 @@ class LeaveBalanceController extends Controller
     public function myBalance(Request $request): JsonResponse
     {
         try {
-            Log::info('📊 Fetching my leave balance');
-
             $user = $request->user();
-
             if (!$user) {
-                return $this->error('User not authenticated', 401);
+                return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
             }
 
             $employee = Employee::where('email', $user->email)->first();
-
             if (!$employee) {
-                return $this->error('Employee record not found. Please contact HR.', 404);
+                return response()->json(['status' => 'error', 'message' => 'Employee not found'], 404);
             }
 
             $this->balanceService->ensureBalanceExists($employee);
@@ -54,43 +45,23 @@ class LeaveBalanceController extends Controller
                 ->with('leaveType')
                 ->get();
 
-            $previousYearBalances = LeaveBalance::where('employee_id', $employee->id)
-                ->where('year', date('Y') - 1)
-                ->with('leaveType')
-                ->get();
-
-            $totalBalance = [
-                'total_entitlement' => 0,
-                'used_days' => 0,
-                'pending_days' => 0,
-                'remaining_days' => 0,
-            ];
-
-            foreach ($balances as $balance) {
-                $totalBalance['total_entitlement'] += (float) $balance->total_entitlement;
-                $totalBalance['used_days'] += (float) $balance->used_days;
-                $totalBalance['pending_days'] += (float) $balance->pending_days;
-                $totalBalance['remaining_days'] += (float) $balance->remaining_days;
-            }
-
-            return $this->success([
-                'balances' => $balances,
-                'total_balance' => $totalBalance,
-                'previous_year_balances' => $previousYearBalances,
-                'employee' => [
-                    'id' => $employee->id,
-                    'employee_id' => $employee->employee_id,
-                    'name' => $employee->first_name . ' ' . $employee->last_name,
-                    'email' => $employee->email,
-                    'department' => $employee->department->name ?? 'N/A',
-                    'position' => $employee->position->title ?? 'N/A',
-                    'hire_date' => $employee->hire_date,
-                    'years_of_service' => Carbon::parse($employee->hire_date)->diffInYears(Carbon::now()),
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'balances' => $balances,
+                    'employee' => [
+                        'id' => $employee->id,
+                        'name' => $employee->first_name . ' ' . $employee->last_name,
+                        'employee_id' => $employee->employee_id,
+                    ],
                 ],
-            ], 'Balance fetched successfully');
+            ]);
         } catch (\Exception $e) {
-            Log::error('❌ Error fetching my balance: ' . $e->getMessage());
-            return $this->error('Failed to fetch balance: ' . $e->getMessage(), 500);
+            Log::error('Error in myBalance: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch balance: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -100,116 +71,54 @@ class LeaveBalanceController extends Controller
     public function allBalances(Request $request): JsonResponse
     {
         try {
-            Log::info('📊 Fetching all employees leave balances');
-
-            $leaveTypes = LeaveType::where('is_active', true)->get();
-
             $employees = Employee::with([
-                'department:id,name,code',
-                'leaveBalances' => function ($query) use ($leaveTypes) {
-                    $query->where('year', date('Y'))
-                        ->whereIn('leave_type_id', $leaveTypes->pluck('id'))
-                        ->with('leaveType:id,name,code');
-                }
-            ])->where('status', 'active');
+                'leaveBalances' => function ($query) {
+                    $query->where('year', date('Y'))->with('leaveType');
+                },
+                'department'
+            ])->where('status', 'active')->get();
 
-            if ($request->filled('search')) {
-                $search = $request->search;
-                $employees->where(function ($q) use ($search) {
-                    $q->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%")
-                        ->orWhere('employee_id', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
-                });
-            }
-
-            if ($request->filled('department_id')) {
-                $employees->where('department_id', $request->department_id);
-            }
-
-            if ($request->filled('leave_type_id')) {
-                $leaveTypeId = $request->leave_type_id;
-                $employees->whereHas('leaveBalances', function ($q) use ($leaveTypeId) {
-                    $q->where('leave_type_id', $leaveTypeId);
-                });
-            }
-
-            $perPage = $request->input('per_page', 20);
-            $employees = $employees->paginate($perPage);
-
-            $result = $employees->map(function ($employee) use ($leaveTypes) {
-                $balanceData = [];
-                $totalCarryForward = 0;
-
-                foreach ($leaveTypes as $leaveType) {
-                    $balance = $employee->leaveBalances->firstWhere('leave_type_id', $leaveType->id);
-                    $carryForward = $balance->carry_forward ?? 0;
-                    $totalCarryForward += $carryForward;
-
-                    $balanceData[] = [
-                        'id' => $balance->id ?? null,
-                        'leave_type_id' => $leaveType->id,
-                        'leave_type' => $leaveType->name,
-                        'leave_code' => $leaveType->code,
-                        'total_entitlement' => (float) ($balance->total_entitlement ?? 0),
-                        'used_days' => (float) ($balance->used_days ?? 0),
-                        'pending_days' => (float) ($balance->pending_days ?? 0),
-                        'remaining_days' => (float) ($balance->remaining_days ?? 0),
-                        'carry_forward' => (float) $carryForward,
+            $result = $employees->map(function ($employee) {
+                $balances = [];
+                foreach ($employee->leaveBalances as $balance) {
+                    $balances[] = [
+                        'id' => $balance->id,
+                        'leave_type' => $balance->leaveType->name ?? 'N/A',
+                        'leave_code' => $balance->leaveType->code ?? 'N/A',
+                        'total_entitlement' => (float) $balance->total_entitlement,
+                        'used_days' => (float) $balance->used_days,
+                        'pending_days' => (float) $balance->pending_days,
+                        'remaining_days' => (float) $balance->remaining_days,
+                        'carry_forward' => (float) ($balance->carry_forward ?? 0),
                     ];
                 }
-
-                $annualLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'AL');
-                $sickLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'SL');
-                $specialLeave = $employee->leaveBalances->firstWhere('leaveType.code', 'SPL');
 
                 return [
                     'id' => $employee->id,
                     'employee_id' => $employee->employee_id,
                     'name' => $employee->first_name . ' ' . $employee->last_name,
-                    'email' => $employee->email,
-                    'department' => [
-                        'id' => $employee->department->id ?? null,
-                        'name' => $employee->department->name ?? 'N/A',
-                        'code' => $employee->department->code ?? null,
-                    ],
-                    'hire_date' => $employee->hire_date,
-                    'years_of_service' => Carbon::parse($employee->hire_date)->diffInYears(Carbon::now()),
-                    'leave_balances' => $balanceData,
-                    'annual_leave' => [
-                        'remaining_days' => (float) ($annualLeave->remaining_days ?? 0),
-                        'carry_forward' => (float) ($annualLeave->carry_forward ?? 0),
-                    ],
-                    'sick_leave' => [
-                        'remaining_days' => (float) ($sickLeave->remaining_days ?? 0),
-                        'carry_forward' => (float) ($sickLeave->carry_forward ?? 0),
-                    ],
-                    'special_leave' => [
-                        'remaining_days' => (float) ($specialLeave->remaining_days ?? 0),
-                        'carry_forward' => (float) ($specialLeave->carry_forward ?? 0),
-                    ],
+                    'department' => $employee->department->name ?? 'N/A',
+                    'leave_balances' => $balances,
                     'summary' => [
-                        'total_entitlement' => array_sum(array_column($balanceData, 'total_entitlement')),
-                        'used_days' => array_sum(array_column($balanceData, 'used_days')),
-                        'pending_days' => array_sum(array_column($balanceData, 'pending_days')),
-                        'remaining_days' => array_sum(array_column($balanceData, 'remaining_days')),
-                        'total_carry_forward' => $totalCarryForward,
+                        'total_entitlement' => array_sum(array_column($balances, 'total_entitlement')),
+                        'used_days' => array_sum(array_column($balances, 'used_days')),
+                        'pending_days' => array_sum(array_column($balances, 'pending_days')),
+                        'remaining_days' => array_sum(array_column($balances, 'remaining_days')),
+                        'total_carry_forward' => array_sum(array_column($balances, 'carry_forward')),
                     ],
                 ];
             });
 
-            return $this->success([
+            return response()->json([
+                'status' => 'success',
                 'data' => $result,
-                'pagination' => [
-                    'current_page' => $employees->currentPage(),
-                    'per_page' => $employees->perPage(),
-                    'total' => $employees->total(),
-                    'last_page' => $employees->lastPage(),
-                ],
-            ], 'All balances fetched successfully');
+            ]);
         } catch (\Exception $e) {
-            Log::error('❌ Error fetching all balances: ' . $e->getMessage());
-            return $this->error('Failed to fetch all balances: ' . $e->getMessage(), 500);
+            Log::error('Error in allBalances: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch balances: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -242,20 +151,12 @@ class LeaveBalanceController extends Controller
                             'last_name' => $employee->last_name,
                             'email' => $employee->email,
                             'hire_date' => $employee->hire_date,
-                            'department' => $employee->department ? [
-                                'id' => $employee->department->id,
-                                'name' => $employee->department->name,
-                            ] : null,
-                            'position' => $employee->position ? [
-                                'id' => $employee->position->id,
-                                'title' => $employee->position->title,
-                            ] : null,
                         ];
                     }),
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('❌ Error fetching employees without balances: ' . $e->getMessage());
+            Log::error('Error in getEmployeesWithoutBalances: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch employees: ' . $e->getMessage()
@@ -263,15 +164,37 @@ class LeaveBalanceController extends Controller
         }
     }
 
+    /**
+     * Generate balances for all new employees
+     */
+    public function generateForNewEmployees(Request $request): JsonResponse
+    {
+        try {
+            $year = $request->input('year', date('Y'));
+            $result = $this->balanceService->generateBalancesForNewEmployees($year);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => $result['message'],
+                'data' => $result,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in generateForNewEmployees: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to generate balances: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate balance for specific employee
+     */
     public function generateBalance(Request $request): JsonResponse
     {
         try {
-            Log::info('🔄 Generating balance for employee');
-            Log::info('📊 Request data:', $request->all());
-
             $validator = Validator::make($request->all(), [
                 'employee_id' => 'required|exists:employees,id',
-                'year' => 'nullable|integer|min:2020|max:2030',
             ]);
 
             if ($validator->fails()) {
@@ -283,45 +206,9 @@ class LeaveBalanceController extends Controller
             }
 
             $employee = Employee::find($request->employee_id);
+            $year = $request->input('year', date('Y'));
 
-            if (!$employee) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Employee not found'
-                ], 404);
-            }
-
-            $year = $request->year ?? date('Y');
-
-            Log::info('📊 Employee found:', [
-                'id' => $employee->id,
-                'name' => $employee->first_name . ' ' . $employee->last_name,
-                'year' => $year
-            ]);
-
-            // Check if balance already exists
-            $existingBalances = LeaveBalance::where('employee_id', $employee->id)
-                ->where('year', $year)
-                ->count();
-
-            if ($existingBalances > 0) {
-                Log::info('⚠️ Employee already has balances:', ['count' => $existingBalances]);
-
-                return response()->json([
-                    'status' => 'warning',
-                    'message' => 'Employee already has balances for this year',
-                    'data' => [
-                        'employee' => $employee,
-                        'year' => $year,
-                        'existing_balances' => $existingBalances,
-                    ],
-                ]);
-            }
-
-            // Generate balance
             $result = $this->balanceService->generateBalanceForNewEmployee($employee, $year);
-
-            Log::info('🏁 Generate balance result:', $result);
 
             return response()->json([
                 'status' => 'success',
@@ -329,107 +216,59 @@ class LeaveBalanceController extends Controller
                 'data' => $result,
             ]);
         } catch (\Exception $e) {
-            Log::error('❌ Error generating balance: ' . $e->getMessage());
-            Log::error('❌ Stack trace: ' . $e->getTraceAsString());
-
+            Log::error('Error in generateBalance: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to generate balance: ' . $e->getMessage(),
-                'debug' => [
-                    'error' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine()
-                ]
+                'message' => 'Failed to generate balance: ' . $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Generate balances for all new employees
-     */
-    public function generateForNewEmployees(Request $request): JsonResponse
-    {
-        try {
-            Log::info('🔄 API: Generating balances for new employees');
-
-            $year = $request->input('year', date('Y'));
-
-            $result = $this->balanceService->generateBalancesForNewEmployees($year);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => $result['message'],
-                'data' => $result,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('❌ Error generating balances: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to generate balances: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Update leave balance
+     * Update balance
      */
     public function updateBalance(Request $request, $id): JsonResponse
     {
         try {
-            Log::info("✏️ Updating balance for ID: {$id}");
-
             $validator = Validator::make($request->all(), [
                 'total_entitlement' => 'required|numeric|min:0',
                 'adjustment_reason' => 'required|string|min:5',
             ]);
 
             if ($validator->fails()) {
-                return $this->validationError($validator->errors());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
             }
 
-            $balance = LeaveBalance::with(['employee', 'leaveType'])->find($id);
-
+            $balance = LeaveBalance::find($id);
             if (!$balance) {
-                return $this->notFound('Balance not found');
+                return response()->json(['status' => 'error', 'message' => 'Balance not found'], 404);
             }
 
-            $user = $request->user();
-            $oldRemaining = $balance->remaining_days;
-            $newTotal = (float) $request->total_entitlement;
-
-            DB::beginTransaction();
-
-            try {
-                $newRemaining = $newTotal - $balance->used_days - $balance->pending_days;
-
-                $balance->total_entitlement = $newTotal;
-                $balance->manual_adjustment = $newTotal - $balance->base_entitlement;
-                $balance->adjustment_reason = $request->adjustment_reason;
-                $balance->adjusted_by = $user->id;
-                $balance->adjusted_at = now();
-                $balance->remaining_days = max(0, $newRemaining);
-                $balance->save();
-
-                DB::commit();
-
-                return $this->success([
-                    'id' => $balance->id,
-                    'employee_id' => $balance->employee_id,
-                    'employee_name' => $balance->employee->first_name . ' ' . $balance->employee->last_name,
-                    'leave_type' => $balance->leaveType->name ?? 'N/A',
-                    'old_remaining' => $oldRemaining,
-                    'new_remaining' => $balance->remaining_days,
-                    'adjustment_reason' => $request->adjustment_reason,
-                    'adjusted_by' => $user->email,
-                    'adjusted_at' => $balance->adjusted_at,
-                ], 'Leave balance updated successfully');
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
+            $balance->total_entitlement = $request->total_entitlement;
+            $balance->adjustment_reason = $request->adjustment_reason;
+            $balance->adjusted_by = $request->user()->id;
+            $balance->adjusted_at = now();
+            $balance->remaining_days = $balance->total_entitlement - $balance->used_days - $balance->pending_days;
+            if ($balance->remaining_days < 0) {
+                $balance->remaining_days = 0;
             }
+            $balance->save();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Balance updated successfully',
+                'data' => $balance,
+            ]);
         } catch (\Exception $e) {
-            Log::error('❌ Error updating balance: ' . $e->getMessage());
-            return $this->error('Failed to update balance: ' . $e->getMessage(), 500);
+            Log::error('Error in updateBalance: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update balance: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -439,8 +278,6 @@ class LeaveBalanceController extends Controller
     public function updateCarryForward(Request $request, $id): JsonResponse
     {
         try {
-            Log::info("🔄 Updating carry forward for balance ID: {$id}");
-
             $validator = Validator::make($request->all(), [
                 'carry_forward' => 'required|numeric|min:0|max:6',
                 'adjustment_reason' => 'required|string|min:5',
@@ -454,59 +291,33 @@ class LeaveBalanceController extends Controller
                 ], 422);
             }
 
-            $balance = LeaveBalance::with(['employee', 'leaveType'])->find($id);
-
+            $balance = LeaveBalance::find($id);
             if (!$balance) {
-                return $this->notFound('Balance not found');
+                return response()->json(['status' => 'error', 'message' => 'Balance not found'], 404);
             }
 
-            $leaveType = $balance->leaveType;
-            if (!$leaveType || !$leaveType->allow_carry_forward) {
-                return $this->error('This leave type does not allow carry forward', 422);
+            $balance->carry_forward = $request->carry_forward;
+            $balance->total_entitlement = $balance->base_entitlement + $request->carry_forward;
+            $balance->remaining_days = $balance->total_entitlement - $balance->used_days - $balance->pending_days;
+            if ($balance->remaining_days < 0) {
+                $balance->remaining_days = 0;
             }
+            $balance->adjustment_reason = $request->adjustment_reason;
+            $balance->adjusted_by = $request->user()->id;
+            $balance->adjusted_at = now();
+            $balance->save();
 
-            $user = $request->user();
-            $oldCarryForward = (float) $balance->carry_forward;
-            $newCarryForward = (float) $request->carry_forward;
-
-            DB::beginTransaction();
-
-            try {
-                $balance->carry_forward = $newCarryForward;
-                $balance->total_entitlement = $balance->base_entitlement + $newCarryForward;
-                $balance->remaining_days = $balance->total_entitlement - $balance->used_days - $balance->pending_days;
-
-                if ($balance->remaining_days < 0) {
-                    $balance->remaining_days = 0;
-                }
-
-                $balance->adjustment_reason = $request->adjustment_reason;
-                $balance->adjusted_by = $user->id;
-                $balance->adjusted_at = now();
-                $balance->save();
-
-                DB::commit();
-
-                return $this->success([
-                    'id' => $balance->id,
-                    'employee_id' => $balance->employee_id,
-                    'employee_name' => $balance->employee->first_name . ' ' . $balance->employee->last_name,
-                    'leave_type' => $balance->leaveType->name ?? 'N/A',
-                    'old_carry_forward' => $oldCarryForward,
-                    'new_carry_forward' => $newCarryForward,
-                    'total_entitlement' => $balance->total_entitlement,
-                    'remaining_days' => $balance->remaining_days,
-                    'adjustment_reason' => $request->adjustment_reason,
-                    'adjusted_by' => $user->email,
-                    'adjusted_at' => $balance->adjusted_at,
-                ], 'Carry forward updated successfully');
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
-            }
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Carry forward updated successfully',
+                'data' => $balance,
+            ]);
         } catch (\Exception $e) {
-            Log::error('❌ Error updating carry forward: ' . $e->getMessage());
-            return $this->error('Failed to update carry forward: ' . $e->getMessage(), 500);
+            Log::error('Error in updateCarryForward: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update carry forward: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

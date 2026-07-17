@@ -24,7 +24,6 @@ class LeaveApprovalService
      */
     public function approveLeave(Leave $leave, Employee $approver, ?string $notes = null): Leave
     {
-        // Find current pending approval for this approver
         $approval = LeaveApproval::where('leave_id', $leave->id)
             ->where('approver_id', $approver->id)
             ->where('status', 'pending')
@@ -37,17 +36,14 @@ class LeaveApprovalService
         DB::beginTransaction();
 
         try {
-            // Update approval
             $approval->update([
                 'status' => 'approved',
                 'notes' => $notes,
                 'approved_at' => now(),
             ]);
 
-            // Update leave approval level
             $leave->approval_level = $approval->level;
 
-            // Check if all approvals are done
             $pendingCount = LeaveApproval::where('leave_id', $leave->id)
                 ->where('status', 'pending')
                 ->count();
@@ -57,7 +53,6 @@ class LeaveApprovalService
             }
 
             $leave->save();
-
             DB::commit();
 
             Log::info("✅ Leave {$leave->id} approved by {$approver->id}");
@@ -109,15 +104,15 @@ class LeaveApprovalService
     }
 
     /**
-     * Get pending approvals for a manager (only subordinates)
+     * Get pending approvals for a manager
      */
     public function getPendingApprovals(Employee $manager): array
     {
         $subordinates = $this->hierarchyService->getAllSubordinates($manager);
         $subordinateIds = array_column($subordinates, 'id');
 
-        // Special case: CEO can see all pending approvals
-        if ($manager->position && $manager->position->title === 'CEO') {
+        // Special case: CEO, HR Manager, GM can see all
+        if ($manager->position && in_array($manager->position->title, ['CEO', 'HR Manager', 'GM'])) {
             return LeaveApproval::with(['leave', 'leave.employee', 'leave.leaveType'])
                 ->where('approver_id', $manager->id)
                 ->where('status', 'pending')
@@ -126,17 +121,6 @@ class LeaveApprovalService
                 ->toArray();
         }
 
-        // Special case: HR Manager can see all pending approvals
-        if ($manager->position && $manager->position->title === 'HR Manager') {
-            return LeaveApproval::with(['leave', 'leave.employee', 'leave.leaveType'])
-                ->where('approver_id', $manager->id)
-                ->where('status', 'pending')
-                ->orderBy('created_at', 'asc')
-                ->get()
-                ->toArray();
-        }
-
-        // Regular manager: only see subordinates
         if (empty($subordinateIds)) {
             return [];
         }
@@ -149,32 +133,6 @@ class LeaveApprovalService
             })
             ->orderBy('created_at', 'asc')
             ->get()
-            ->toArray();
-    }
-
-    /**
-     * Get leave approvals with details
-     */
-    public function getApprovalsWithDetails(Leave $leave): array
-    {
-        return LeaveApproval::with(['approver'])
-            ->where('leave_id', $leave->id)
-            ->orderBy('level')
-            ->get()
-            ->map(function ($approval) {
-                return [
-                    'id' => $approval->id,
-                    'level' => $approval->level,
-                    'approver' => $approval->approver ? [
-                        'id' => $approval->approver->id,
-                        'name' => $approval->approver->first_name . ' ' . $approval->approver->last_name,
-                        'employee_id' => $approval->approver->employee_id,
-                    ] : null,
-                    'status' => $approval->status,
-                    'notes' => $approval->notes,
-                    'approved_at' => $approval->approved_at,
-                ];
-            })
             ->toArray();
     }
 }
