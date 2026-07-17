@@ -263,6 +263,87 @@ class LeaveBalanceController extends Controller
         }
     }
 
+    public function generateBalance(Request $request): JsonResponse
+    {
+        try {
+            Log::info('🔄 Generating balance for employee');
+            Log::info('📊 Request data:', $request->all());
+
+            $validator = Validator::make($request->all(), [
+                'employee_id' => 'required|exists:employees,id',
+                'year' => 'nullable|integer|min:2020|max:2030',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $employee = Employee::find($request->employee_id);
+
+            if (!$employee) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Employee not found'
+                ], 404);
+            }
+
+            $year = $request->year ?? date('Y');
+
+            Log::info('📊 Employee found:', [
+                'id' => $employee->id,
+                'name' => $employee->first_name . ' ' . $employee->last_name,
+                'year' => $year
+            ]);
+
+            // Check if balance already exists
+            $existingBalances = LeaveBalance::where('employee_id', $employee->id)
+                ->where('year', $year)
+                ->count();
+
+            if ($existingBalances > 0) {
+                Log::info('⚠️ Employee already has balances:', ['count' => $existingBalances]);
+
+                return response()->json([
+                    'status' => 'warning',
+                    'message' => 'Employee already has balances for this year',
+                    'data' => [
+                        'employee' => $employee,
+                        'year' => $year,
+                        'existing_balances' => $existingBalances,
+                    ],
+                ]);
+            }
+
+            // Generate balance
+            $result = $this->balanceService->generateBalanceForNewEmployee($employee, $year);
+
+            Log::info('🏁 Generate balance result:', $result);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Balance generated successfully',
+                'data' => $result,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ Error generating balance: ' . $e->getMessage());
+            Log::error('❌ Stack trace: ' . $e->getTraceAsString());
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to generate balance: ' . $e->getMessage(),
+                'debug' => [
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
+            ], 500);
+        }
+    }
+
     /**
      * Generate balances for all new employees
      */

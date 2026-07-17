@@ -80,6 +80,15 @@ const ManageNewEmployees = () => {
         }
     };
 
+    const handleRefresh = () => {
+        loadData();
+        setSnackbar({
+            open: true,
+            message: 'Data refreshed successfully!',
+            severity: 'success',
+        });
+    };
+
     const handleGenerateForEmployee = async (employee) => {
         setSelectedEmployee(employee);
         setDialogOpen(true);
@@ -88,10 +97,14 @@ const ManageNewEmployees = () => {
     const confirmGenerate = async () => {
         setGenerating(true);
         try {
+            console.log('📤 Generating balance for employee:', selectedEmployee);
+            
             const response = await api.post('/generate-balance', {
                 employee_id: selectedEmployee.id,
             });
-
+            
+            console.log('📊 Generate balance response:', response);
+            
             if (response.data.status === 'success') {
                 setSnackbar({
                     open: true,
@@ -108,7 +121,10 @@ const ManageNewEmployees = () => {
                 setEmployees(prevEmployees => prevEmployees.filter(emp => emp.id !== selectedEmployee.id));
                 setDialogOpen(false);
                 setSelectedEmployee(null);
-                loadData();
+                
+                setTimeout(() => {
+                    loadData();
+                }, 500);
             } else {
                 setSnackbar({
                     open: true,
@@ -117,7 +133,7 @@ const ManageNewEmployees = () => {
                 });
             }
         } catch (err) {
-            console.error('Error generating balance:', err);
+            console.error('❌ Error generating balance:', err);
             setSnackbar({
                 open: true,
                 message: err.response?.data?.message || 'Failed to generate balances',
@@ -128,6 +144,7 @@ const ManageNewEmployees = () => {
         }
     };
 
+    // ✅ FIXED: Hanya satu function handleGenerateAll
     const handleGenerateAll = async () => {
         if (employees.length === 0) {
             setSnackbar({
@@ -142,22 +159,49 @@ const ManageNewEmployees = () => {
         setProgress(0);
 
         try {
+            console.log('📤 Generating balances for all employees...');
+            
             const response = await api.post('/generate-new-employees-balances');
+            
+            console.log('📊 Generate all response:', response);
+            console.log('📊 Response data:', response.data);
             
             if (response.data.status === 'success') {
                 const data = response.data.data || {};
                 const generated = data.generated || 0;
+                const failed = data.failed || 0;
+                const totalProcessed = data.total_processed || 0;
                 
-                setSnackbar({
-                    open: true,
-                    message: `✅ Balances generated for ${generated} employees`,
-                    severity: 'success',
-                });
-                setProgress(100);
+                console.log('📊 Total processed:', totalProcessed);
+                console.log('📊 Generated:', generated);
+                console.log('📊 Failed:', failed);
                 
-                setTimeout(() => {
-                    loadData();
-                }, 1000);
+                if (generated > 0) {
+                    setSnackbar({
+                        open: true,
+                        message: `✅ Balances generated for ${generated} employees`,
+                        severity: 'success',
+                    });
+                    setProgress(100);
+                    
+                    setTimeout(() => {
+                        loadData();
+                    }, 1000);
+                } else if (totalProcessed === 0) {
+                    setSnackbar({
+                        open: true,
+                        message: 'All employees already have balances',
+                        severity: 'info',
+                    });
+                    setProgress(100);
+                } else {
+                    setSnackbar({
+                        open: true,
+                        message: `⚠️ Generated: ${generated}, Failed: ${failed}`,
+                        severity: 'warning',
+                    });
+                    setProgress(100);
+                }
             } else {
                 setSnackbar({
                     open: true,
@@ -166,7 +210,7 @@ const ManageNewEmployees = () => {
                 });
             }
         } catch (err) {
-            console.error('Error generating all balances:', err);
+            console.error('❌ Error generating all balances:', err);
             setSnackbar({
                 open: true,
                 message: err.response?.data?.message || 'Failed to generate balances',
@@ -175,15 +219,6 @@ const ManageNewEmployees = () => {
         } finally {
             setGeneratingAll(false);
         }
-    };
-
-    const handleRefresh = () => {
-        loadData();
-        setSnackbar({
-            open: true,
-            message: 'Data refreshed successfully!',
-            severity: 'success',
-        });
     };
 
     const formatDate = (date) => {
@@ -205,6 +240,7 @@ const ManageNewEmployees = () => {
 
     return (
         <Box sx={{ p: 3 }}>
+            {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Box>
                     <Typography variant="h4" fontWeight="bold">
@@ -235,6 +271,7 @@ const ManageNewEmployees = () => {
                 </Box>
             </Box>
 
+            {/* Stats */}
             <Grid container spacing={3} mb={3}>
                 <Grid item xs={12} md={4}>
                     <Card>
@@ -274,6 +311,7 @@ const ManageNewEmployees = () => {
                 </Grid>
             </Grid>
 
+            {/* Progress Bar */}
             {generatingAll && (
                 <Box sx={{ width: '100%', mb: 3 }}>
                     <Typography variant="body2" color="textSecondary">
@@ -287,6 +325,7 @@ const ManageNewEmployees = () => {
                 </Box>
             )}
 
+            {/* Employees Table */}
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
@@ -347,6 +386,7 @@ const ManageNewEmployees = () => {
                 </Table>
             </TableContainer>
 
+            {/* Confirm Dialog */}
             <Dialog open={dialogOpen} onClose={() => !generating && setDialogOpen(false)}>
                 <DialogTitle>
                     <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -401,6 +441,7 @@ const ManageNewEmployees = () => {
                 </DialogActions>
             </Dialog>
 
+            {/* Snackbar */}
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={6000}
