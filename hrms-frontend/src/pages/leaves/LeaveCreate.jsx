@@ -85,11 +85,18 @@ const LeaveCreate = () => {
 
     const fetchManagers = async () => {
         try {
+            // ✅ Gunakan endpoint yang sudah dibuat
             const response = await api.get('/employees/managers');
             setManagers(response.data.data || []);
             console.log('📊 Managers:', response.data.data);
         } catch (err) {
             console.error('Error fetching managers:', err);
+            setManagers([]);
+            setSnackbar({
+                open: true,
+                message: 'Unable to load managers list. Please refresh or contact HR.',
+                severity: 'warning',
+            });
         }
     };
 

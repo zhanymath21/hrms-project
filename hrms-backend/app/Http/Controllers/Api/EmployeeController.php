@@ -414,6 +414,90 @@ class EmployeeController extends Controller
     }
 
     /**
+     * ==========================================
+     * ✅ GET MANAGERS - TAMBAHKAN METHOD INI
+     * ==========================================
+     */
+
+    /**
+     * Get all managers (employees who can approve leaves)
+     */
+    public function getManagers(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Get employees who have subordinates OR have manager position
+            $managers = Employee::with(['position', 'department'])
+                ->where('status', 'active')
+                ->where('id', '!=', $user->id ?? 0) // Exclude current user
+                ->where(function ($query) {
+                    $query->whereHas('subordinates')
+                        ->orWhereHas('position', function ($q) {
+                            $q->whereIn('title', [
+                                'Manager',
+                                'HR Manager',
+                                'IT Manager',
+                                'Finance Manager',
+                                'Marketing Manager',
+                                'Sales Manager',
+                                'Operations Manager',
+                                'Project Manager',
+                                'Product Manager',
+                                'General Manager',
+                                'GM',
+                                'CEO',
+                                'Director',
+                                'Supervisor',
+                                'Team Lead',
+                                'Head of Department',
+                                'Department Head',
+                                'Executive Director',
+                                'Managing Director',
+                                'Vice President',
+                                'VP',
+                                'Chief Operating Officer',
+                                'COO',
+                                'Chief Financial Officer',
+                                'CFO'
+                            ]);
+                        });
+                })
+                ->get()
+                ->map(function ($employee) {
+                    return [
+                        'id' => $employee->id,
+                        'employee_id' => $employee->employee_id,
+                        'first_name' => $employee->first_name,
+                        'last_name' => $employee->last_name,
+                        'email' => $employee->email,
+                        'position' => $employee->position ? [
+                            'id' => $employee->position->id,
+                            'title' => $employee->position->title,
+                        ] : null,
+                        'department' => $employee->department ? [
+                            'id' => $employee->department->id,
+                            'name' => $employee->department->name,
+                        ] : null,
+                        'has_subordinates' => Employee::where('manager_id', $employee->id)->exists(),
+                    ];
+                });
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $managers,
+                'message' => 'Managers fetched successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ Error fetching managers: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch managers: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Download import template
      */
     public function downloadTemplate()

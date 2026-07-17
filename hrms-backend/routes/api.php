@@ -112,6 +112,8 @@ Route::middleware('auth:api')->group(function () {
         // Documents
         Route::get('/{employeeId}/documents', [EmployeeDocumentController::class, 'index']);
         Route::post('/{employeeId}/documents', [EmployeeDocumentController::class, 'store']);
+
+        Route::get('/managers', [EmployeeController::class, 'getManagers']);
     });
 
     // Employee Documents (Delete)
