@@ -13,6 +13,7 @@ use App\Models\Employee;
 use App\Services\Leave\LeaveApprovalService;
 use App\Services\Leave\LeaveBalanceService;
 use App\Services\Leave\HierarchicalApprovalService;
+use App\Services\NotificationService;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -28,15 +29,18 @@ class LeaveController extends Controller
     protected LeaveApprovalService $approvalService;
     protected LeaveBalanceService $balanceService;
     protected HierarchicalApprovalService $hierarchyService;
+    protected NotificationService $notificationService;
 
     public function __construct(
         LeaveApprovalService $approvalService,
         LeaveBalanceService $balanceService,
-        HierarchicalApprovalService $hierarchyService
+        HierarchicalApprovalService $hierarchyService,
+        NotificationService $notificationService
     ) {
         $this->approvalService = $approvalService;
         $this->balanceService = $balanceService;
         $this->hierarchyService = $hierarchyService;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -152,6 +156,7 @@ class LeaveController extends Controller
     /**
      * Create leave request
      * ✅ Employee can select their own approvers (managers only)
+     * ✅ Sends notification to all selected approvers
      */
     public function store(Request $request): JsonResponse
     {
@@ -302,6 +307,22 @@ class LeaveController extends Controller
                     $totalDays
                 );
 
+                // ✅ SEND NOTIFICATIONS TO APPROVERS
+                $leaveData = [
+                    'id' => $leave->id,
+                    'leave_type' => LeaveType::find($request->leave_type_id)->name,
+                    'total_days' => $totalDays,
+                    'start_date' => $startDate->format('d/m/Y'),
+                    'end_date' => $endDate->format('d/m/Y'),
+                    'reason' => $request->reason,
+                ];
+
+                $this->notificationService->sendLeaveRequest(
+                    $employee,
+                    $selectedApprovers,
+                    $leaveData
+                );
+
                 DB::commit();
 
                 Log::info("✅ Leave request created: {$leave->id}");
@@ -334,11 +355,13 @@ class LeaveController extends Controller
     /**
      * Approve leave
      * ✅ Only selected approvers can approve
+     * ✅ Sends notification to employee
+     * ✅ Sends notification to next approver if any
      */
     public function approve(Request $request, $id): JsonResponse
     {
         try {
-            $leave = Leave::with(['approvals', 'employee'])->find($id);
+            $leave = Leave::with(['approvals', 'employee', 'leaveType'])->find($id);
             if (!$leave) {
                 return $this->notFound('Leave not found');
             }
@@ -401,6 +424,33 @@ class LeaveController extends Controller
                 $request->input('notes')
             );
 
+            // ✅ SEND NOTIFICATION TO EMPLOYEE
+            $leaveData = [
+                'id' => $leave->id,
+                'leave_type' => $leave->leaveType->name,
+                'total_days' => $leave->total_days,
+                'start_date' => $leave->start_date->format('d/m/Y'),
+                'end_date' => $leave->end_date->format('d/m/Y'),
+            ];
+
+            $this->notificationService->sendLeaveApproved(
+                $leave->employee,
+                $employee,
+                $leaveData
+            );
+
+            // ✅ If not fully approved, notify next approver
+            if ($leave->status === 'pending') {
+                $nextApproval = $leave->approvals()->where('status', 'pending')->first();
+                if ($nextApproval) {
+                    $this->notificationService->sendLeaveRequest(
+                        $leave->employee,
+                        [$nextApproval->approver_id],
+                        $leaveData
+                    );
+                }
+            }
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Leave approved successfully',
@@ -418,11 +468,12 @@ class LeaveController extends Controller
     /**
      * Reject leave
      * ✅ Only selected approvers can reject
+     * ✅ Sends notification to employee
      */
     public function reject(Request $request, $id): JsonResponse
     {
         try {
-            $leave = Leave::with(['approvals', 'employee'])->find($id);
+            $leave = Leave::with(['approvals', 'employee', 'leaveType'])->find($id);
             if (!$leave) {
                 return $this->notFound('Leave not found');
             }
@@ -483,6 +534,22 @@ class LeaveController extends Controller
                 $request->rejection_reason
             );
 
+            // ✅ SEND NOTIFICATION TO EMPLOYEE
+            $leaveData = [
+                'id' => $leave->id,
+                'leave_type' => $leave->leaveType->name,
+                'total_days' => $leave->total_days,
+                'start_date' => $leave->start_date->format('d/m/Y'),
+                'end_date' => $leave->end_date->format('d/m/Y'),
+            ];
+
+            $this->notificationService->sendLeaveRejected(
+                $leave->employee,
+                $employee,
+                $leaveData,
+                $request->rejection_reason
+            );
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Leave rejected successfully',
@@ -500,11 +567,12 @@ class LeaveController extends Controller
     /**
      * Cancel leave
      * ✅ Only the requester can cancel
+     * ✅ Sends notification to all approvers
      */
     public function cancel(Request $request, $id): JsonResponse
     {
         try {
-            $leave = Leave::find($id);
+            $leave = Leave::with(['leaveType'])->find($id);
 
             if (!$leave) {
                 return $this->notFound('Leave not found');
@@ -553,6 +621,28 @@ class LeaveController extends Controller
                 'cancel',
                 $leave->total_days
             );
+
+            // ✅ SEND NOTIFICATION TO APPROVERS
+            $approverIds = LeaveApproval::where('leave_id', $leave->id)
+                ->pluck('approver_id')
+                ->toArray();
+
+            $leaveData = [
+                'id' => $leave->id,
+                'leave_type' => $leave->leaveType->name,
+                'total_days' => $leave->total_days,
+                'start_date' => $leave->start_date->format('d/m/Y'),
+                'end_date' => $leave->end_date->format('d/m/Y'),
+                'reason' => $request->input('reason'),
+            ];
+
+            if (!empty($approverIds)) {
+                $this->notificationService->sendLeaveCancelled(
+                    $user,
+                    $approverIds,
+                    $leaveData
+                );
+            }
 
             DB::commit();
 

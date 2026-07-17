@@ -1,269 +1,275 @@
 <?php
+// app/Services/NotificationService.php
 
 namespace App\Services;
 
-use App\Models\Employee;
 use App\Models\Notification;
-use App\Models\Leave;
-use App\Models\ReplacementLeave;
+use App\Models\Employee;
+use Illuminate\Support\Facades\Log;
 
 class NotificationService
 {
     /**
-     * Send leave request notification to manager
+     * Send notification to a user
      */
-    public static function leaveRequested(Leave $leave): void
-    {
+    public function send(
+        int $userId,
+        string $type,
+        string $title,
+        string $message,
+        ?int $fromUserId = null,
+        ?array $data = null
+    ): Notification {
         try {
-            $employee = $leave->employee;
-
-            if (!$employee) {
-                \Log::warning('NotificationService: Employee not found for leave ' . $leave->id);
-                return;
-            }
-
-            $manager = $employee->manager ?? null;
-
-            if (!$manager) {
-                // Cari HR Manager sebagai fallback
-                $manager = Employee::whereHas('position', function ($q) {
-                    $q->where('title', 'like', '%HR%')
-                        ->orWhere('title', 'like', '%Manager%');
-                })->where('status', 'active')->first();
-            }
-
-            if (!$manager) {
-                \Log::warning('NotificationService: No manager found for employee ' . $employee->id);
-                return;
-            }
-
-            Notification::create([
-                'from_user_id' => $employee->id,
-                'to_user_id' => $manager->id,
-                'type' => 'leave_request',
-                'title' => 'New Leave Request',
-                'message' => "{$employee->first_name} {$employee->last_name} requested {$leave->total_days} day(s) of {$leave->leaveType->name} from {$leave->start_date->format('d M Y')} to {$leave->end_date->format('d M Y')}.\n\nReason: {$leave->reason}",
-                'reference_type' => 'leave',
-                'reference_id' => $leave->id,
-                'action_url' => "/leaves?employee_id={$employee->id}",
-                'data' => json_encode([
-                    'leave_id' => $leave->id,
-                    'employee_name' => $employee->first_name . ' ' . $employee->last_name,
-                    'leave_type' => $leave->leaveType->name,
-                    'total_days' => $leave->total_days,
-                    'start_date' => $leave->start_date->format('Y-m-d'),
-                    'end_date' => $leave->end_date->format('Y-m-d'),
-                ]),
+            $notification = Notification::create([
+                'user_id' => $userId,
+                'from_user_id' => $fromUserId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'data' => $data,
+                'is_read' => false,
             ]);
-        } catch (\Exception $e) {
-            \Log::error('NotificationService::leaveRequested error: ' . $e->getMessage());
-        }
-    }
 
-    /**
-     * Send leave approved notification to employee
-     */
-    public static function leaveApproved(Leave $leave): void
-    {
-        try {
-            if (!$leave->employee_id || !$leave->approved_by) {
-                \Log::warning('NotificationService: Missing data for leave approval notification');
-                return;
-            }
-
-            Notification::create([
-                'from_user_id' => $leave->approved_by,
-                'to_user_id' => $leave->employee_id,
-                'type' => 'leave_approved',
-                'title' => 'Leave Approved ✅',
-                'message' => "Your {$leave->leaveType->name} request for {$leave->total_days} day(s) ({$leave->start_date->format('d M Y')} - {$leave->end_date->format('d M Y')}) has been approved.",
-                'reference_type' => 'leave',
-                'reference_id' => $leave->id,
-                'action_url' => '/leaves',
-                'data' => json_encode([
-                    'leave_id' => $leave->id,
-                    'leave_type' => $leave->leaveType->name ?? 'Unknown',
-                    'total_days' => $leave->total_days,
-                ]),
+            Log::info("📨 Notification sent to user {$userId}: {$type}", [
+                'notification_id' => $notification->id,
+                'title' => $title,
             ]);
+
+            return $notification;
         } catch (\Exception $e) {
-            \Log::error('NotificationService::leaveApproved error: ' . $e->getMessage());
+            Log::error('❌ Failed to send notification: ' . $e->getMessage());
+            throw $e;
         }
     }
 
     /**
-     * Send leave rejected notification to employee
+     * Send notification to multiple users
      */
-    public static function leaveRejected(Leave $leave): void
-    {
-        try {
-            if (!$leave->employee_id) {
-                \Log::warning('NotificationService: Missing employee_id for leave rejection notification');
-                return;
-            }
-
-            Notification::create([
-                'from_user_id' => $leave->approved_by,
-                'to_user_id' => $leave->employee_id,
-                'type' => 'leave_rejected',
-                'title' => 'Leave Rejected ❌',
-                'message' => "Your {$leave->leaveType->name} request for {$leave->total_days} day(s) ({$leave->start_date->format('d M Y')} - {$leave->end_date->format('d M Y')}) has been rejected.\n\nReason: {$leave->rejection_reason}",
-                'reference_type' => 'leave',
-                'reference_id' => $leave->id,
-                'action_url' => '/leaves',
-                'data' => json_encode([
-                    'leave_id' => $leave->id,
-                    'rejection_reason' => $leave->rejection_reason,
-                ]),
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('NotificationService::leaveRejected error: ' . $e->getMessage());
+    public function sendBulk(
+        array $userIds,
+        string $type,
+        string $title,
+        string $message,
+        ?int $fromUserId = null,
+        ?array $data = null
+    ): array {
+        $notifications = [];
+        foreach ($userIds as $userId) {
+            $notifications[] = $this->send($userId, $type, $title, $message, $fromUserId, $data);
         }
+        return $notifications;
     }
 
     /**
-     * Send replacement request notification to manager
+     * Get unread notifications for a user
      */
-    public static function replacementRequested(ReplacementLeave $replacement): void
+    public function getUnread(int $userId): \Illuminate\Database\Eloquent\Collection
     {
-        try {
-            $employee = $replacement->employee;
-
-            if (!$employee) {
-                \Log::warning('NotificationService: Employee not found for replacement ' . $replacement->id);
-                return;
-            }
-
-            $manager = $employee->manager ?? null;
-
-            if (!$manager) {
-                $manager = Employee::whereHas('position', function ($q) {
-                    $q->where('title', 'like', '%HR%')
-                        ->orWhere('title', 'like', '%Manager%');
-                })->where('status', 'active')->first();
-            }
-
-            if (!$manager) {
-                \Log::warning('NotificationService: No manager found for employee ' . $employee->id);
-                return;
-            }
-
-            Notification::create([
-                'from_user_id' => $employee->id,
-                'to_user_id' => $manager->id,
-                'type' => 'replacement_request',
-                'title' => 'New Replacement Leave Request',
-                'message' => "{$employee->first_name} {$employee->last_name} requested replacement leave.\n\nWorked on: {$replacement->work_date->format('d M Y')} ({$replacement->work_day_type})\nHours: {$replacement->hours_worked}\nReplacement date: {$replacement->replacement_date->format('d M Y')}",
-                'reference_type' => 'replacement_leave',
-                'reference_id' => $replacement->id,
-                'action_url' => "/leaves?tab=replacements",
-                'data' => json_encode([
-                    'replacement_id' => $replacement->id,
-                    'employee_name' => $employee->first_name . ' ' . $employee->last_name,
-                    'work_date' => $replacement->work_date->format('Y-m-d'),
-                    'replacement_date' => $replacement->replacement_date->format('Y-m-d'),
-                ]),
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('NotificationService::replacementRequested error: ' . $e->getMessage());
-        }
+        return Notification::byUser($userId)->unread()->orderBy('created_at', 'desc')->get();
     }
 
     /**
-     * Send replacement approved notification to employee
+     * Get all notifications for a user
      */
-    public static function replacementApproved(ReplacementLeave $replacement): void
+    public function getAll(int $userId, int $limit = 50): \Illuminate\Database\Eloquent\Collection
     {
-        try {
-            if (!$replacement->employee_id || !$replacement->approved_by) {
-                \Log::warning('NotificationService: Missing data for replacement approval notification');
-                return;
-            }
-
-            $daysEarned = $replacement->hours_worked >= 8 ? '1 day' : '0.5 day';
-
-            Notification::create([
-                'from_user_id' => $replacement->approved_by,
-                'to_user_id' => $replacement->employee_id,
-                'type' => 'replacement_approved',
-                'title' => 'Replacement Leave Approved ✅',
-                'message' => "Your replacement leave request has been approved. You earned {$daysEarned} replacement leave.",
-                'reference_type' => 'replacement_leave',
-                'reference_id' => $replacement->id,
-                'action_url' => '/leaves',
-                'data' => json_encode([
-                    'replacement_id' => $replacement->id,
-                    'days_earned' => $daysEarned,
-                ]),
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('NotificationService::replacementApproved error: ' . $e->getMessage());
-        }
+        return Notification::byUser($userId)
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get();
     }
 
     /**
-     * Get unread notifications count for user
+     * Mark notification as read
      */
-    public static function getUnreadCount($userId): int
+    public function markAsRead(int $notificationId): bool
     {
-        try {
-            return Notification::where('to_user_id', $userId)
-                ->where('is_read', false)
-                ->count();
-        } catch (\Exception $e) {
-            \Log::error('NotificationService::getUnreadCount error: ' . $e->getMessage());
-            return 0;
+        $notification = Notification::find($notificationId);
+        if ($notification) {
+            $notification->markAsRead();
+            return true;
         }
+        return false;
     }
 
     /**
-     * Get notifications for user
+     * Mark all notifications as read for a user
      */
-    public static function getNotifications($userId, $limit = 20)
+    public function markAllAsRead(int $userId): int
     {
-        try {
-            return Notification::with('fromUser')
-                ->where('to_user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->take($limit)
-                ->get();
-        } catch (\Exception $e) {
-            \Log::error('NotificationService::getNotifications error: ' . $e->getMessage());
-            return collect([]);
-        }
+        return Notification::byUser($userId)->unread()->update([
+            'is_read' => true,
+            'read_at' => now(),
+        ]);
     }
 
     /**
-     * Mark single notification as read
+     * Get unread count for a user
      */
-    public static function markAsRead($notificationId, $userId): void
+    public function getUnreadCount(int $userId): int
     {
-        try {
-            Notification::where('id', $notificationId)
-                ->where('to_user_id', $userId)
-                ->update([
-                    'is_read' => true,
-                    'read_at' => now(),
-                ]);
-        } catch (\Exception $e) {
-            \Log::error('NotificationService::markAsRead error: ' . $e->getMessage());
-        }
+        return Notification::byUser($userId)->unread()->count();
     }
 
     /**
-     * Mark all notifications as read for user
+     * Delete notification
      */
-    public static function markAllAsRead($userId): void
+    public function delete(int $notificationId): bool
     {
-        try {
-            Notification::where('to_user_id', $userId)
-                ->where('is_read', false)
-                ->update([
-                    'is_read' => true,
-                    'read_at' => now(),
-                ]);
-        } catch (\Exception $e) {
-            \Log::error('NotificationService::markAllAsRead error: ' . $e->getMessage());
+        $notification = Notification::find($notificationId);
+        if ($notification) {
+            $notification->delete();
+            return true;
         }
+        return false;
+    }
+
+    /**
+     * Delete all notifications for a user
+     */
+    public function deleteAll(int $userId): int
+    {
+        return Notification::byUser($userId)->delete();
+    }
+
+    /**
+     * Send leave request notification to approvers
+     */
+    public function sendLeaveRequest(
+        Employee $requester,
+        array $approverIds,
+        array $leaveData
+    ): void {
+        $title = "New Leave Request from {$requester->first_name} {$requester->last_name}";
+        $message = "{$requester->first_name} has requested {$leaveData['total_days']} days of {$leaveData['leave_type']} from {$leaveData['start_date']} to {$leaveData['end_date']}.";
+
+        $data = array_merge($leaveData, [
+            'leave_id' => $leaveData['id'],
+            'requester_id' => $requester->id,
+            'requester_name' => $requester->first_name . ' ' . $requester->last_name,
+        ]);
+
+        $this->sendBulk(
+            $approverIds,
+            'leave_request',
+            $title,
+            $message,
+            $requester->id,
+            $data
+        );
+    }
+
+    /**
+     * Send leave approved notification
+     */
+    public function sendLeaveApproved(
+        Employee $requester,
+        Employee $approver,
+        array $leaveData
+    ): void {
+        $title = "✅ Your Leave Request has been Approved";
+        $message = "Your {$leaveData['leave_type']} request for {$leaveData['total_days']} days has been approved by {$approver->first_name} {$approver->last_name}.";
+
+        $data = array_merge($leaveData, [
+            'leave_id' => $leaveData['id'],
+            'approver_id' => $approver->id,
+            'approver_name' => $approver->first_name . ' ' . $approver->last_name,
+        ]);
+
+        $this->send(
+            $requester->id,
+            'leave_approved',
+            $title,
+            $message,
+            $approver->id,
+            $data
+        );
+    }
+
+    /**
+     * Send leave rejected notification
+     */
+    public function sendLeaveRejected(
+        Employee $requester,
+        Employee $rejecter,
+        array $leaveData,
+        string $reason
+    ): void {
+        $title = "❌ Your Leave Request has been Rejected";
+        $message = "Your {$leaveData['leave_type']} request has been rejected by {$rejecter->first_name} {$rejecter->last_name}.";
+        if ($reason) {
+            $message .= " Reason: {$reason}";
+        }
+
+        $data = array_merge($leaveData, [
+            'leave_id' => $leaveData['id'],
+            'rejecter_id' => $rejecter->id,
+            'rejecter_name' => $rejecter->first_name . ' ' . $rejecter->last_name,
+            'reason' => $reason,
+        ]);
+
+        $this->send(
+            $requester->id,
+            'leave_rejected',
+            $title,
+            $message,
+            $rejecter->id,
+            $data
+        );
+    }
+
+    /**
+     * Send leave cancelled notification
+     */
+    public function sendLeaveCancelled(
+        Employee $canceller,
+        array $approverIds,
+        array $leaveData
+    ): void {
+        $title = "🔄 Leave Request Cancelled";
+        $message = "{$canceller->first_name} {$canceller->last_name} has cancelled their {$leaveData['leave_type']} request.";
+
+        $data = array_merge($leaveData, [
+            'leave_id' => $leaveData['id'],
+            'canceller_id' => $canceller->id,
+            'canceller_name' => $canceller->first_name . ' ' . $canceller->last_name,
+        ]);
+
+        $this->sendBulk(
+            $approverIds,
+            'leave_cancelled',
+            $title,
+            $message,
+            $canceller->id,
+            $data
+        );
+    }
+
+    /**
+     * Send reminder to pending approvers
+     */
+    public function sendReminder(
+        Employee $requester,
+        Employee $approver,
+        array $leaveData
+    ): void {
+        $title = "⏰ Pending Leave Request Reminder";
+        $message = "You have a pending approval for {$requester->first_name} {$requester->last_name}'s {$leaveData['leave_type']} request.";
+
+        $data = array_merge($leaveData, [
+            'leave_id' => $leaveData['id'],
+            'requester_id' => $requester->id,
+            'requester_name' => $requester->first_name . ' ' . $requester->last_name,
+        ]);
+
+        $this->send(
+            $approver->id,
+            'leave_reminder',
+            $title,
+            $message,
+            $requester->id,
+            $data
+        );
     }
 }

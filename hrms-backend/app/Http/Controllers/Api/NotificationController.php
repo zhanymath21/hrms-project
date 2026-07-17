@@ -1,51 +1,59 @@
 <?php
+// app/Http/Controllers/Api/NotificationController.php
 
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
+use App\Services\NotificationService;
+use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
 {
-    /**
-     * Get user's notifications
-     */
-    public function index(Request $request): JsonResponse
+    use ApiResponseTrait;
+
+    protected NotificationService $notificationService;
+
+    public function __construct(NotificationService $notificationService)
     {
-        $user = $request->user();
-
-        $query = Notification::where('user_id', $user->id)
-            ->with('fromUser:id,first_name,last_name,profile_photo');
-
-        // Filter unread only
-        if ($request->boolean('unread_only')) {
-            $query->where('is_read', false);
-        }
-
-        $perPage = $request->input('per_page', 20);
-        $notifications = $query->orderBy('created_at', 'desc')->paginate($perPage);
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $notifications,
-        ]);
+        $this->notificationService = $notificationService;
     }
 
     /**
-     * Get unread count
+     * Get all notifications for current user
+     */
+    public function index(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            $limit = $request->input('limit', 50);
+
+            $notifications = $this->notificationService->getAll($user->id, $limit);
+
+            return $this->success($notifications, 'Notifications fetched successfully');
+        } catch (\Exception $e) {
+            Log::error('❌ Error fetching notifications: ' . $e->getMessage());
+            return $this->error('Failed to fetch notifications: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get unread notifications count
      */
     public function unreadCount(Request $request): JsonResponse
     {
-        $count = Notification::where('user_id', $request->user()->id)
-            ->where('is_read', false)
-            ->count();
+        try {
+            $user = $request->user();
+            $count = $this->notificationService->getUnreadCount($user->id);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => ['unread_count' => $count],
-        ]);
+            return $this->success(['count' => $count], 'Unread count fetched successfully');
+        } catch (\Exception $e) {
+            Log::error('❌ Error fetching unread count: ' . $e->getMessage());
+            return $this->error('Failed to fetch unread count: ' . $e->getMessage(), 500);
+        }
     }
 
     /**
@@ -53,23 +61,26 @@ class NotificationController extends Controller
      */
     public function markAsRead(Request $request, $id): JsonResponse
     {
-        $notification = Notification::where('user_id', $request->user()->id)
-            ->where('id', $id)
-            ->first();
+        try {
+            $user = $request->user();
 
-        if (!$notification) {
-            return response()->json(['status' => 'error', 'message' => 'Notification not found'], 404);
+            $notification = Notification::find($id);
+            if (!$notification) {
+                return $this->notFound('Notification not found');
+            }
+
+            // Check if notification belongs to user
+            if ($notification->user_id !== $user->id) {
+                return $this->unauthorized('You cannot access this notification');
+            }
+
+            $this->notificationService->markAsRead($id);
+
+            return $this->success(null, 'Notification marked as read');
+        } catch (\Exception $e) {
+            Log::error('❌ Error marking notification as read: ' . $e->getMessage());
+            return $this->error('Failed to mark notification as read: ' . $e->getMessage(), 500);
         }
-
-        $notification->update([
-            'is_read' => true,
-            'read_at' => now(),
-        ]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Notification marked as read',
-        ]);
     }
 
     /**
@@ -77,16 +88,41 @@ class NotificationController extends Controller
      */
     public function markAllAsRead(Request $request): JsonResponse
     {
-        Notification::where('user_id', $request->user()->id)
-            ->where('is_read', false)
-            ->update([
-                'is_read' => true,
-                'read_at' => now(),
-            ]);
+        try {
+            $user = $request->user();
+            $count = $this->notificationService->markAllAsRead($user->id);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'All notifications marked as read',
-        ]);
+            return $this->success(['count' => $count], 'All notifications marked as read');
+        } catch (\Exception $e) {
+            Log::error('❌ Error marking all notifications as read: ' . $e->getMessage());
+            return $this->error('Failed to mark all notifications as read: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Delete notification
+     */
+    public function destroy(Request $request, $id): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            $notification = Notification::find($id);
+            if (!$notification) {
+                return $this->notFound('Notification not found');
+            }
+
+            // Check if notification belongs to user
+            if ($notification->user_id !== $user->id) {
+                return $this->unauthorized('You cannot delete this notification');
+            }
+
+            $this->notificationService->delete($id);
+
+            return $this->success(null, 'Notification deleted successfully');
+        } catch (\Exception $e) {
+            Log::error('❌ Error deleting notification: ' . $e->getMessage());
+            return $this->error('Failed to delete notification: ' . $e->getMessage(), 500);
+        }
     }
 }
