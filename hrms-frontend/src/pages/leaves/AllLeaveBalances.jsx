@@ -15,7 +15,6 @@ import {
     Chip,
     IconButton,
     Button,
-    Stack,
     Alert,
     CircularProgress,
     TextField,
@@ -35,8 +34,11 @@ import {
     DialogActions,
     LinearProgress,
     Snackbar,
-    Divider,
+    Menu,
+    ListItemIcon,
+    ListItemText,
 } from '@mui/material';
+
 import {
     Refresh as RefreshIcon,
     Search as SearchIcon,
@@ -47,14 +49,17 @@ import {
     Edit as EditIcon,
     Save as SaveIcon,
     Close as CloseIcon,
-    Person as PersonIcon,
-    TrendingUp as TrendingUpIcon,
-    TrendingDown as TrendingDownIcon,
     ArrowForward as ArrowForwardIcon,
     History as HistoryIcon,
+    Download as DownloadIcon,
+    PictureAsPdf as PictureAsPdfIcon,
+    TableChart as TableChartIcon,
+    FilterList as FilterListIcon,
 } from '@mui/icons-material';
+
 import { useLeave } from '../../contexts/LeaveContext';
 import api from '../../services/axios';
+import * as XLSX from 'xlsx';
 
 const AllLeaveBalances = () => {
     const { fetchAllBalances, loading, error, updateBalance, updateCarryForward } = useLeave();
@@ -80,8 +85,19 @@ const AllLeaveBalances = () => {
         totalUsed: 0,
         totalPending: 0,
         totalCarryForward: 0,
+        totalEntitlement: 0,
     });
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+    // Date Filter
+    const [dateFilter, setDateFilter] = useState({
+        startDate: null,
+        endDate: null,
+    });
+
+    // Export Menu
+    const [exportAnchorEl, setExportAnchorEl] = useState(null);
+    const exportMenuOpen = Boolean(exportAnchorEl);
 
     // Edit Balance Dialog
     const [editDialog, setEditDialog] = useState({
@@ -118,7 +134,7 @@ const AllLeaveBalances = () => {
     useEffect(() => {
         loadData();
         fetchDepartments();
-    }, [page, rowsPerPage, search, departmentFilter]);
+    }, [page, rowsPerPage, search, departmentFilter, dateFilter.startDate, dateFilter.endDate]);
 
     const fetchDepartments = async () => {
         try {
@@ -137,6 +153,13 @@ const AllLeaveBalances = () => {
             };
             if (search) params.search = search;
             if (departmentFilter) params.department_id = departmentFilter;
+            
+            if (dateFilter.startDate) {
+                params.start_date = dateFilter.startDate.toISOString().split('T')[0];
+            }
+            if (dateFilter.endDate) {
+                params.end_date = dateFilter.endDate.toISOString().split('T')[0];
+            }
 
             const response = await fetchAllBalances(params);
             const employeesData = response?.data || [];
@@ -149,12 +172,11 @@ const AllLeaveBalances = () => {
                 last_page: response?.pagination?.last_page || 1,
             });
 
-            // Calculate stats including carry forward
-            let totalAL = 0, totalSL = 0, totalSPL = 0, totalRemaining = 0;
-            let totalUsed = 0, totalPending = 0, totalCarryForward = 0;
+            let totalAL = 0, totalSL = 0, totalSPL = 0;
+            let totalRemaining = 0, totalUsed = 0, totalPending = 0;
+            let totalCarryForward = 0, totalEntitlement = 0;
             
             employeesData.forEach(emp => {
-                // Get balances from leave_balances array
                 const alBalance = emp.leave_balances?.find(b => 
                     b.leave_code === 'AL' || b.leave_type?.code === 'AL'
                 );
@@ -165,17 +187,36 @@ const AllLeaveBalances = () => {
                     b.leave_code === 'SPL' || b.leave_type?.code === 'SPL'
                 );
                 
-                totalAL += parseFloat(alBalance?.remaining_days || 0);
-                totalSL += parseFloat(slBalance?.remaining_days || 0);
-                totalSPL += parseFloat(splBalance?.remaining_days || 0);
-                totalRemaining += parseFloat(emp.summary?.remaining_days || 0);
-                totalUsed += parseFloat(emp.summary?.used_days || 0);
-                totalPending += parseFloat(emp.summary?.pending_days || 0);
+                const alRemaining = parseFloat(alBalance?.remaining_days || 0);
+                const slRemaining = parseFloat(slBalance?.remaining_days || 0);
+                const splRemaining = parseFloat(splBalance?.remaining_days || 0);
                 
-                // Calculate carry forward from individual balances
-                emp.leave_balances?.forEach(balance => {
-                    totalCarryForward += parseFloat(balance.carry_forward || 0);
-                });
+                const alEntitlement = parseFloat(alBalance?.total_entitlement || 0);
+                const slEntitlement = parseFloat(slBalance?.total_entitlement || 0);
+                const splEntitlement = parseFloat(splBalance?.total_entitlement || 0);
+                
+                totalAL += alRemaining;
+                totalSL += slRemaining;
+                totalSPL += splRemaining;
+                
+                totalRemaining += alRemaining + slRemaining + splRemaining;
+                
+                const alUsed = parseFloat(alBalance?.used_days || 0);
+                const slUsed = parseFloat(slBalance?.used_days || 0);
+                const splUsed = parseFloat(splBalance?.used_days || 0);
+                totalUsed += alUsed + slUsed + splUsed;
+                
+                const alPending = parseFloat(alBalance?.pending_days || 0);
+                const slPending = parseFloat(slBalance?.pending_days || 0);
+                const splPending = parseFloat(splBalance?.pending_days || 0);
+                totalPending += alPending + slPending + splPending;
+                
+                totalEntitlement += alEntitlement + slEntitlement + splEntitlement;
+                
+                const alCarryForward = parseFloat(alBalance?.carry_forward || 0);
+                const slCarryForward = parseFloat(slBalance?.carry_forward || 0);
+                const splCarryForward = parseFloat(splBalance?.carry_forward || 0);
+                totalCarryForward += alCarryForward + slCarryForward + splCarryForward;
             });
 
             setStats({
@@ -187,6 +228,7 @@ const AllLeaveBalances = () => {
                 totalUsed: totalUsed,
                 totalPending: totalPending,
                 totalCarryForward: totalCarryForward,
+                totalEntitlement: totalEntitlement,
             });
 
         } catch (err) {
@@ -221,7 +263,234 @@ const AllLeaveBalances = () => {
     const handleClearFilters = () => {
         setSearch('');
         setDepartmentFilter('');
+        setDateFilter({ startDate: null, endDate: null });
         setPage(0);
+        setSnackbar({
+            open: true,
+            message: 'All filters cleared!',
+            severity: 'info',
+        });
+    };
+
+    // ==================== EXPORT FUNCTIONS ====================
+    const handleExportMenuOpen = (event) => {
+        setExportAnchorEl(event.currentTarget);
+    };
+
+    const handleExportMenuClose = () => {
+        setExportAnchorEl(null);
+    };
+
+    const exportToExcel = () => {
+        try {
+            const exportData = employees.map(emp => {
+                const al = getBalanceByCode(emp, 'AL');
+                const sl = getBalanceByCode(emp, 'SL');
+                const spl = getBalanceByCode(emp, 'SPL');
+                
+                const alRemaining = parseFloat(al.remaining_days || 0);
+                const slRemaining = parseFloat(sl.remaining_days || 0);
+                const splRemaining = parseFloat(spl.remaining_days || 0);
+                
+                const alEntitlement = parseFloat(al.total_entitlement || 0);
+                const slEntitlement = parseFloat(sl.total_entitlement || 0);
+                const splEntitlement = parseFloat(spl.total_entitlement || 0);
+                
+                const alUsed = parseFloat(al.used_days || 0);
+                const slUsed = parseFloat(sl.used_days || 0);
+                const splUsed = parseFloat(spl.used_days || 0);
+                
+                const alPending = parseFloat(al.pending_days || 0);
+                const slPending = parseFloat(sl.pending_days || 0);
+                const splPending = parseFloat(spl.pending_days || 0);
+                
+                const alCarryForward = parseFloat(al.carry_forward || 0);
+                const slCarryForward = parseFloat(sl.carry_forward || 0);
+                const splCarryForward = parseFloat(spl.carry_forward || 0);
+
+                return {
+                    'Employee ID': emp.employee_id || '',
+                    'Employee Name': emp.name || '',
+                    'Department': emp.department?.name || 'N/A',
+                    'AL Entitlement': alEntitlement,
+                    'AL Used': alUsed,
+                    'AL Pending': alPending,
+                    'AL Remaining': alRemaining,
+                    'AL Carry Forward': alCarryForward,
+                    'SL Entitlement': slEntitlement,
+                    'SL Used': slUsed,
+                    'SL Pending': slPending,
+                    'SL Remaining': slRemaining,
+                    'SL Carry Forward': slCarryForward,
+                    'SPL Entitlement': splEntitlement,
+                    'SPL Used': splUsed,
+                    'SPL Pending': splPending,
+                    'SPL Remaining': splRemaining,
+                    'SPL Carry Forward': splCarryForward,
+                    'Total Entitlement': alEntitlement + slEntitlement + splEntitlement,
+                    'Total Used': alUsed + slUsed + splUsed,
+                    'Total Pending': alPending + slPending + splPending,
+                    'Total Remaining': alRemaining + slRemaining + splRemaining,
+                    'Total Carry Forward': alCarryForward + slCarryForward + splCarryForward,
+                };
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            
+            const colWidths = [
+                { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 12 },
+                { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 12 },
+                { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 12 },
+                { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 15 },
+                { wch: 15 }, { wch: 18 }, { wch: 20 },
+            ];
+            ws['!cols'] = colWidths;
+
+            XLSX.utils.book_append_sheet(wb, ws, 'Leave Balances');
+            
+            const fileName = `Leave_Balances_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            
+            handleExportMenuClose();
+            setSnackbar({
+                open: true,
+                message: `✅ Excel file downloaded successfully!`,
+                severity: 'success',
+            });
+        } catch (err) {
+            console.error('Export error:', err);
+            setSnackbar({
+                open: true,
+                message: 'Failed to export Excel: ' + err.message,
+                severity: 'error',
+            });
+        }
+    };
+
+    const exportToPDF = async () => {
+        try {
+            const jsPDFModule = await import('jspdf');
+            const jsPDF = jsPDFModule.default;
+            await import('jspdf-autotable');
+            
+            const doc = new jsPDF('landscape', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.getWidth();
+            
+            doc.setFontSize(16);
+            doc.setTextColor(40, 40, 40);
+            doc.text('Employee Leave Balance Report', pageWidth / 2, 15, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            let dateInfo = 'Report Date: ' + new Date().toLocaleDateString();
+            if (dateFilter.startDate || dateFilter.endDate) {
+                dateInfo += ' | Period: ';
+                if (dateFilter.startDate) dateInfo += dateFilter.startDate.toLocaleDateString();
+                if (dateFilter.startDate && dateFilter.endDate) dateInfo += ' - ';
+                if (dateFilter.endDate) dateInfo += dateFilter.endDate.toLocaleDateString();
+            }
+            doc.text(dateInfo, pageWidth / 2, 22, { align: 'center' });
+            
+            const tableData = employees.map(emp => {
+                const al = getBalanceByCode(emp, 'AL');
+                const sl = getBalanceByCode(emp, 'SL');
+                const spl = getBalanceByCode(emp, 'SPL');
+                
+                const alRemaining = parseFloat(al.remaining_days || 0);
+                const slRemaining = parseFloat(sl.remaining_days || 0);
+                const splRemaining = parseFloat(spl.remaining_days || 0);
+                
+                const alEntitlement = parseFloat(al.total_entitlement || 0);
+                const slEntitlement = parseFloat(sl.total_entitlement || 0);
+                const splEntitlement = parseFloat(spl.total_entitlement || 0);
+                
+                const alUsed = parseFloat(al.used_days || 0);
+                const slUsed = parseFloat(sl.used_days || 0);
+                const splUsed = parseFloat(spl.used_days || 0);
+                
+                const alPending = parseFloat(al.pending_days || 0);
+                const slPending = parseFloat(sl.pending_days || 0);
+                const splPending = parseFloat(spl.pending_days || 0);
+
+                return [
+                    emp.employee_id || '',
+                    emp.name || '',
+                    emp.department?.name || 'N/A',
+                    alEntitlement.toFixed(1),
+                    alUsed.toFixed(1),
+                    alPending.toFixed(1),
+                    alRemaining.toFixed(1),
+                    slEntitlement.toFixed(1),
+                    slUsed.toFixed(1),
+                    slPending.toFixed(1),
+                    slRemaining.toFixed(1),
+                    splEntitlement.toFixed(1),
+                    splUsed.toFixed(1),
+                    splPending.toFixed(1),
+                    splRemaining.toFixed(1),
+                    (alEntitlement + slEntitlement + splEntitlement).toFixed(1),
+                    (alUsed + slUsed + splUsed).toFixed(1),
+                    (alPending + slPending + splPending).toFixed(1),
+                    (alRemaining + slRemaining + splRemaining).toFixed(1),
+                ];
+            });
+
+            const headers = [
+                'ID', 'Name', 'Dept',
+                'AL Ent.', 'AL Used', 'AL Pend.', 'AL Rem.',
+                'SL Ent.', 'SL Used', 'SL Pend.', 'SL Rem.',
+                'SPL Ent.', 'SPL Used', 'SPL Pend.', 'SPL Rem.',
+                'Total Ent.', 'Total Used', 'Total Pend.', 'Total Rem.'
+            ];
+
+            doc.autoTable({
+                head: [headers],
+                body: tableData,
+                startY: 28,
+                styles: {
+                    fontSize: 6,
+                    cellPadding: 1.5,
+                },
+                headStyles: {
+                    fillColor: [63, 81, 181],
+                    textColor: 255,
+                    fontSize: 7,
+                    fontStyle: 'bold',
+                },
+                columnStyles: {
+                    0: { cellWidth: 20 },
+                    1: { cellWidth: 35 },
+                    2: { cellWidth: 25 },
+                },
+                didDrawPage: function(data) {
+                    doc.setFontSize(8);
+                    doc.setTextColor(150, 150, 150);
+                    doc.text(
+                        `Page ${doc.internal.getCurrentPageInfo().pageNumber}`,
+                        pageWidth - 20,
+                        doc.internal.pageSize.getHeight() - 5
+                    );
+                }
+            });
+
+            const fileName = `Leave_Balances_${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(fileName);
+            
+            handleExportMenuClose();
+            setSnackbar({
+                open: true,
+                message: `✅ PDF file downloaded successfully!`,
+                severity: 'success',
+            });
+        } catch (err) {
+            console.error('Export error:', err);
+            setSnackbar({
+                open: true,
+                message: 'Failed to export PDF: ' + err.message,
+                severity: 'error',
+            });
+        }
     };
 
     // ==================== EDIT BALANCE ====================
@@ -329,7 +598,6 @@ const AllLeaveBalances = () => {
             return;
         }
 
-        // Check if leave type allows carry forward (only AL)
         const leaveCode = balance.leave_code || balance.leaveType?.code;
         if (leaveCode !== 'AL') {
             setSnackbar({
@@ -438,7 +706,6 @@ const AllLeaveBalances = () => {
         return name.substring(0, 2).toUpperCase();
     };
 
-    // Helper to get balance by leave code
     const getBalanceByCode = (employee, code) => {
         if (!employee?.leave_balances) return {};
         const balance = employee.leave_balances.find(b => 
@@ -447,7 +714,6 @@ const AllLeaveBalances = () => {
         return balance || {};
     };
 
-    // Helper to format number
     const formatNumber = (value) => {
         const num = parseFloat(value) || 0;
         return num.toFixed(1);
@@ -492,12 +758,49 @@ const AllLeaveBalances = () => {
                     >
                         Refresh
                     </Button>
+                    <Button
+                        variant="contained"
+                        startIcon={<DownloadIcon />}
+                        onClick={handleExportMenuOpen}
+                        color="primary"
+                        size="small"
+                    >
+                        Export
+                    </Button>
                 </Box>
             </Box>
 
+            {/* Export Menu */}
+            <Menu
+                anchorEl={exportAnchorEl}
+                open={exportMenuOpen}
+                onClose={handleExportMenuClose}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                }}
+            >
+                <MenuItem onClick={exportToExcel}>
+                    <ListItemIcon>
+                        <TableChartIcon sx={{ color: '#4caf50' }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Export to Excel" secondary=".xlsx" />
+                </MenuItem>
+                <MenuItem onClick={exportToPDF}>
+                    <ListItemIcon>
+                        <PictureAsPdfIcon sx={{ color: '#f44336' }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Export to PDF" secondary=".pdf" />
+                </MenuItem>
+            </Menu>
+
             {/* Stats Cards */}
             <Grid container spacing={2} mb={3}>
-                <Grid item xs={6} sm={3} md={2.4}>
+                <Grid item xs={6} sm={3} md={2}>
                     <Card sx={{ bgcolor: '#e3f2fd', borderLeft: '4px solid #1976d2' }}>
                         <CardContent sx={{ py: 1.5 }}>
                             <Typography color="textSecondary" variant="caption">Total Employees</Typography>
@@ -507,7 +810,7 @@ const AllLeaveBalances = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={6} sm={3} md={2.4}>
+                <Grid item xs={6} sm={3} md={2}>
                     <Card sx={{ bgcolor: '#e8f5e9', borderLeft: '4px solid #4caf50' }}>
                         <CardContent sx={{ py: 1.5 }}>
                             <Typography color="textSecondary" variant="caption">🏖️ AL Remaining</Typography>
@@ -517,7 +820,7 @@ const AllLeaveBalances = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={6} sm={3} md={2.4}>
+                <Grid item xs={6} sm={3} md={2}>
                     <Card sx={{ bgcolor: '#ffebee', borderLeft: '4px solid #f44336' }}>
                         <CardContent sx={{ py: 1.5 }}>
                             <Typography color="textSecondary" variant="caption">🏥 SL Remaining</Typography>
@@ -527,7 +830,7 @@ const AllLeaveBalances = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={6} sm={3} md={2.4}>
+                <Grid item xs={6} sm={3} md={2}>
                     <Card sx={{ bgcolor: '#fff3e0', borderLeft: '4px solid #ff9800' }}>
                         <CardContent sx={{ py: 1.5 }}>
                             <Typography color="textSecondary" variant="caption">🎉 SPL Remaining</Typography>
@@ -537,24 +840,32 @@ const AllLeaveBalances = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                {showCarryForward && (
-                    <Grid item xs={6} sm={3} md={2.4}>
-                        <Card sx={{ bgcolor: '#f3e5f5', borderLeft: '4px solid #9c27b0' }}>
-                            <CardContent sx={{ py: 1.5 }}>
-                                <Typography color="textSecondary" variant="caption">🔄 Total Carry Forward</Typography>
-                                <Typography variant="h5" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
-                                    {formatNumber(stats.totalCarryForward)}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                )}
+                <Grid item xs={6} sm={3} md={2}>
+                    <Card sx={{ bgcolor: '#f3e5f5', borderLeft: '4px solid #9c27b0' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography color="textSecondary" variant="caption">🔄 Total Carry Forward</Typography>
+                            <Typography variant="h5" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
+                                {formatNumber(stats.totalCarryForward)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={6} sm={3} md={2}>
+                    <Card sx={{ bgcolor: '#e8eaf6', borderLeft: '4px solid #3f51b5' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                            <Typography color="textSecondary" variant="caption">📋 Total Entitlement</Typography>
+                            <Typography variant="h5" sx={{ color: '#3f51b5', fontWeight: 'bold' }}>
+                                {formatNumber(stats.totalEntitlement)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
             </Grid>
 
             {/* Filters */}
             <Paper sx={{ p: 2, mb: 2 }}>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} md={5}>
+                    <Grid item xs={12} md={4}>
                         <TextField
                             fullWidth
                             size="small"
@@ -584,13 +895,47 @@ const AllLeaveBalances = () => {
                             </Select>
                         </FormControl>
                     </Grid>
-                    <Grid item xs={12} sm={6} md={2}>
+                    <Grid item xs={6} sm={3} md={2}>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            label="Start Date"
+                            type="date"
+                            value={dateFilter.startDate ? dateFilter.startDate.toISOString().split('T')[0] : ''}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setDateFilter({
+                                    ...dateFilter,
+                                    startDate: value ? new Date(value) : null,
+                                });
+                            }}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                    </Grid>
+                    <Grid item xs={6} sm={3} md={2}>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            label="End Date"
+                            type="date"
+                            value={dateFilter.endDate ? dateFilter.endDate.toISOString().split('T')[0] : ''}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setDateFilter({
+                                    ...dateFilter,
+                                    endDate: value ? new Date(value) : null,
+                                });
+                            }}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={1}>
                         <Button
                             fullWidth
                             variant="outlined"
                             color="error"
                             onClick={handleClearFilters}
-                            disabled={!search && !departmentFilter}
+                            disabled={!search && !departmentFilter && !dateFilter.startDate && !dateFilter.endDate}
                             startIcon={<ClearIcon />}
                             size="small"
                         >
@@ -628,10 +973,10 @@ const AllLeaveBalances = () => {
                                     </Box>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell align="center" sx={{ minWidth: 70 }}>
-                                <Tooltip title="Total Entitlement">
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Total Entitlement (All Leave Types)">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                                        📋 <Typography variant="caption">Total</Typography>
+                                        📋 <Typography variant="caption">Total Ent.</Typography>
                                     </Box>
                                 </Tooltip>
                             </TableCell>
@@ -649,10 +994,10 @@ const AllLeaveBalances = () => {
                                     </Box>
                                 </Tooltip>
                             </TableCell>
-                            <TableCell align="center" sx={{ minWidth: 70 }}>
-                                <Tooltip title="Total Remaining">
+                            <TableCell align="center" sx={{ minWidth: 80 }}>
+                                <Tooltip title="Total Remaining (All Leave Types)">
                                     <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                                        💚 <Typography variant="caption">Remaining</Typography>
+                                        💚 <Typography variant="caption">Total Rem.</Typography>
                                     </Box>
                                 </Tooltip>
                             </TableCell>
@@ -678,26 +1023,38 @@ const AllLeaveBalances = () => {
                             </TableRow>
                         ) : (
                             employees.map((employee) => {
-                                // Get balances from leave_balances array
                                 const al = getBalanceByCode(employee, 'AL');
                                 const sl = getBalanceByCode(employee, 'SL');
                                 const spl = getBalanceByCode(employee, 'SPL');
                                 
-                                const summary = employee.summary || {};
-                                const remaining = parseFloat(summary.remaining_days || 0);
-                                const total = parseFloat(summary.total_entitlement || 0);
-                                const statusColor = getStatusColor(remaining, total);
-                                const statusLabel = getStatusLabel(remaining, total);
-
-                                // Calculate total carry forward from all balances
-                                const totalCarryForward = employee.leave_balances?.reduce((sum, b) => 
-                                    sum + parseFloat(b.carry_forward || 0), 0
-                                ) || 0;
-
-                                // Get carry forward for each leave type
+                                const alRemaining = parseFloat(al.remaining_days || 0);
+                                const slRemaining = parseFloat(sl.remaining_days || 0);
+                                const splRemaining = parseFloat(spl.remaining_days || 0);
+                                
+                                const alEntitlement = parseFloat(al.total_entitlement || 0);
+                                const slEntitlement = parseFloat(sl.total_entitlement || 0);
+                                const splEntitlement = parseFloat(spl.total_entitlement || 0);
+                                
+                                const alUsed = parseFloat(al.used_days || 0);
+                                const slUsed = parseFloat(sl.used_days || 0);
+                                const splUsed = parseFloat(spl.used_days || 0);
+                                
+                                const alPending = parseFloat(al.pending_days || 0);
+                                const slPending = parseFloat(sl.pending_days || 0);
+                                const splPending = parseFloat(spl.pending_days || 0);
+                                
+                                const totalEntitlement = alEntitlement + slEntitlement + splEntitlement;
+                                const totalRemaining = alRemaining + slRemaining + splRemaining;
+                                const totalUsed = alUsed + slUsed + splUsed;
+                                const totalPending = alPending + slPending + splPending;
+                                
                                 const alCarryForward = parseFloat(al.carry_forward || 0);
                                 const slCarryForward = parseFloat(sl.carry_forward || 0);
                                 const splCarryForward = parseFloat(spl.carry_forward || 0);
+                                const totalCarryForward = alCarryForward + slCarryForward + splCarryForward;
+                                
+                                const statusColor = getStatusColor(totalRemaining, totalEntitlement);
+                                const statusLabel = getStatusLabel(totalRemaining, totalEntitlement);
 
                                 return (
                                     <TableRow key={employee.id} hover>
@@ -728,9 +1085,9 @@ const AllLeaveBalances = () => {
                                             <Typography 
                                                 variant="body2" 
                                                 fontWeight="bold" 
-                                                sx={{ color: (al.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
+                                                sx={{ color: alRemaining > 0 ? '#4caf50' : '#f44336' }}
                                             >
-                                                {formatNumber(al.remaining_days)}
+                                                {formatNumber(alRemaining)}
                                             </Typography>
                                             {showCarryForward && alCarryForward > 0 && (
                                                 <Chip
@@ -745,9 +1102,9 @@ const AllLeaveBalances = () => {
                                             <Typography 
                                                 variant="body2" 
                                                 fontWeight="bold" 
-                                                sx={{ color: (sl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
+                                                sx={{ color: slRemaining > 0 ? '#4caf50' : '#f44336' }}
                                             >
-                                                {formatNumber(sl.remaining_days)}
+                                                {formatNumber(slRemaining)}
                                             </Typography>
                                             {showCarryForward && slCarryForward > 0 && (
                                                 <Chip
@@ -762,9 +1119,9 @@ const AllLeaveBalances = () => {
                                             <Typography 
                                                 variant="body2" 
                                                 fontWeight="bold" 
-                                                sx={{ color: (spl.remaining_days || 0) > 0 ? '#4caf50' : '#f44336' }}
+                                                sx={{ color: splRemaining > 0 ? '#4caf50' : '#f44336' }}
                                             >
-                                                {formatNumber(spl.remaining_days)}
+                                                {formatNumber(splRemaining)}
                                             </Typography>
                                             {showCarryForward && splCarryForward > 0 && (
                                                 <Chip
@@ -776,27 +1133,33 @@ const AllLeaveBalances = () => {
                                             )}
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" fontWeight="medium">
-                                                {formatNumber(total)}
+                                            <Typography variant="body2" fontWeight="bold" sx={{ color: '#3f51b5' }}>
+                                                {formatNumber(totalEntitlement)}
+                                            </Typography>
+                                            <Typography variant="caption" display="block" color="textSecondary" fontSize="0.65rem">
+                                                {formatNumber(alEntitlement)} + {formatNumber(slEntitlement)} + {formatNumber(splEntitlement)}
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" sx={{ color: '#f44336' }}>
-                                                {formatNumber(summary.used_days)}
+                                            <Typography variant="body2" sx={{ color: '#f44336', fontWeight: 'medium' }}>
+                                                {formatNumber(totalUsed)}
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography variant="body2" sx={{ color: '#ff9800' }}>
-                                                {formatNumber(summary.pending_days)}
+                                            <Typography variant="body2" sx={{ color: '#ff9800', fontWeight: 'medium' }}>
+                                                {formatNumber(totalPending)}
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Typography 
                                                 variant="body2" 
                                                 fontWeight="bold" 
-                                                sx={{ color: remaining > 0 ? '#4caf50' : '#f44336' }}
+                                                sx={{ color: totalRemaining > 0 ? '#4caf50' : '#f44336' }}
                                             >
-                                                {formatNumber(remaining)}
+                                                {formatNumber(totalRemaining)}
+                                            </Typography>
+                                            <Typography variant="caption" display="block" color="textSecondary" fontSize="0.65rem">
+                                                {formatNumber(alRemaining)} + {formatNumber(slRemaining)} + {formatNumber(splRemaining)}
                                             </Typography>
                                         </TableCell>
                                         {showCarryForward && (
@@ -858,7 +1221,7 @@ const AllLeaveBalances = () => {
                                             </TableCell>
                                         )}
                                         <TableCell align="center">
-                                            <Tooltip title={`${statusLabel} (${formatNumber(remaining)} days remaining)`}>
+                                            <Tooltip title={`${statusLabel} (${formatNumber(totalRemaining)} days remaining)`}>
                                                 <Chip 
                                                     label={statusLabel} 
                                                     color={statusColor} 
@@ -981,7 +1344,7 @@ const AllLeaveBalances = () => {
                             onChange={(e) => setEditDialog({ ...editDialog, newTotal: parseFloat(e.target.value) || 0 })}
                             InputProps={{ inputProps: { min: 0, step: 0.5 } }}
                             sx={{ mb: 2 }}
-                            helperText={`New remaining: ${formatNumber(editDialog.newTotal - editDialog.usedDays - editDialog.pendingDays + editDialog.carryForward)} days (including carry forward)`}
+                            helperText={`New remaining: ${formatNumber(editDialog.newTotal - editDialog.usedDays - editDialog.pendingDays)} days`}
                         />
 
                         <TextField
@@ -1066,7 +1429,7 @@ const AllLeaveBalances = () => {
                                 inputProps: { min: 0, max: 6, step: 0.5 } 
                             }}
                             sx={{ mb: 2 }}
-                            helperText={`New remaining: ${formatNumber(editCFDialog.newCarryForward + 18 - 0)} days (AL: 18 + CF)`}
+                            helperText={`Max: 6 days`}
                         />
 
                         <TextField

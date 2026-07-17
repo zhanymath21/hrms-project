@@ -9,6 +9,7 @@ use App\Models\LeaveType;
 use App\Models\LeaveBalance;
 use App\Models\LeaveApproval;
 use App\Models\LeaveAuditLog;
+use App\Models\Employee;
 use App\Services\Leave\LeaveApprovalService;
 use App\Services\Leave\LeaveBalanceService;
 use App\Services\Leave\HierarchicalApprovalService;
@@ -150,11 +151,13 @@ class LeaveController extends Controller
 
     /**
      * Create leave request
+     * ✅ Employee can select their own approvers (managers only)
      */
     public function store(Request $request): JsonResponse
     {
         try {
             Log::info('📝 Creating leave request');
+            Log::info('📊 Request data:', $request->all());
 
             $validator = Validator::make($request->all(), [
                 'leave_type_id' => 'required|exists:leave_types,id',
@@ -162,16 +165,74 @@ class LeaveController extends Controller
                 'end_date' => 'required|date|after_or_equal:start_date',
                 'reason' => 'required|string|min:5',
                 'attachment' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:5120',
+                'selected_approvers' => 'required|array|min:1',
+                'selected_approvers.*' => 'exists:employees,id',
             ]);
 
             if ($validator->fails()) {
-                return $this->validationError($validator->errors());
+                Log::error('❌ Validation failed:', $validator->errors()->toArray());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
             }
 
             $employee = $request->user();
 
             if (!$employee) {
-                return $this->error('Employee not found', 404);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Employee not found'
+                ], 404);
+            }
+
+            // ✅ Check if employee selected themselves as approver
+            $selectedApprovers = $request->selected_approvers;
+            if (in_array($employee->id, $selectedApprovers)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You cannot select yourself as approver',
+                    'errors' => ['selected_approvers' => ['You cannot select yourself as approver']]
+                ], 422);
+            }
+
+            // ✅ Check if selected approvers are managers
+            $invalidApprovers = [];
+            foreach ($selectedApprovers as $approverId) {
+                $approver = Employee::with('position')->find($approverId);
+                if (!$approver) {
+                    $invalidApprovers[] = $approverId;
+                    continue;
+                }
+
+                // Check if approver has subordinates OR is a manager position
+                $hasSubordinates = Employee::where('manager_id', $approverId)->exists();
+                $isManager = in_array($approver->position->title ?? '', [
+                    'Manager',
+                    'HR Manager',
+                    'IT Manager',
+                    'Finance Manager',
+                    'Marketing Manager',
+                    'GM',
+                    'CEO',
+                    'Director',
+                    'Supervisor'
+                ]);
+
+                if (!$hasSubordinates && !$isManager) {
+                    $invalidApprovers[] = $approver->first_name . ' ' . $approver->last_name;
+                }
+            }
+
+            if (!empty($invalidApprovers)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Selected approvers must be managers',
+                    'errors' => ['selected_approvers' => [
+                        'Selected approvers must be managers. Invalid: ' . implode(', ', $invalidApprovers)
+                    ]]
+                ], 422);
             }
 
             $startDate = Carbon::parse($request->start_date);
@@ -187,17 +248,10 @@ class LeaveController extends Controller
 
             if (!$balance || $balance->remaining_days < $totalDays) {
                 $available = $balance ? $balance->remaining_days : 0;
-                return $this->error(
-                    "Insufficient balance! Need {$totalDays} days, available: {$available}",
-                    422
-                );
-            }
-
-            // Get approval flow based on hierarchy
-            $approvalFlow = $this->hierarchyService->createApprovalFlow(new Leave(), $employee);
-
-            if (empty($approvalFlow)) {
-                return $this->error('No approval flow configured. Please contact HR.', 422);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Insufficient balance! Need {$totalDays} days, available: {$available}",
+                ], 422);
             }
 
             // Handle attachment
@@ -219,18 +273,20 @@ class LeaveController extends Controller
                     'reason' => $request->reason,
                     'attachment' => $attachmentPath,
                     'status' => 'pending',
-                    'approval_flow' => json_encode($approvalFlow),
+                    'selected_approvers' => json_encode($selectedApprovers),
+                    'is_employee_selected' => true,
                     'approval_level' => 0,
-                    'total_approval_levels' => count($approvalFlow),
+                    'total_approval_levels' => count($selectedApprovers),
                 ]);
 
-                // Create approval stages
-                foreach ($approvalFlow as $stage) {
+                // ✅ Create approval stages for selected approvers
+                foreach ($selectedApprovers as $index => $approverId) {
                     LeaveApproval::create([
                         'leave_id' => $leave->id,
-                        'approver_id' => $stage['approver_id'],
-                        'level' => $stage['level'],
+                        'approver_id' => $approverId,
+                        'level' => $index + 1,
                         'status' => 'pending',
+                        'is_selected' => true,
                     ]);
                 }
 
@@ -250,18 +306,22 @@ class LeaveController extends Controller
 
                 Log::info("✅ Leave request created: {$leave->id}");
 
-                return $this->success(
-                    $leave->load(['leaveType', 'approvals.approver']),
-                    'Leave request submitted successfully!',
-                    201
-                );
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Leave request submitted successfully!',
+                    'data' => $leave->load(['leaveType', 'approvals.approver']),
+                ], 201);
             } catch (\Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
         } catch (\Exception $e) {
             Log::error('❌ Error creating leave: ' . $e->getMessage());
-            return $this->error('Failed to submit leave: ' . $e->getMessage(), 500);
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to submit leave: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -273,6 +333,7 @@ class LeaveController extends Controller
 
     /**
      * Approve leave
+     * ✅ Only selected approvers can approve
      */
     public function approve(Request $request, $id): JsonResponse
     {
@@ -284,14 +345,26 @@ class LeaveController extends Controller
 
             $employee = $request->user();
 
-            // Check if this employee can approve
-            if (!$this->hierarchyService->canApprove($employee, $leave->employee)) {
-                return $this->error('You are not authorized to approve this request', 403);
+            // ✅ Check if employee is a selected approver
+            $isSelectedApprover = LeaveApproval::where('leave_id', $leave->id)
+                ->where('approver_id', $employee->id)
+                ->where('is_selected', true)
+                ->where('status', 'pending')
+                ->exists();
+
+            if (!$isSelectedApprover) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You are not authorized to approve this request',
+                ], 403);
             }
 
             // Check if leave is still pending
             if (!$leave->isPending()) {
-                return $this->error('This leave request has already been processed', 422);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'This leave request has already been processed',
+                ], 422);
             }
 
             $validator = Validator::make($request->all(), [
@@ -328,15 +401,23 @@ class LeaveController extends Controller
                 $request->input('notes')
             );
 
-            return $this->success($leave->load(['approvals.approver']), 'Leave approved successfully');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Leave approved successfully',
+                'data' => $leave->load(['approvals.approver']),
+            ]);
         } catch (\Exception $e) {
             Log::error('❌ Error approving leave: ' . $e->getMessage());
-            return $this->error('Failed to approve: ' . $e->getMessage(), 500);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to approve: ' . $e->getMessage()
+            ], 500);
         }
     }
 
     /**
      * Reject leave
+     * ✅ Only selected approvers can reject
      */
     public function reject(Request $request, $id): JsonResponse
     {
@@ -356,14 +437,26 @@ class LeaveController extends Controller
                 return $this->validationError($validator->errors());
             }
 
-            // Check if this employee can approve
-            if (!$this->hierarchyService->canApprove($employee, $leave->employee)) {
-                return $this->error('You are not authorized to reject this request', 403);
+            // ✅ Check if employee is a selected approver
+            $isSelectedApprover = LeaveApproval::where('leave_id', $leave->id)
+                ->where('approver_id', $employee->id)
+                ->where('is_selected', true)
+                ->where('status', 'pending')
+                ->exists();
+
+            if (!$isSelectedApprover) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You are not authorized to reject this request',
+                ], 403);
             }
 
             // Check if leave is still pending
             if (!$leave->isPending()) {
-                return $this->error('This leave request has already been processed', 422);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'This leave request has already been processed',
+                ], 422);
             }
 
             $leave = $this->approvalService->rejectLeave(
@@ -390,15 +483,23 @@ class LeaveController extends Controller
                 $request->rejection_reason
             );
 
-            return $this->success($leave->load(['approvals.approver']), 'Leave rejected successfully');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Leave rejected successfully',
+                'data' => $leave->load(['approvals.approver']),
+            ]);
         } catch (\Exception $e) {
             Log::error('❌ Error rejecting leave: ' . $e->getMessage());
-            return $this->error('Failed to reject: ' . $e->getMessage(), 500);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to reject: ' . $e->getMessage()
+            ], 500);
         }
     }
 
     /**
      * Cancel leave
+     * ✅ Only the requester can cancel
      */
     public function cancel(Request $request, $id): JsonResponse
     {
@@ -411,17 +512,26 @@ class LeaveController extends Controller
 
             $user = $request->user();
 
-            // Check if user can cancel
-            if ($leave->employee_id !== $user->id && !$this->isAdminOrHR($user)) {
-                return $this->unauthorized('You cannot cancel this leave');
+            // ✅ Only the requester can cancel
+            if ($leave->employee_id !== $user->id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only the requester can cancel this leave',
+                ], 403);
             }
 
             if ($leave->isApproved()) {
-                return $this->error('Approved leave cannot be cancelled', 422);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Approved leave cannot be cancelled',
+                ], 422);
             }
 
             if ($leave->isCancelled()) {
-                return $this->error('Leave is already cancelled', 422);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Leave is already cancelled',
+                ], 422);
             }
 
             DB::beginTransaction();
@@ -446,11 +556,17 @@ class LeaveController extends Controller
 
             DB::commit();
 
-            return $this->success(null, 'Leave cancelled successfully');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Leave cancelled successfully',
+            ]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('❌ Error cancelling leave: ' . $e->getMessage());
-            return $this->error('Failed to cancel: ' . $e->getMessage(), 500);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to cancel: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -461,7 +577,8 @@ class LeaveController extends Controller
      */
 
     /**
-     * Get pending requests (alias for pendingApprovals)
+     * Get pending requests for current user
+     * ✅ Only shows leaves where user is a selected approver
      */
     public function pendingRequests(Request $request): JsonResponse
     {
@@ -470,6 +587,7 @@ class LeaveController extends Controller
 
     /**
      * Get pending approvals for current user
+     * ✅ Only shows leaves where user is a selected approver
      */
     public function pendingApprovals(Request $request): JsonResponse
     {
@@ -480,9 +598,21 @@ class LeaveController extends Controller
                 return $this->error('Employee not found', 404);
             }
 
-            $approvals = $this->approvalService->getPendingApprovals($employee);
+            // ✅ Get approvals where user is selected approver
+            $approvals = LeaveApproval::with(['leave', 'leave.employee', 'leave.leaveType'])
+                ->where('approver_id', $employee->id)
+                ->where('is_selected', true)
+                ->where('status', 'pending')
+                ->orderBy('created_at', 'asc')
+                ->get();
 
-            return $this->success($approvals, 'Pending approvals fetched successfully');
+            // Also include approvals from hierarchical flow if any
+            $hierarchicalApprovals = $this->approvalService->getPendingApprovals($employee);
+
+            // Merge and unique
+            $allApprovals = $approvals->merge($hierarchicalApprovals)->unique('id')->values();
+
+            return $this->success($allApprovals, 'Pending approvals fetched successfully');
         } catch (\Exception $e) {
             Log::error('❌ Error fetching pending approvals: ' . $e->getMessage());
             return $this->error('Failed to fetch pending approvals: ' . $e->getMessage(), 500);
@@ -667,12 +797,12 @@ class LeaveController extends Controller
             $holidays = [
                 [
                     'name' => 'New Year\'s Day',
-                    'date' => '2024-01-01',
+                    'date' => date('Y') . '-01-01',
                     'description' => 'New Year\'s Day'
                 ],
                 [
                     'name' => 'Independence Day',
-                    'date' => '2024-07-04',
+                    'date' => date('Y') . '-07-04',
                     'description' => 'Independence Day'
                 ],
                 // Add more holidays as needed
@@ -682,6 +812,66 @@ class LeaveController extends Controller
         } catch (\Exception $e) {
             Log::error('❌ Error fetching public holidays: ' . $e->getMessage());
             return $this->error('Failed to fetch public holidays: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * ==========================================
+     * GET MANAGERS
+     * ==========================================
+     */
+
+    /**
+     * Get all managers (employees who can approve leaves)
+     */
+    public function getManagers(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Get employees who have subordinates OR have manager position
+            $managers = Employee::with(['position', 'department'])
+                ->where('status', 'active')
+                ->where('id', '!=', $user->id) // Exclude current user
+                ->where(function ($query) {
+                    $query->whereHas('subordinates')
+                        ->orWhereHas('position', function ($q) {
+                            $q->whereIn('title', [
+                                'Manager',
+                                'HR Manager',
+                                'IT Manager',
+                                'Finance Manager',
+                                'Marketing Manager',
+                                'GM',
+                                'CEO',
+                                'Director',
+                                'Supervisor'
+                            ]);
+                        });
+                })
+                ->get()
+                ->map(function ($employee) {
+                    return [
+                        'id' => $employee->id,
+                        'employee_id' => $employee->employee_id,
+                        'first_name' => $employee->first_name,
+                        'last_name' => $employee->last_name,
+                        'email' => $employee->email,
+                        'position' => $employee->position ? [
+                            'id' => $employee->position->id,
+                            'title' => $employee->position->title,
+                        ] : null,
+                        'department' => $employee->department ? [
+                            'id' => $employee->department->id,
+                            'name' => $employee->department->name,
+                        ] : null,
+                    ];
+                });
+
+            return $this->success($managers, 'Managers fetched successfully');
+        } catch (\Exception $e) {
+            Log::error('❌ Error fetching managers: ' . $e->getMessage());
+            return $this->error('Failed to fetch managers: ' . $e->getMessage(), 500);
         }
     }
 

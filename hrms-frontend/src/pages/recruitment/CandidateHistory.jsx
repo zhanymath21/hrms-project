@@ -1,3 +1,4 @@
+// CandidateHistory.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -20,19 +21,22 @@ import {
   Pending as PendingIcon,
   Timeline as TimelineIcon,
 } from '@mui/icons-material';
-// Import Timeline components from @mui/lab
-import Timeline from '@mui/lab/Timeline';
-import TimelineItem from '@mui/lab/TimelineItem';
-import TimelineSeparator from '@mui/lab/TimelineSeparator';
-import TimelineConnector from '@mui/lab/TimelineConnector';
-import TimelineContent from '@mui/lab/TimelineContent';
-import TimelineDot from '@mui/lab/TimelineDot';
-import TimelineOppositeContent from '@mui/lab/TimelineOppositeContent';
+
+// Import custom Timeline components
+import {
+  Timeline,
+  TimelineItem,
+  TimelineSeparator,
+  TimelineConnector,
+  TimelineContent,
+  TimelineDot,
+  TimelineOppositeContent,
+} from '../../components/CustomTimeline';
 
 import api from '../../services/axios';
 import { formatDate } from '../../utils/dateFormat';
 
-// 🔥 STATUS CONFIG (sama dengan di CandidateDetail)
+// STATUS CONFIG
 const STATUS_CONFIG = {
   new: { label: 'New', bgColor: '#3b82f6', textColor: '#ffffff' },
   screening: { label: 'Screening', bgColor: '#6366f1', textColor: '#ffffff' },
@@ -156,37 +160,25 @@ const CandidateHistory = ({ open, onClose, candidateId, candidateName }) => {
 
               return (
                 <TimelineItem key={item.id || index}>
-                  <TimelineOppositeContent
-                    sx={{
-                      flex: 0.2,
-                      py: 2,
-                      px: 2,
-                      color: 'text.secondary',
-                    }}
-                  >
-                    <Typography variant="caption" color="textSecondary">
+                  <TimelineOppositeContent>
+                    <Typography variant="caption" color="textSecondary" display="block">
                       {formatDate(item.created_at, 'dd/MM/yyyy HH:mm')}
                     </Typography>
-                    <Typography variant="caption" display="block" color="textSecondary">
+                    <Typography variant="caption" color="textSecondary" display="block">
                       by {item.changed_by || 'System'}
                     </Typography>
                   </TimelineOppositeContent>
 
                   <TimelineSeparator>
                     <TimelineDot
-                      sx={{
-                        backgroundColor: config?.bgColor || '#6b7280',
-                        color: config?.textColor || '#ffffff',
-                        width: 40,
-                        height: 40,
-                      }}
+                      bgcolor={config?.bgColor || '#6b7280'}
+                      textcolor={config?.textColor || '#ffffff'}
                     >
                       {getStatusIcon(item.new_status)}
                     </TimelineDot>
-                    {!isLast && <TimelineConnector />}
                   </TimelineSeparator>
 
-                  <TimelineContent sx={{ py: 2, px: 2 }}>
+                  <TimelineContent>
                     <Paper
                       elevation={0}
                       sx={{
@@ -196,7 +188,7 @@ const CandidateHistory = ({ open, onClose, candidateId, candidateName }) => {
                         borderRadius: 2,
                       }}
                     >
-                      <Box display="flex" alignItems="center" gap={1} mb={1}>
+                      <Box display="flex" alignItems="center" gap={1} mb={1} flexWrap="wrap">
                         <Typography variant="body2" fontWeight="bold">
                           Status changed from
                         </Typography>
@@ -224,7 +216,7 @@ const CandidateHistory = ({ open, onClose, candidateId, candidateName }) => {
                         </>
                       )}
 
-                      <Box mt={1} display="flex" gap={2}>
+                      <Box mt={1} display="flex" gap={2} flexWrap="wrap">
                         {item.changed_by && (
                           <Typography variant="caption" color="textSecondary">
                             <PersonIcon sx={{ fontSize: 14, mr: 0.5 }} />

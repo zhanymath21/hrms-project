@@ -1,3 +1,5 @@
+// src/utils/dateFormat.js
+
 import { format } from 'date-fns';
 
 export const formatDate = (date, formatStr = 'yyyy-MM-dd') => {
@@ -101,4 +103,54 @@ export const minutesToTime = (minutes) => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+// ✅ TAMBAHKAN FUNGSI INI
+export const getWorkingDays = (startDate, endDate) => {
+  if (!startDate || !endDate) return 0;
+  
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  let count = 0;
+  const current = new Date(start);
+  
+  // Reset time to avoid timezone issues
+  current.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  
+  while (current <= end) {
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) { // Not Sunday (0) or Saturday (6)
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  
+  return count;
+};
+
+// ✅ TAMBAHKAN FUNGSI INI
+export const getDaysBetween = (startDate, endDate) => {
+  if (!startDate || !endDate) return 0;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffTime = Math.abs(end - start);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays + 1;
+};
+
+// ✅ TAMBAHKAN FUNGSI INI
+export const isWeekend = (date) => {
+  if (!date) return false;
+  const d = new Date(date);
+  const day = d.getDay();
+  return day === 0 || day === 6;
+};
+
+// ✅ TAMBAHKAN FUNGSI INI
+export const addDays = (date, days) => {
+  if (!date) return null;
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
 };
