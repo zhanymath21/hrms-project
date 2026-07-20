@@ -361,6 +361,12 @@ class LeaveController extends Controller
     public function approve(Request $request, $id): JsonResponse
     {
         try {
+            Log::info('🔍 Approving leave request', [
+                'leave_id' => $id,
+                'user_id' => $request->user()?->id,
+                'user_email' => $request->user()?->email,
+            ]);
+
             $leave = Leave::with(['approvals', 'employee', 'leaveType'])->find($id);
             if (!$leave) {
                 return $this->notFound('Leave not found');
@@ -368,18 +374,59 @@ class LeaveController extends Controller
 
             $employee = $request->user();
 
-            // ✅ Check if employee is a selected approver
+            // ✅ Debug: Cek semua approvals untuk leave ini
+            $allApprovals = LeaveApproval::where('leave_id', $leave->id)->get();
+            Log::info('📋 All approvals for leave', [
+                'leave_id' => $id,
+                'approvals' => $allApprovals->map(function ($a) {
+                    return [
+                        'id' => $a->id,
+                        'approver_id' => $a->approver_id,
+                        'is_selected' => $a->is_selected,
+                        'status' => $a->status,
+                        'level' => $a->level,
+                    ];
+                })->toArray()
+            ]);
+
+            // ✅ Debug: Cek apakah user adalah selected approver
             $isSelectedApprover = LeaveApproval::where('leave_id', $leave->id)
                 ->where('approver_id', $employee->id)
                 ->where('is_selected', true)
                 ->where('status', 'pending')
                 ->exists();
 
+            Log::info('🔍 Selected approver check', [
+                'user_id' => $employee->id,
+                'is_selected_approver' => $isSelectedApprover,
+                'leave_id' => $id,
+            ]);
+
+            // ✅ Jika tidak ditemukan sebagai selected approver, coba cek sebagai hierarchical approver
             if (!$isSelectedApprover) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'You are not authorized to approve this request',
-                ], 403);
+                // Cek apakah user adalah approver di hierarchical flow
+                $isHierarchicalApprover = LeaveApproval::where('leave_id', $leave->id)
+                    ->where('approver_id', $employee->id)
+                    ->where('status', 'pending')
+                    ->exists();
+
+                Log::info('🔍 Hierarchical approver check', [
+                    'user_id' => $employee->id,
+                    'is_hierarchical_approver' => $isHierarchicalApprover,
+                ]);
+
+                if (!$isHierarchicalApprover) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'You are not authorized to approve this request',
+                        'debug' => [
+                            'user_id' => $employee->id,
+                            'leave_id' => $id,
+                            'is_selected' => $isSelectedApprover,
+                            'is_hierarchical' => $isHierarchicalApprover ?? false,
+                        ]
+                    ], 403);
+                }
             }
 
             // Check if leave is still pending
@@ -398,6 +445,7 @@ class LeaveController extends Controller
                 return $this->validationError($validator->errors());
             }
 
+            // ✅ Proses approval
             $leave = $this->approvalService->approveLeave(
                 $leave,
                 $employee,
@@ -424,7 +472,7 @@ class LeaveController extends Controller
                 $request->input('notes')
             );
 
-            // ✅ SEND NOTIFICATION TO EMPLOYEE
+            // Send notification to employee
             $leaveData = [
                 'id' => $leave->id,
                 'leave_type' => $leave->leaveType->name,
@@ -439,7 +487,7 @@ class LeaveController extends Controller
                 $leaveData
             );
 
-            // ✅ If not fully approved, notify next approver
+            // If not fully approved, notify next approver
             if ($leave->status === 'pending') {
                 $nextApproval = $leave->approvals()->where('status', 'pending')->first();
                 if ($nextApproval) {
@@ -458,6 +506,7 @@ class LeaveController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('❌ Error approving leave: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to approve: ' . $e->getMessage()

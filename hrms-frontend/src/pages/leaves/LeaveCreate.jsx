@@ -77,6 +77,7 @@ const LeaveCreate = () => {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [attachmentName, setAttachmentName] = useState('');
     const [isLoadingManagers, setIsLoadingManagers] = useState(false);
+    const [selectedLeaveType, setSelectedLeaveType] = useState(null);
 
     // Load data on mount
     useEffect(() => {
@@ -161,6 +162,10 @@ const LeaveCreate = () => {
             if (formData.leave_type_id) {
                 const selectedBalance = balances.find(b => b.leave_type_id === parseInt(formData.leave_type_id));
                 setBalance(selectedBalance || null);
+                if (selectedBalance) {
+                    const leaveType = leaveTypes.find(t => t.id === parseInt(formData.leave_type_id));
+                    setSelectedLeaveType(leaveType || null);
+                }
             }
         } catch (err) {
             console.error('Error fetching balance:', err);
